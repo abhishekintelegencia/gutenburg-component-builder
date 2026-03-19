@@ -29,6 +29,19 @@ function rcb_register_blocks() {
 }
 add_action( 'init', 'rcb_register_blocks' );
 
+// Pass global styles to Gutenberg Block Editor
+function rcb_enqueue_block_editor_assets() {
+	$registry_data = rcb_get_style_registry_data();
+
+	// The script handle is usually derived from the block name in block.json
+	wp_register_script('rcb-global-config', false);
+	wp_enqueue_script('rcb-global-config');
+	wp_localize_script( 'rcb-global-config', 'rcbGlobalConfig', array(
+		'styleRegistry' => $registry_data
+	) );
+}
+add_action( 'enqueue_block_editor_assets', 'rcb_enqueue_block_editor_assets' );
+
 // Add REST endpoint to fetch template structures reliably
 function rcb_register_template_rest_route() {
 	register_rest_route( 'rcb/v1', '/templates/', array(

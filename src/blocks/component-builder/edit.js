@@ -11,6 +11,14 @@ export default function Edit({ attributes, setAttributes, clientId }) {
     // Fetch specifically this template immediately.
     const [templateName, setTemplateName] = useState('Component Content');
     const [structureNodes, setStructureNodes] = useState([]);
+    const [globalCustomStyles, setGlobalCustomStyles] = useState([]);
+    const [globalAllowedSettings, setGlobalAllowedSettings] = useState({});
+    
+    // Global Style Registry
+    const globalStyleRegistry = window.rcbGlobalConfig && window.rcbGlobalConfig.styleRegistry 
+        ? window.rcbGlobalConfig.styleRegistry 
+        : ['opacity', 'z-index', 'filter', 'box-shadow'];
+    const [styleRegistry, setStyleRegistry] = useState(globalStyleRegistry);
     const [previewPosts, setPreviewPosts] = useState([]);
 
     // Optional loop visibility settings
@@ -25,7 +33,13 @@ export default function Edit({ attributes, setAttributes, clientId }) {
                 const selected = templates.find(t => t.id === templateId);
                 if (selected && selected.structure) {
                     setTemplateName(selected.title || 'Component Content');
-                    setStructureNodes(selected.structure.structure || []);
+                    const struct = selected.structure;
+                    setStructureNodes(struct.structure || []);
+                    setGlobalCustomStyles(struct.globalCustomStyles || []);
+                    setGlobalAllowedSettings(struct.globalAllowedSettings || {});
+                    if (struct.styleRegistry && (!window.rcbGlobalConfig || !window.rcbGlobalConfig.styleRegistry)) {
+                        setStyleRegistry(struct.styleRegistry);
+                    }
                 }
             }).catch(() => {});
         }
@@ -45,7 +59,10 @@ export default function Edit({ attributes, setAttributes, clientId }) {
     const getAllFields = (nodes) => {
         let fields = [];
         nodes.forEach(node => {
-            if (node.field) fields.push(node);
+            // Skip column and container nodes — they are structural, not content fields
+            if (node.field && node.type !== 'column' && node.type !== 'container') {
+                fields.push(node);
+            }
             if (node.children) fields = fields.concat(getAllFields(node.children));
         });
         return fields;
@@ -93,16 +110,45 @@ export default function Edit({ attributes, setAttributes, clientId }) {
                 nodeStyles.backgroundPosition = 'center';
             }
 
-            // Columns layout for container
+            // Columns layout for container — use grid on container itself
             if (node.type === 'container' && node.columns > 1) {
                 nodeStyles.display = 'grid';
                 nodeStyles.gridTemplateColumns = `repeat(${node.columns}, 1fr)`;
                 nodeStyles.gap = '20px';
+                // In grid mode, render only column children inside the grid
+                return (
+                    <div key={i} className={`rcb-container ${node.id}`} style={nodeStyles}>
+                        {(node.children || []).filter(c => c.type === 'column').map((col, ci) => (
+                            <div key={ci} className={`rcb-column ${col.id}`} style={styles[col.field] || {}}>
+                                {col.children && renderPreviewNodes(col.children, post)}
+                            </div>
+                        ))}
+                    </div>
+                );
+            }
+
+            // Apply custom style variables from block attributes
+            if (node.customStyles && node.customStyles.length > 0) {
+                node.customStyles.forEach(styleKey => {
+                    // Convert to camelCase — that's how we store now
+                    const camelKey = styleKey.replace(/-([a-z])/g, (_, c) => c.toUpperCase());
+                    // Look for camelCase first, fall back to kebab-case
+                    const styleValue = styles[node.field]?.[camelKey] || styles[node.field]?.[styleKey];
+                    if (styleValue) {
+                        nodeStyles[camelKey] = styleValue;
+                    }
+                });
             }
 
             // In static mode, content is user input. 
             // In query mode, content is auto-populated from typical post properties!
-            let nodeContent = content[node.field] || `[${node.field}]`;
+            const placeholderMap = {
+                'heading': 'Enter heading...',
+                'text': 'Enter text content...',
+                'button': 'Button label',
+                'innerblocks': '',
+            };
+            let nodeContent = content[node.field] || placeholderMap[node.type] || '';
             let url = content[`${node.field}_url`];
 
             if (mode === 'query' && post) {
@@ -143,6 +189,12 @@ export default function Edit({ attributes, setAttributes, clientId }) {
                             {node.children && renderPreviewNodes(node.children, post)}
                         </div>
                     );
+                case 'column':
+                    return (
+                        <div key={i} className={`rcb-column ${node.id}`} style={nodeStyles}>
+                            {node.children && renderPreviewNodes(node.children, post)}
+                        </div>
+                    );
                 case 'innerblocks':
                     return (
                         <div key={i} className={`rcb-inner-blocks-slot ${node.id}`} style={nodeStyles}>
@@ -166,7 +218,20 @@ export default function Edit({ attributes, setAttributes, clientId }) {
         });
     };
 
-    const blockProps = useBlockProps();
+    const blockProps = useBlockProps({
+        style: (() => {
+            const rootStyles = styles['_root'] || {};
+            const final = {};
+            globalCustomStyles.forEach(styleKey => {
+                const styleValue = rootStyles[styleKey];
+                if (styleValue) {
+                    const camelKey = styleKey.replace(/-([a-z])/g, (g) => g[1].toUpperCase());
+                    final[camelKey] = styleValue;
+                }
+            });
+            return final;
+        })()
+    });
 
     return (
         <div { ...blockProps }>
@@ -182,6 +247,111 @@ export default function Edit({ attributes, setAttributes, clientId }) {
                         onChange={(val) => setAttributes({ mode: val })}
                     />
                 </PanelBody>
+
+                {/* Global Component Styles Panel */}
+                {templateId > 0 && (globalCustomStyles.length > 0 || Object.keys(globalAllowedSettings).length > 0) && (
+                    <PanelBody title={__('Global Component Styles (Root Block)', 'reusable-component-builder')} initialOpen={false}>
+                        {globalAllowedSettings.color && (
+                            <PanelColorSettings
+                                title={__('Global Colors', 'reusable-component-builder')}
+                                initialOpen={false}
+                                colorSettings={[
+                                    {
+                                        value: styles['_root']?.color || '',
+                                        onChange: (val) => {
+                                            const newStyles = { ...styles };
+                                            newStyles['_root'] = { ...newStyles['_root'], color: val };
+                                            setAttributes({ styles: newStyles });
+                                        },
+                                        label: __('Text Color', 'reusable-component-builder'),
+                                    },
+                                    {
+                                        value: styles['_root']?.backgroundColor || '',
+                                        onChange: (val) => {
+                                            const newStyles = { ...styles };
+                                            newStyles['_root'] = { ...newStyles['_root'], backgroundColor: val };
+                                            setAttributes({ styles: newStyles });
+                                        },
+                                        label: __('Background Color', 'reusable-component-builder'),
+                                    }
+                                ]}
+                            />
+                        )}
+                        {globalAllowedSettings.typography && (
+                            <TextControl
+                                label={__('Global Font Size', 'reusable-component-builder')}
+                                value={styles['_root']?.fontSize || ''}
+                                onChange={(val) => {
+                                    const newStyles = { ...styles };
+                                    newStyles['_root'] = { ...newStyles['_root'], fontSize: val };
+                                    setAttributes({ styles: newStyles });
+                                }}
+                            />
+                        )}
+                        {globalAllowedSettings.spacing && (
+                            <>
+                                <TextControl
+                                    label={__('Global Padding', 'reusable-component-builder')}
+                                    value={styles['_root']?.padding || ''}
+                                    onChange={(val) => {
+                                        const newStyles = { ...styles };
+                                        newStyles['_root'] = { ...newStyles['_root'], padding: val };
+                                        setAttributes({ styles: newStyles });
+                                    }}
+                                />
+                                <TextControl
+                                    label={__('Global Margin', 'reusable-component-builder')}
+                                    value={styles['_root']?.margin || ''}
+                                    onChange={(val) => {
+                                        const newStyles = { ...styles };
+                                        newStyles['_root'] = { ...newStyles['_root'], margin: val };
+                                        setAttributes({ styles: newStyles });
+                                    }}
+                                />
+                            </>
+                        )}
+                        {globalAllowedSettings.borders && (
+                            <TextControl
+                                label={__('Global BorderRadius', 'reusable-component-builder')}
+                                value={styles['_root']?.borderRadius || ''}
+                                onChange={(val) => {
+                                    const newStyles = { ...styles };
+                                    newStyles['_root'] = { ...newStyles['_root'], borderRadius: val };
+                                    setAttributes({ styles: newStyles });
+                                }}
+                            />
+                        )}
+
+                        {globalCustomStyles.filter(styleKey => globalAllowedSettings[styleKey]).map(styleKey => (
+                            <TextControl
+                                key={styleKey}
+                                label={styleKey.charAt(0).toUpperCase() + styleKey.slice(1)}
+                                value={styles['_root']?.[styleKey] || ''}
+                                onChange={(val) => {
+                                    const newStyles = { ...styles };
+                                    newStyles['_root'] = { ...newStyles['_root'], [styleKey]: val };
+                                    setAttributes({ styles: newStyles });
+                                }}
+                            />
+                        ))}
+                        {styleRegistry.filter(styleItem => globalAllowedSettings[styleItem.property || styleItem]).map(styleItem => {
+                            const styleKey = styleItem.property || styleItem;
+                            const label = styleItem.label || styleKey;
+                            return (
+                                <TextControl
+                                    key={styleKey}
+                                    label={label}
+                                    value={styles['_root']?.[styleKey] || ''}
+                                    onChange={(val) => {
+                                        const newStyles = { ...styles };
+                                        newStyles['_root'] = { ...newStyles['_root'], [styleKey]: val };
+                                        setAttributes({ styles: newStyles });
+                                    }}
+                                />
+                            );
+                        })}
+                    </PanelBody>
+                )}
 
                 {mode === 'query' && templateId > 0 && (
                     <PanelBody title={__('Loop Options')} initialOpen={true}>
@@ -304,7 +474,9 @@ export default function Edit({ attributes, setAttributes, clientId }) {
                 {templateId > 0 && configurableFields.map((fieldNode) => {
                     const allowed = fieldNode.allowedSettings || { color: true, typography: true, spacing: true, borders: true, dimensions: fieldNode.type === 'image', backgroundImage: fieldNode.type === 'container' };
                     
-                    if (!allowed.color && !allowed.typography && !allowed.spacing && !allowed.borders && !allowed.alignment && !allowed.dimensions && !allowed.backgroundImage) {
+                    // Check if any standard OR registry keys are enabled
+                    const hasRegistryKeys = styleRegistry && styleRegistry.length > 0 && styleRegistry.some(k => allowed[k.property || k]);
+                    if (!allowed.color && !allowed.typography && !allowed.spacing && !allowed.borders && !allowed.alignment && !allowed.dimensions && !allowed.backgroundImage && !hasRegistryKeys) {
                         return null; // No settings enabled for this node
                     }
 
@@ -420,6 +592,27 @@ export default function Edit({ attributes, setAttributes, clientId }) {
                                     />
                                 </>
                             )}
+
+                            {/* Registry-based Custom Style Controls (inline, not nested) */}
+                            {styleRegistry && styleRegistry.length > 0 &&
+                                styleRegistry
+                                    .filter(styleItem => allowed[styleItem.property || styleItem])
+                                    .map(styleItem => {
+                                        const styleKey = styleItem.property || styleItem;
+                                        const displayLabel = styleItem.label || styleKey.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+                                        // Convert kebab-case to camelCase for storage (e.g. z-index -> zIndex)
+                                        const camelKey = styleKey.replace(/-([a-z])/g, (_, c) => c.toUpperCase());
+                                        return (
+                                            <TextControl
+                                                key={styleKey}
+                                                label={`${displayLabel} (${styleKey})`}
+                                                value={styles[fieldNode.field]?.[camelKey] || styles[fieldNode.field]?.[styleKey] || ''}
+                                                onChange={(val) => updateStyle(fieldNode.field, camelKey, val)}
+                                                placeholder={`e.g. ${styleKey === 'z-index' ? '10' : styleKey === 'opacity' ? '0.8' : styleKey === 'filter' ? 'blur(4px)' : '...'}`}
+                                            />
+                                        );
+                                    })
+                            }
                         </PanelBody>
                     );
                 })}
