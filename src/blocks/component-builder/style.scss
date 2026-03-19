@@ -1,0 +1,20 @@
+/* Basic block styles to ensure visibility */
+.rcb-editor-preview-container {
+    width: 100%;
+}
+
+.rcb-editor-main {
+    display: flex;
+    flex-direction: column;
+}
+
+.rcb-live-preview {
+    margin-top: 10px;
+}
+
+.rcb-field-row {
+    background: #fff;
+    padding: 10px;
+    border: 1px solid #e2e4e7;
+    border-radius: 3px;
+}

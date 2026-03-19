@@ -1,0 +1,457 @@
+import { __ } from '@wordpress/i18n';
+import { useBlockProps, InspectorControls, MediaUpload, MediaUploadCheck, PanelColorSettings, InnerBlocks } from '@wordpress/block-editor';
+import { PanelBody, SelectControl, TextControl, Button, ToggleControl, RangeControl, RadioControl, BaseControl } from '@wordpress/components';
+import { useEffect, useState } from '@wordpress/element';
+import apiFetch from '@wordpress/api-fetch';
+
+export default function Edit({ attributes, setAttributes, clientId }) {
+    const { templateId, content, styles, uniqueId, mode, postType, layout, columns, postsPerPage, pagination, visibilityVars } = attributes;
+    
+    // We already know our templateId from the variation registration.
+    // Fetch specifically this template immediately.
+    const [templateName, setTemplateName] = useState('Component Content');
+    const [structureNodes, setStructureNodes] = useState([]);
+    const [previewPosts, setPreviewPosts] = useState([]);
+
+    // Optional loop visibility settings
+    const vVars = visibilityVars || { showTitle: true, showExcerpt: true, showImage: true, showButton: true };
+
+    // Set uniqueId once
+    useEffect(() => {
+        if (!uniqueId) setAttributes({ uniqueId: clientId });
+        
+        if (templateId > 0) {
+            apiFetch({ path: '/rcb/v1/templates/' }).then((templates) => {
+                const selected = templates.find(t => t.id === templateId);
+                if (selected && selected.structure) {
+                    setTemplateName(selected.title || 'Component Content');
+                    setStructureNodes(selected.structure.structure || []);
+                }
+            }).catch(() => {});
+        }
+    }, [templateId]);
+
+    useEffect(() => {
+        if (mode === 'query') {
+            const route = postType === 'events' ? 'events' : (postType === 'page' ? 'pages' : 'posts');
+            apiFetch({ path: `/wp/v2/${route}?per_page=${postsPerPage}` }).then(posts => {
+                setPreviewPosts(posts);
+            }).catch(() => setPreviewPosts([]));
+        } else {
+            setPreviewPosts([]);
+        }
+    }, [mode, postType, postsPerPage, templateId]);
+
+    const getAllFields = (nodes) => {
+        let fields = [];
+        nodes.forEach(node => {
+            if (node.field) fields.push(node);
+            if (node.children) fields = fields.concat(getAllFields(node.children));
+        });
+        return fields;
+    };
+
+    const configurableFields = getAllFields(structureNodes);
+
+    const updateContent = (key, value) => {
+        setAttributes({ content: { ...content, [key]: value } });
+    };
+
+    const updateStyle = (key, prop, value) => {
+        const currentStyle = styles[key] || {};
+        if (value === undefined || value === '') {
+            const newStyles = { ...styles };
+            const newFieldStyles = { ...currentStyle };
+            delete newFieldStyles[prop];
+            newStyles[key] = newFieldStyles;
+            setAttributes({ styles: newStyles });
+        } else {
+            setAttributes({
+                styles: {
+                    ...styles,
+                    [key]: { ...currentStyle, [prop]: value }
+                }
+            });
+        }
+    };
+    
+    // Track dynamic loop assignments locally for preview mapping
+    let headingAssigned = false;
+    let textAssigned = false;
+    let imageAssigned = false;
+    let buttonAssigned = false;
+
+    // Render nodes (Visual Structure)
+    const renderPreviewNodes = (nodes, post = null) => {
+        return nodes.map((node, i) => {
+            const nodeStyles = { ...(styles[node.field] || {}) };
+            
+            // Container background image implementation
+            if (node.type === 'container' && content[`${node.field}_bg_url`]) {
+                nodeStyles.backgroundImage = `url(${content[`${node.field}_bg_url`]})`;
+                nodeStyles.backgroundSize = 'cover';
+                nodeStyles.backgroundPosition = 'center';
+            }
+
+            // Columns layout for container
+            if (node.type === 'container' && node.columns > 1) {
+                nodeStyles.display = 'grid';
+                nodeStyles.gridTemplateColumns = `repeat(${node.columns}, 1fr)`;
+                nodeStyles.gap = '20px';
+            }
+
+            // In static mode, content is user input. 
+            // In query mode, content is auto-populated from typical post properties!
+            let nodeContent = content[node.field] || `[${node.field}]`;
+            let url = content[`${node.field}_url`];
+
+            if (mode === 'query' && post) {
+                if (node.type === 'heading' && !headingAssigned && vVars.showTitle) {
+                    nodeContent = post.title?.rendered || 'Post Title';
+                    headingAssigned = true; // mapped
+                } else if (node.type === 'heading' && (!vVars.showTitle || headingAssigned)) {
+                    return null; // hide or duplicate skipped
+                }
+
+                if (node.type === 'text' && !textAssigned && vVars.showExcerpt) {
+                    nodeContent = post.excerpt?.rendered?.replace(/(<([^>]+)>)/gi, "") || 'Post Excerpt';
+                    textAssigned = true;
+                } else if (node.type === 'text' && (!vVars.showExcerpt || textAssigned)) {
+                    return null;
+                }
+
+                if (node.type === 'image' && !imageAssigned && vVars.showImage) {
+                    url = post.featured_media ? 'https://via.placeholder.com/600x400?text=Featured+Image' : 'https://via.placeholder.com/600x400?text=No+Image';
+                    imageAssigned = true;
+                } else if (node.type === 'image' && (!vVars.showImage || imageAssigned)) {
+                    return null;
+                }
+
+                if (node.type === 'button' && !buttonAssigned && vVars.showButton) {
+                    nodeContent = __('Read More', 'reusable-component-builder');
+                    url = post.link || '#';
+                    buttonAssigned = true;
+                } else if (node.type === 'button' && (!vVars.showButton || buttonAssigned)) {
+                    return null;
+                }
+            }
+
+            switch (node.type) {
+                case 'container':
+                    return (
+                        <div key={i} className={`rcb-container ${node.id}`} style={nodeStyles}>
+                            {node.children && renderPreviewNodes(node.children, post)}
+                        </div>
+                    );
+                case 'innerblocks':
+                    return (
+                        <div key={i} className={`rcb-inner-blocks-slot ${node.id}`} style={nodeStyles}>
+                            <InnerBlocks />
+                        </div>
+                    );
+                case 'heading':
+                    return <h2 key={i} className={`rcb-heading ${node.id}`} style={nodeStyles}>{nodeContent}</h2>;
+                case 'text':
+                    return <div key={i} className={`rcb-text ${node.id}`} style={nodeStyles}>{nodeContent}</div>;
+                case 'image':
+                    if (url) {
+                        return <img key={i} src={url} className={`rcb-image ${node.id}`} alt={nodeContent} style={{...nodeStyles, display: 'block'}} />;
+                    }
+                    return <div key={i} className={`rcb-image-placeholder ${node.id}`} style={{...nodeStyles, background: '#ccc', minHeight: '100px', display: 'flex', alignItems: 'center', justifyContent: 'center'}}>Image Placeholder: {node.field}</div>;
+                case 'button':
+                    return <a key={i} href={url || '#'} className={`rcb-button ${node.id}`} style={{...nodeStyles, display: 'inline-block'}} onClick={e => e.preventDefault()}>{nodeContent}</a>;
+                default:
+                    return null;
+            }
+        });
+    };
+
+    const blockProps = useBlockProps();
+
+    return (
+        <div { ...blockProps }>
+            <InspectorControls>
+                <PanelBody title={__('Data Source Mode')} initialOpen={true}>
+                    <RadioControl
+                        label="Component Status"
+                        selected={mode}
+                        options={[
+                            { label: 'Static Content', value: 'static' },
+                            { label: 'Dynamic Loop', value: 'query' },
+                        ]}
+                        onChange={(val) => setAttributes({ mode: val })}
+                    />
+                </PanelBody>
+
+                {mode === 'query' && templateId > 0 && (
+                    <PanelBody title={__('Loop Options')} initialOpen={true}>
+                        <SelectControl
+                            label={__('Post Type')}
+                            value={postType}
+                            options={[
+                                { label: 'Posts', value: 'post' },
+                                { label: 'Pages', value: 'page' },
+                                { label: 'Events', value: 'events' },
+                            ]}
+                            onChange={(val) => setAttributes({ postType: val })}
+                        />
+                        <RangeControl
+                            label={__('Posts Per Page')}
+                            value={postsPerPage}
+                            onChange={(val) => setAttributes({ postsPerPage: val })}
+                            min={1}
+                            max={20}
+                        />
+                        <SelectControl
+                            label={__('Layout')}
+                            value={layout}
+                            options={[
+                                { label: 'Grid', value: 'grid' },
+                                { label: 'List', value: 'list' },
+                            ]}
+                            onChange={(val) => setAttributes({ layout: val })}
+                        />
+                        {layout === 'grid' && (
+                            <RangeControl
+                                label={__('Columns')}
+                                value={columns}
+                                onChange={(val) => setAttributes({ columns: val })}
+                                min={1}
+                                max={6}
+                            />
+                        )}
+                        <ToggleControl
+                            label={__('Enable Pagination')}
+                            checked={pagination}
+                            onChange={(val) => setAttributes({ pagination: val })}
+                        />
+                        
+                        <div style={{marginTop: '20px', padding: '10px', background: '#f0f0f0', borderRadius: '4px'}}>
+                            <strong>Loop Display Visibility:</strong>
+                            <p style={{fontSize: '12px', marginTop: '5px'}}>The Loop automatically pairs your template's elements mapping Header=Title, Text=Excerpt, Image=Thumbnail. Toggle visibility below:</p>
+                            
+                            <ToggleControl label="Show Title" checked={vVars.showTitle} onChange={(val) => setAttributes({ visibilityVars: { ...vVars, showTitle: val } })} />
+                            <ToggleControl label="Show Excerpt" checked={vVars.showExcerpt} onChange={(val) => setAttributes({ visibilityVars: { ...vVars, showExcerpt: val } })} />
+                            <ToggleControl label="Show Featured Image" checked={vVars.showImage} onChange={(val) => setAttributes({ visibilityVars: { ...vVars, showImage: val } })} />
+                            <ToggleControl label="Show Post Button" checked={vVars.showButton} onChange={(val) => setAttributes({ visibilityVars: { ...vVars, showButton: val } })} />
+                        </div>
+                    </PanelBody>
+                )}
+
+                {/* CONTENT MAPPING - Only for Static Mode */}
+                {templateId > 0 && mode === 'static' && (
+                    <PanelBody title={`${templateName} Content`} initialOpen={true}>
+                        {configurableFields.map((fieldNode) => {
+                            if (fieldNode.type === 'container') {
+                                // For containers, check if BG image is allowed in style, but we put it in content since it's an asset
+                                return null;
+                            }
+
+                            if (fieldNode.type === 'image') {
+                                return (
+                                    <div key={fieldNode.id} className="rcb-field-row" style={{marginBottom: '15px'}}>
+                                        <BaseControl id={`img-${fieldNode.field}`} label={`${fieldNode.field} (Image)`}>
+                                            <MediaUploadCheck>
+                                                <MediaUpload
+                                                    onSelect={(media) => {
+                                                        // Ensure deep updates are captured cleanly
+                                                        setAttributes({ 
+                                                            content: { 
+                                                                ...content, 
+                                                                [`${fieldNode.field}_id`]: media.id, 
+                                                                [`${fieldNode.field}_url`]: media.url 
+                                                            } 
+                                                        });
+                                                    }}
+                                                    allowedTypes={['image']}
+                                                    value={content[`${fieldNode.field}_id`]}
+                                                    render={({ open }) => (
+                                                        <div className="rcb-media-upload-wrapper" style={{display:'flex', gap:'10px', alignItems:'flex-start', marginTop:'5px'}}>
+                                                            {content[`${fieldNode.field}_url`] && <img src={content[`${fieldNode.field}_url`]} style={{width:'50px', height:'auto', border: '1px solid #ccc'}} />}
+                                                            <Button isSecondary onClick={open}>
+                                                                {content[`${fieldNode.field}_url`] ? 'Change Image' : 'Select Image'}
+                                                            </Button>
+                                                        </div>
+                                                    )}
+                                                />
+                                            </MediaUploadCheck>
+                                        </BaseControl>
+                                    </div>
+                                );
+                            }
+
+                            return (
+                                <div key={fieldNode.id} className="rcb-field-row" style={{marginBottom: '10px'}}>
+                                    <TextControl
+                                        label={`${fieldNode.field} (${fieldNode.type})`}
+                                        value={content[fieldNode.field] || ''}
+                                        onChange={(val) => updateContent(fieldNode.field, val)}
+                                    />
+                                    {fieldNode.type === 'button' && (
+                                        <TextControl
+                                            label={`${fieldNode.field} Link URL`}
+                                            value={content[`${fieldNode.field}_url`] || ''}
+                                            onChange={(val) => updateContent(`${fieldNode.field}_url`, val)}
+                                        />
+                                    )}
+                                </div>
+                            );
+                        })}
+                    </PanelBody>
+                )}
+
+                {/* STYLE MAPPING */}
+                {templateId > 0 && configurableFields.map((fieldNode) => {
+                    const allowed = fieldNode.allowedSettings || { color: true, typography: true, spacing: true, borders: true, dimensions: fieldNode.type === 'image', backgroundImage: fieldNode.type === 'container' };
+                    
+                    if (!allowed.color && !allowed.typography && !allowed.spacing && !allowed.borders && !allowed.alignment && !allowed.dimensions && !allowed.backgroundImage) {
+                        return null; // No settings enabled for this node
+                    }
+
+                    return (
+                        <PanelBody key={`style-${fieldNode.id}`} title={`${fieldNode.type.toUpperCase()} Styles (${fieldNode.field})`} initialOpen={false}>
+                            
+                            {/* Background Image capability for Containers */}
+                            {allowed.backgroundImage && fieldNode.type === 'container' && (
+                                <BaseControl id={`bg-${fieldNode.field}`} label={__('Background Image')} help="Will apply inline background-image to this container.">
+                                    <MediaUploadCheck>
+                                        <MediaUpload
+                                            onSelect={(media) => {
+                                                setAttributes({ 
+                                                    content: { 
+                                                        ...content, 
+                                                        [`${fieldNode.field}_bg_id`]: media.id, 
+                                                        [`${fieldNode.field}_bg_url`]: media.url 
+                                                    } 
+                                                });
+                                            }}
+                                            allowedTypes={['image']}
+                                            value={content[`${fieldNode.field}_bg_id`]}
+                                            render={({ open }) => (
+                                                <div style={{display:'flex', gap:'10px', alignItems:'flex-start', marginTop:'5px', marginBottom:'15px'}}>
+                                                    {content[`${fieldNode.field}_bg_url`] && <img src={content[`${fieldNode.field}_bg_url`]} style={{width:'50px', height:'auto', border: '1px solid #ccc'}} />}
+                                                    <Button isSecondary onClick={open}>
+                                                        {content[`${fieldNode.field}_bg_url`] ? 'Change BG Image' : 'Select BG Image'}
+                                                    </Button>
+                                                </div>
+                                            )}
+                                        />
+                                    </MediaUploadCheck>
+                                </BaseControl>
+                            )}
+
+                            {allowed.color && (
+                                <PanelColorSettings
+                                    title={__('Colors', 'reusable-component-builder')}
+                                    initialOpen={false}
+                                    colorSettings={[
+                                        {
+                                            value: (styles[fieldNode.field] && styles[fieldNode.field].color) || '',
+                                            onChange: (val) => updateStyle(fieldNode.field, 'color', val),
+                                            label: __('Text Color', 'reusable-component-builder'),
+                                        },
+                                        {
+                                            value: (styles[fieldNode.field] && styles[fieldNode.field].backgroundColor) || '',
+                                            onChange: (val) => updateStyle(fieldNode.field, 'backgroundColor', val),
+                                            label: __('Background Color', 'reusable-component-builder'),
+                                        }
+                                    ]}
+                                />
+                            )}
+                            {allowed.typography && (
+                                <TextControl
+                                    label={__('Font Size (e.g. 16px, 1.2rem)', 'reusable-component-builder')}
+                                    value={(styles[fieldNode.field] && styles[fieldNode.field].fontSize) || ''}
+                                    onChange={(val) => updateStyle(fieldNode.field, 'fontSize', val)}
+                                />
+                            )}
+                            {allowed.spacing && (
+                                <>
+                                    <TextControl
+                                        label={__('Padding (e.g. 10px 20px)', 'reusable-component-builder')}
+                                        value={(styles[fieldNode.field] && styles[fieldNode.field].padding) || ''}
+                                        onChange={(val) => updateStyle(fieldNode.field, 'padding', val)}
+                                    />
+                                    <TextControl
+                                        label={__('Margin (e.g. 10px 0)', 'reusable-component-builder')}
+                                        value={(styles[fieldNode.field] && styles[fieldNode.field].margin) || ''}
+                                        onChange={(val) => updateStyle(fieldNode.field, 'margin', val)}
+                                    />
+                                </>
+                            )}
+                            {allowed.alignment && (
+                                <SelectControl
+                                    label={__('Text Alignment')}
+                                    value={(styles[fieldNode.field] && styles[fieldNode.field].textAlign) || ''}
+                                    options={[
+                                        { label: 'Default', value: '' },
+                                        { label: 'Left', value: 'left' },
+                                        { label: 'Center', value: 'center' },
+                                        { label: 'Right', value: 'right' }
+                                    ]}
+                                    onChange={(val) => updateStyle(fieldNode.field, 'textAlign', val)}
+                                />
+                            )}
+                            {allowed.dimensions && (
+                                <>
+                                    <TextControl
+                                        label={__('Width (e.g. 100%, 300px)', 'reusable-component-builder')}
+                                        value={(styles[fieldNode.field] && styles[fieldNode.field].width) || ''}
+                                        onChange={(val) => updateStyle(fieldNode.field, 'width', val)}
+                                    />
+                                    <TextControl
+                                        label={__('Height (e.g. auto, 200px)', 'reusable-component-builder')}
+                                        value={(styles[fieldNode.field] && styles[fieldNode.field].height) || ''}
+                                        onChange={(val) => updateStyle(fieldNode.field, 'height', val)}
+                                    />
+                                </>
+                            )}
+                            {allowed.borders && (
+                                <>
+                                    <TextControl
+                                        label={__('Border Radius (e.g. 4px, 50%)', 'reusable-component-builder')}
+                                        value={(styles[fieldNode.field] && styles[fieldNode.field].borderRadius) || ''}
+                                        onChange={(val) => updateStyle(fieldNode.field, 'borderRadius', val)}
+                                    />
+                                    <TextControl
+                                        label={__('Border Outline (e.g. 1px solid #ccc)', 'reusable-component-builder')}
+                                        value={(styles[fieldNode.field] && styles[fieldNode.field].border) || ''}
+                                        onChange={(val) => updateStyle(fieldNode.field, 'border', val)}
+                                    />
+                                </>
+                            )}
+                        </PanelBody>
+                    );
+                })}
+            </InspectorControls>
+
+            <div className={`rcb-editor-preview-container ${layout === 'grid' && mode === 'query' ? 'rcb-layout-grid' : ''}`} style={layout === 'grid' && mode === 'query' ? {display: 'grid', gridTemplateColumns: `repeat(${columns}, 1fr)`, gap: '20px'} : {}}>
+                {!templateId ? (
+                    <div style={{padding: '30px', border: '1px dashed #ccc', textAlign: 'center', background: '#f5f5f5'}}>
+                        {__('Error: No template variation assigned to this block!', 'reusable-component-builder')}
+                    </div>
+                ) : (
+                    mode === 'query' ? (
+                        previewPosts.length > 0 ? previewPosts.map((post, idx) => {
+                            // Reset per post loop preview
+                            headingAssigned = false;
+                            textAssigned = false;
+                            imageAssigned = false;
+                            buttonAssigned = false;
+
+                            return (
+                                <div key={`post-${idx}`} className={`rcb-instance rcb-instance-${uniqueId}`}>
+                                    {renderPreviewNodes(structureNodes, post)}
+                                </div>
+                            );
+                        }) : <div style={{padding: '20px', background: '#e0e0e0'}}>Loading posts...</div>
+                    ) : (
+                        <div className={`rcb-instance rcb-instance-${uniqueId}`}>
+                            {renderPreviewNodes(structureNodes)}
+                        </div>
+                    )
+                )}
+            </div>
+        </div>
+    );
+}
