@@ -1,0 +1,29 @@
+
+> reusable-component-builder@1.0.0 build
+> wp-scripts build
+
+assets by status 7.29 KiB [compared for emit]
+  assets by path blocks/component-builder/ 2 KiB
+    assets by chunk 430 bytes (id hint: style)
+      asset blocks/component-builder/style-index-rtl.css 215 bytes [compared for emit] (name: blocks/component-builder/style-index) (id hint: style)
+      asset blocks/component-builder/style-index.css 215 bytes [compared for emit] (name: blocks/component-builder/style-index) (id hint: style)
+    asset blocks/component-builder/block.json 1.39 KiB [compared for emit] [from: src/blocks/component-builder/block.json] [copied]
+    asset blocks/component-builder/index.asset.php 193 bytes [emitted] [compared for emit] (name: blocks/component-builder/index)
+  assets by path builder/ 5.29 KiB
+    asset builder/style-index-rtl.css 2.58 KiB [compared for emit] (name: builder/style-index) (id hint: style)
+    asset builder/style-index.css 2.58 KiB [compared for emit] (name: builder/style-index) (id hint: style)
+    asset builder/index.asset.php 134 bytes [emitted] [compared for emit] (name: builder/index)
+asset blocks/component-builder/index.js 13 KiB [emitted] [minimized] (name: blocks/component-builder/index)
+asset builder/index.js 9.14 KiB [emitted] [minimized] (name: builder/index)
+Entrypoint builder/index 14.4 KiB = builder/style-index.css 2.58 KiB builder/style-index-rtl.css 2.58 KiB builder/index.js 9.14 KiB builder/index.asset.php 134 bytes
+Entrypoint blocks/component-builder/index 13.6 KiB = blocks/component-builder/style-index.css 215 bytes blocks/component-builder/style-index-rtl.css 215 bytes blocks/component-builder/index.js 13 KiB blocks/component-builder/index.asset.php 193 bytes
+orphan modules 32.2 KiB (javascript) 1.83 KiB (runtime) [orphan] 23 modules
+runtime modules 5.61 KiB 8 modules
+built modules 43.1 KiB (javascript) 2.79 KiB (css/mini-extract) [built]
+  javascript modules 43.1 KiB
+    ./src/builder/index.js + 3 modules 16.1 KiB [not cacheable] [built] [code generated]
+    ./src/blocks/component-builder/index.js + 9 modules 27 KiB [not cacheable] [built] [code generated]
+  cacheable modules 2.79 KiB
+    css ./node_modules/css-loader/dist/cjs.js??ruleSet[1].rules[3].use[1]!./node_modules/postcss-loader/dist/cjs.js??ruleSet[1].rules[3].use[2]!./node_modules/sass-loader/dist/cjs.js??ruleSet[1].rules[3].use[3]!./src/builder/style.scss 2.58 KiB [built] [code generated]
+    css ./node_modules/css-loader/dist/cjs.js??ruleSet[1].rules[3].use[1]!./node_modules/postcss-loader/dist/cjs.js??ruleSet[1].rules[3].use[2]!./node_modules/sass-loader/dist/cjs.js??ruleSet[1].rules[3].use[3]!./src/blocks/component-builder/style.scss 214 bytes [built] [code generated]
+webpack 5.105.4 compiled successfully in 1615 ms
