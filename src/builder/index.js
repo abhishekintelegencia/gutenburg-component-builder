@@ -3,7 +3,7 @@ import { Button, TextControl, SelectControl, CheckboxControl, Modal, TextareaCon
 import './style.scss';
 
 // Recursive Component
-const NodeEditor = ({ node, updateNode, removeNode, addChild, moveNodeUp, moveNodeDown, styleRegistry = [], parentType = null }) => {
+const NodeEditor = ({ node, updateNode, removeNode, duplicateNode, addChild, moveNodeUp, moveNodeDown, styleRegistry = [], parentType = null }) => {
     const [isEditing, setIsEditing] = useState(false);
     const [newStyleKey, setNewStyleKey] = useState('');
 
@@ -26,6 +26,7 @@ const NodeEditor = ({ node, updateNode, removeNode, addChild, moveNodeUp, moveNo
                     {moveNodeUp && <Button isSmall variant="tertiary" icon="arrow-up-alt2" onClick={moveNodeUp} title="Move Up" />}
                     {moveNodeDown && <Button isSmall variant="tertiary" icon="arrow-down-alt2" onClick={moveNodeDown} title="Move Down" />}
                     <Button isSmall variant="tertiary" onClick={() => setIsEditing(true)}>Edit Settings</Button>
+                    {duplicateNode && <Button isSmall variant="tertiary" icon="admin-page" onClick={duplicateNode} title="Duplicate" />}
                     <Button isSmall isDestructive variant="tertiary" icon="trash" onClick={removeNode} title="Remove" />
                 </div>
             </div>
@@ -138,17 +139,23 @@ const NodeEditor = ({ node, updateNode, removeNode, addChild, moveNodeUp, moveNo
                                         onChange={() => toggleSetting('dimensions')}
                                     />
                                 )}
+                                <CheckboxControl
+                                    label="Opacity"
+                                    checked={node.allowedSettings?.opacity || false}
+                                    onChange={() => toggleSetting('opacity')}
+                                />
+                                <CheckboxControl
+                                    label="Box Shadow"
+                                    checked={node.allowedSettings?.boxShadow || false}
+                                    onChange={() => toggleSetting('boxShadow')}
+                                />
+                                <CheckboxControl
+                                    label="Custom Styles Box"
+                                    checked={node.allowedSettings?.customStylesBox || false}
+                                    onChange={() => toggleSetting('customStylesBox')}
+                                />
 
-                                {/* Custom Styles from Global Registry */}
-                                {styleRegistry.map(styleItem => (
-                                    <div key={styleItem.id} style={{display: 'flex', alignItems: 'center', justifyContent: 'space-between', border: '1px solid #eee', padding: '5px', borderRadius: '3px'}}>
-                                        <CheckboxControl
-                                            label={styleItem.label}
-                                            checked={node.allowedSettings?.[styleItem.property] || false}
-                                            onChange={() => toggleSetting(styleItem.property)}
-                                        />
-                                    </div>
-                                ))}
+
                             </div>
                         </fieldset>
 
@@ -193,6 +200,18 @@ const NodeEditor = ({ node, updateNode, removeNode, addChild, moveNodeUp, moveNo
                                         removeNode={() => {
                                             updateNode({ ...node, children: node.children.filter(c => c.id !== child.id) });
                                         }}
+                                        duplicateNode={() => {
+                                            const genId = (t) => `${t}_${Math.random().toString(36).substr(2, 6)}`;
+                                            const deepClone = (n) => {
+                                                const cln = { ...n, id: genId(n.type), field: genId(n.type) };
+                                                if (cln.children) cln.children = cln.children.map(deepClone);
+                                                return cln;
+                                            };
+                                            const next = [...node.children];
+                                            const idx = next.findIndex(c => c.id === child.id);
+                                            next.splice(idx + 1, 0, deepClone(child));
+                                            updateNode({ ...node, children: next });
+                                        }}
                                         addChild={addChild}
                                         moveNodeUp={null}
                                         moveNodeDown={null}
@@ -215,6 +234,17 @@ const NodeEditor = ({ node, updateNode, removeNode, addChild, moveNodeUp, moveNo
                                         }}
                                         removeNode={() => {
                                             updateNode({ ...node, children: node.children.filter((_, i) => i !== index) });
+                                        }}
+                                        duplicateNode={() => {
+                                            const genId = (t) => `${t}_${Math.random().toString(36).substr(2, 6)}`;
+                                            const deepClone = (n) => {
+                                                const cln = { ...n, id: genId(n.type), field: genId(n.type) };
+                                                if (cln.children) cln.children = cln.children.map(deepClone);
+                                                return cln;
+                                            };
+                                            const next = [...node.children];
+                                            next.splice(index + 1, 0, deepClone(child));
+                                            updateNode({ ...node, children: next });
                                         }}
                                         addChild={addChild}
                                         moveNodeUp={index > 0 ? () => {
@@ -289,11 +319,7 @@ const App = () => {
     const inputElement = document.getElementById('rcb_component_structure_input');
     const initialData = inputElement && inputElement.value ? JSON.parse(inputElement.value) : {};
     
-    // Global Style Registry
-    const globalStyleRegistry = window.rcbGlobalConfig && window.rcbGlobalConfig.styleRegistry 
-        ? window.rcbGlobalConfig.styleRegistry 
-        : ['opacity', 'z-index', 'filter', 'box-shadow'];
-    
+    // Removed global style registry dependency
     const generateId = (type) => `${type}_${Math.random().toString(36).substr(2, 6)}`;
 
     // Helper for old data missing fields on containers
@@ -313,14 +339,13 @@ const App = () => {
     const [structure, setStructure] = useState(defaultStructure);
     const [globalCustomStyles, setGlobalCustomStyles] = useState(defaultGlobalStyles);
     const [globalAllowedSettings, setGlobalAllowedSettings] = useState(initialData.globalAllowedSettings || { color: true, spacing: true });
-    const [styleRegistry, setStyleRegistry] = useState(globalStyleRegistry);
     const [isEditingGlobal, setIsEditingGlobal] = useState(false);
 
     useEffect(() => {
         if (inputElement) {
-            inputElement.value = JSON.stringify({ structure, globalCustomStyles, globalAllowedSettings, styleRegistry });
+            inputElement.value = JSON.stringify({ structure, globalCustomStyles, globalAllowedSettings });
         }
-    }, [structure, globalCustomStyles, globalAllowedSettings, styleRegistry]);
+    }, [structure, globalCustomStyles, globalAllowedSettings]);
 
     const addRootElement = (type) => {
         const id = generateId(type);
@@ -328,7 +353,7 @@ const App = () => {
             id,
             type,
             field: generateId(type),
-            allowedSettings: { color: true, typography: true, spacing: true, borders: true, dimensions: type === 'image', backgroundImage: type === 'container' },
+            allowedSettings: { color: true, typography: true, spacing: true, borders: true, opacity: false, boxShadow: false, customStylesBox: false, dimensions: type === 'image', backgroundImage: type === 'container' },
             ...(type === 'container' ? { children: [] } : {})
         };
         setStructure([...structure, newNode]);
@@ -342,7 +367,7 @@ const App = () => {
                     id: subId,
                     type,
                     field: generateId(type),
-                    allowedSettings: { color: true, typography: true, spacing: true, borders: true, dimensions: type === 'image', backgroundImage: type === 'container' },
+                    allowedSettings: { color: true, typography: true, spacing: true, borders: true, opacity: false, boxShadow: false, customStylesBox: false, dimensions: type === 'image', backgroundImage: type === 'container' },
                     ...(type === 'container' || type === 'column' ? { children: [] } : {})
                 };
                 return { ...node, children: [...(node.children || []), newNode] };
@@ -414,20 +439,21 @@ const App = () => {
                                         onChange={() => setGlobalAllowedSettings({...globalAllowedSettings, borders: !globalAllowedSettings.borders})}
                                     />
 
-                                    {/* Registered Custom Styles Display */}
-                                    {styleRegistry.map(styleItem => {
-                                        const styleKey = styleItem.property || styleItem;
-                                        const label = styleItem.label || styleKey;
-                                        return (
-                                            <div key={styleItem.id || styleKey} style={{display: 'flex', alignItems: 'center', justifyContent: 'space-between', border: '1px solid #eee', padding: '5px', borderRadius: '3px'}}>
-                                                <CheckboxControl
-                                                    label={label}
-                                                    checked={globalAllowedSettings[styleKey] || false}
-                                                    onChange={() => setGlobalAllowedSettings({...globalAllowedSettings, [styleKey]: !globalAllowedSettings[styleKey]})}
-                                                />
-                                            </div>
-                                        );
-                                    })}
+                                    <CheckboxControl
+                                        label="Opacity"
+                                        checked={globalAllowedSettings.opacity || false}
+                                        onChange={() => setGlobalAllowedSettings({...globalAllowedSettings, opacity: !globalAllowedSettings.opacity})}
+                                    />
+                                    <CheckboxControl
+                                        label="Box Shadow"
+                                        checked={globalAllowedSettings.boxShadow || false}
+                                        onChange={() => setGlobalAllowedSettings({...globalAllowedSettings, boxShadow: !globalAllowedSettings.boxShadow})}
+                                    />
+                                    <CheckboxControl
+                                        label="Custom Styles Box"
+                                        checked={globalAllowedSettings.customStylesBox || false}
+                                        onChange={() => setGlobalAllowedSettings({...globalAllowedSettings, customStylesBox: !globalAllowedSettings.customStylesBox})}
+                                    />
                                 </div>
                             </fieldset>
 
@@ -457,6 +483,17 @@ const App = () => {
                                 const newStructure = structure.filter((_, i) => i !== index);
                                 setStructure(newStructure);
                             }}
+                            duplicateNode={() => {
+                                const genId = (t) => `${t}_${Math.random().toString(36).substr(2, 6)}`;
+                                const deepClone = (n) => {
+                                    const cln = { ...n, id: genId(n.type), field: genId(n.type) };
+                                    if (cln.children) cln.children = cln.children.map(deepClone);
+                                    return cln;
+                                };
+                                const newStructure = [...structure];
+                                newStructure.splice(index + 1, 0, deepClone(node));
+                                setStructure(newStructure);
+                            }}
                             moveNodeUp={index > 0 ? () => {
                                 const newStructure = [...structure];
                                 const temp = newStructure[index - 1];
@@ -472,7 +509,6 @@ const App = () => {
                                 setStructure(newStructure);
                             } : null}
                             addChild={handleAddChild}
-                            styleRegistry={styleRegistry}
                         />
                     ))}
                     
@@ -485,22 +521,6 @@ const App = () => {
             
             <div className="rcb-sidebar-area">
                 <div className="rcb-sidebar">
-                    <div style={{padding: '15px', borderBottom: '1px solid #eee', background: '#fcfcfc'}}>
-                         <strong>Style Control Registry</strong>
-                         <p style={{fontSize: '11px', color: '#666', marginBottom: '10px'}}>These are the global CSS properties you registered in the "Allowed Style Control" menu. They are available on all elements.</p>
-                         <div style={{marginTop: '10px', display: 'flex', flexWrap: 'wrap', gap: '5px'}}>
-                             {styleRegistry.map(styleItem => {
-                                 const styleKey = styleItem.property || styleItem;
-                                 const label = styleItem.label || styleKey;
-                                 return (
-                                     <span key={styleItem.id || styleKey} style={{background: '#eee', padding: '4px 8px', borderRadius: '4px', fontSize: '11px', border: '1px solid #ddd'}}>
-                                         {label} ({styleKey})
-                                     </span>
-                                 );
-                             })}
-                         </div>
-                    </div>
-
                     <div style={{padding: '15px'}}>
                         <strong>Available Fields:</strong>
                         <p style={{fontSize: '11px', color: '#666'}}>Use these generic visual fields which map to component content.</p>
