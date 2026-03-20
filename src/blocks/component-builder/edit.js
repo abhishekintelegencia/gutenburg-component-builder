@@ -1,8 +1,118 @@
 import { __ } from '@wordpress/i18n';
 import { useBlockProps, InspectorControls, MediaUpload, MediaUploadCheck, PanelColorSettings, InnerBlocks } from '@wordpress/block-editor';
-import { PanelBody, SelectControl, TextControl, Button, ToggleControl, RangeControl, RadioControl, BaseControl } from '@wordpress/components';
+import { PanelBody, SelectControl, TextControl, Button, ToggleControl, RangeControl, RadioControl, BaseControl, __experimentalBoxControl as BoxControl, __experimentalToggleGroupControl as ToggleGroupControl, __experimentalToggleGroupControlOption as ToggleGroupControlOption } from '@wordpress/components';
 import { useEffect, useState } from '@wordpress/element';
 import apiFetch from '@wordpress/api-fetch';
+
+const parseBoxValue = (value) => {
+    if (typeof value === 'object' && value !== null) return value;
+    if (typeof value === 'string' && value.trim() !== '') {
+        // Un-format var(--wp--preset--spacing--20) back to var:preset|spacing|20
+        const normalizedStr = value.replace(/var\(--wp--preset--spacing--([^)]+)\)/g, 'var:preset|spacing|$1');
+        const parts = normalizedStr.split(' ').filter(Boolean);
+        if (parts.length === 1) return { top: parts[0], right: parts[0], bottom: parts[0], left: parts[0] };
+        if (parts.length === 2) return { top: parts[0], right: parts[1], bottom: parts[0], left: parts[1] };
+        if (parts.length === 3) return { top: parts[0], right: parts[1], bottom: parts[2], left: parts[1] };
+        if (parts.length === 4) return { top: parts[0], right: parts[1], bottom: parts[2], left: parts[3] };
+    }
+    return undefined;
+};
+
+const serializeBoxValue = (value) => {
+    if (typeof value === 'object' && value !== null) {
+        if (!value.top && !value.right && !value.bottom && !value.left) return undefined;
+        
+        const formatVal = (v) => {
+            if (v === undefined || v === '') return '0px';
+            // Convert var:preset|spacing|XX to var(--wp--preset--spacing--XX)
+            if (String(v).startsWith('var:preset|spacing|')) {
+                return `var(--wp--preset--spacing--${v.replace('var:preset|spacing|', '')})`;
+            }
+            // Ensure there is a unit if it's just a number
+            if (!isNaN(v) && v !== '') {
+                 return `${v}px`;
+            }
+            return v;
+        };
+        
+        const t = formatVal(value.top);
+        const r = formatVal(value.right);
+        const b = formatVal(value.bottom);
+        const l = formatVal(value.left);
+        
+        if (t === r && r === b && b === l) return t;
+        if (t === b && r === l) return `${t} ${r}`;
+        return `${t} ${r} ${b} ${l}`;
+    }
+    return value;
+};
+
+const AdvancedTypographyControl = ({ label, value, fontWeight, textTransform, lineHeight, letterSpacing, onChange }) => {
+    const valString = (value || '').toString();
+    const parsedValue = parseFloat(valString) || 0;
+    const unitMatch = valString.match(/[a-z%]+$/i);
+    const unit = unitMatch ? unitMatch[0] : 'px';
+    
+    return (
+        <div className="rcb-advanced-typography" style={{ marginBottom: '15px' }}>
+            <span style={{ fontSize: '11px', fontWeight: 600, textTransform: 'uppercase', display: 'block', marginBottom: '10px' }}>{label}</span>
+            <div style={{ marginBottom: '10px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                    <span style={{ fontSize: '11px', color: '#666' }}>Size</span>
+                    <SelectControl
+                        value={unit}
+                        options={[
+                            { label: 'PX', value: 'px' }, { label: 'EM', value: 'em' }, { label: 'REM', value: 'rem' }
+                        ]}
+                        onChange={(newUnit) => onChange('fontSize', parsedValue ? `${parsedValue}${newUnit}` : '')}
+                        style={{ minWidth: '70px', height: '30px', padding: '0 8px', fontSize: '12px' }}
+                    />
+                </div>
+                <RangeControl
+                    value={parsedValue}
+                    onChange={(newVal) => onChange('fontSize', newVal !== undefined ? `${newVal}${unit}` : '')}
+                    min={0}
+                    max={unit === 'px' ? 100 : 10}
+                    step={unit === 'px' ? 1 : 0.1}
+                    allowReset={true}
+                />
+            </div>
+            <div style={{ display: 'flex', gap: '10px', marginBottom: '10px' }}>
+                <div style={{ flex: 1 }}>
+                    <SelectControl
+                        label="Weight"
+                        value={fontWeight || ''}
+                        options={[
+                            { label: 'Default', value: '' }, { label: 'Normal', value: 'normal' }, { label: 'Bold', value: 'bold' },
+                            { label: '300', value: '300' }, { label: '400', value: '400' }, { label: '500', value: '500' },
+                            { label: '600', value: '600' }, { label: '700', value: '700' }, { label: '800', value: '800' }
+                        ]}
+                        onChange={(val) => onChange('fontWeight', val)}
+                    />
+                </div>
+                <div style={{ flex: 1 }}>
+                    <SelectControl
+                        label="Transform"
+                        value={textTransform || ''}
+                        options={[
+                            { label: 'Default', value: '' }, { label: 'Uppercase', value: 'uppercase' },
+                            { label: 'Lowercase', value: 'lowercase' }, { label: 'Capitalize', value: 'capitalize' }
+                        ]}
+                        onChange={(val) => onChange('textTransform', val)}
+                    />
+                </div>
+            </div>
+            <div style={{ display: 'flex', gap: '10px' }}>
+                <div style={{ flex: 1 }}>
+                    <TextControl label="Line Height" value={lineHeight || ''} onChange={(val) => onChange('lineHeight', val)} help="e.g. 1.5, 24px" />
+                </div>
+                <div style={{ flex: 1 }}>
+                    <TextControl label="Letter Spacing" value={letterSpacing || ''} onChange={(val) => onChange('letterSpacing', val)} help="e.g. 1px" />
+                </div>
+            </div>
+        </div>
+    );
+};
 
 export default function Edit({ attributes, setAttributes, clientId }) {
     const { templateId, content, styles, uniqueId, mode, postType, layout, columns, postsPerPage, pagination, visibilityVars } = attributes;
@@ -13,12 +123,6 @@ export default function Edit({ attributes, setAttributes, clientId }) {
     const [structureNodes, setStructureNodes] = useState([]);
     const [globalCustomStyles, setGlobalCustomStyles] = useState([]);
     const [globalAllowedSettings, setGlobalAllowedSettings] = useState({});
-    
-    // Global Style Registry
-    const globalStyleRegistry = window.rcbGlobalConfig && window.rcbGlobalConfig.styleRegistry 
-        ? window.rcbGlobalConfig.styleRegistry 
-        : ['opacity', 'z-index', 'filter', 'box-shadow'];
-    const [styleRegistry, setStyleRegistry] = useState(globalStyleRegistry);
     const [previewPosts, setPreviewPosts] = useState([]);
 
     // Optional loop visibility settings
@@ -37,9 +141,6 @@ export default function Edit({ attributes, setAttributes, clientId }) {
                     setStructureNodes(struct.structure || []);
                     setGlobalCustomStyles(struct.globalCustomStyles || []);
                     setGlobalAllowedSettings(struct.globalAllowedSettings || {});
-                    if (struct.styleRegistry && (!window.rcbGlobalConfig || !window.rcbGlobalConfig.styleRegistry)) {
-                        setStyleRegistry(struct.styleRegistry);
-                    }
                 }
             }).catch(() => {});
         }
@@ -101,7 +202,18 @@ export default function Edit({ attributes, setAttributes, clientId }) {
     // Render nodes (Visual Structure)
     const renderPreviewNodes = (nodes, post = null) => {
         return nodes.map((node, i) => {
-            const nodeStyles = { ...(styles[node.field] || {}) };
+            const rawStyles = { ...(styles[node.field] || {}) };
+            const { customCssPairs, ...validReactStyles } = rawStyles;
+            const nodeStyles = { ...validReactStyles };
+            
+            if (customCssPairs && Array.isArray(customCssPairs)) {
+                customCssPairs.forEach(pair => {
+                    if (pair.key && pair.value) {
+                        const camelKey = pair.key.replace(/-([a-z])/g, (_, c) => c.toUpperCase());
+                        nodeStyles[camelKey] = pair.value;
+                    }
+                });
+            }
             
             // Container background image implementation
             if (node.type === 'container' && content[`${node.field}_bg_url`]) {
@@ -236,122 +348,6 @@ export default function Edit({ attributes, setAttributes, clientId }) {
     return (
         <div { ...blockProps }>
             <InspectorControls>
-                <PanelBody title={__('Data Source Mode')} initialOpen={true}>
-                    <RadioControl
-                        label="Component Status"
-                        selected={mode}
-                        options={[
-                            { label: 'Static Content', value: 'static' },
-                            { label: 'Dynamic Loop', value: 'query' },
-                        ]}
-                        onChange={(val) => setAttributes({ mode: val })}
-                    />
-                </PanelBody>
-
-                {/* Global Component Styles Panel */}
-                {templateId > 0 && (globalCustomStyles.length > 0 || Object.keys(globalAllowedSettings).length > 0) && (
-                    <PanelBody title={__('Global Component Styles (Root Block)', 'reusable-component-builder')} initialOpen={false}>
-                        {globalAllowedSettings.color && (
-                            <PanelColorSettings
-                                title={__('Global Colors', 'reusable-component-builder')}
-                                initialOpen={false}
-                                colorSettings={[
-                                    {
-                                        value: styles['_root']?.color || '',
-                                        onChange: (val) => {
-                                            const newStyles = { ...styles };
-                                            newStyles['_root'] = { ...newStyles['_root'], color: val };
-                                            setAttributes({ styles: newStyles });
-                                        },
-                                        label: __('Text Color', 'reusable-component-builder'),
-                                    },
-                                    {
-                                        value: styles['_root']?.backgroundColor || '',
-                                        onChange: (val) => {
-                                            const newStyles = { ...styles };
-                                            newStyles['_root'] = { ...newStyles['_root'], backgroundColor: val };
-                                            setAttributes({ styles: newStyles });
-                                        },
-                                        label: __('Background Color', 'reusable-component-builder'),
-                                    }
-                                ]}
-                            />
-                        )}
-                        {globalAllowedSettings.typography && (
-                            <TextControl
-                                label={__('Global Font Size', 'reusable-component-builder')}
-                                value={styles['_root']?.fontSize || ''}
-                                onChange={(val) => {
-                                    const newStyles = { ...styles };
-                                    newStyles['_root'] = { ...newStyles['_root'], fontSize: val };
-                                    setAttributes({ styles: newStyles });
-                                }}
-                            />
-                        )}
-                        {globalAllowedSettings.spacing && (
-                            <>
-                                <TextControl
-                                    label={__('Global Padding', 'reusable-component-builder')}
-                                    value={styles['_root']?.padding || ''}
-                                    onChange={(val) => {
-                                        const newStyles = { ...styles };
-                                        newStyles['_root'] = { ...newStyles['_root'], padding: val };
-                                        setAttributes({ styles: newStyles });
-                                    }}
-                                />
-                                <TextControl
-                                    label={__('Global Margin', 'reusable-component-builder')}
-                                    value={styles['_root']?.margin || ''}
-                                    onChange={(val) => {
-                                        const newStyles = { ...styles };
-                                        newStyles['_root'] = { ...newStyles['_root'], margin: val };
-                                        setAttributes({ styles: newStyles });
-                                    }}
-                                />
-                            </>
-                        )}
-                        {globalAllowedSettings.borders && (
-                            <TextControl
-                                label={__('Global BorderRadius', 'reusable-component-builder')}
-                                value={styles['_root']?.borderRadius || ''}
-                                onChange={(val) => {
-                                    const newStyles = { ...styles };
-                                    newStyles['_root'] = { ...newStyles['_root'], borderRadius: val };
-                                    setAttributes({ styles: newStyles });
-                                }}
-                            />
-                        )}
-
-                        {globalCustomStyles.filter(styleKey => globalAllowedSettings[styleKey]).map(styleKey => (
-                            <TextControl
-                                key={styleKey}
-                                label={styleKey.charAt(0).toUpperCase() + styleKey.slice(1)}
-                                value={styles['_root']?.[styleKey] || ''}
-                                onChange={(val) => {
-                                    const newStyles = { ...styles };
-                                    newStyles['_root'] = { ...newStyles['_root'], [styleKey]: val };
-                                    setAttributes({ styles: newStyles });
-                                }}
-                            />
-                        ))}
-                        {styleRegistry.filter(styleItem => globalAllowedSettings[styleItem.property || styleItem]).map(styleItem => {
-                            const styleKey = styleItem.property || styleItem;
-                            const label = styleItem.label || styleKey;
-                            return (
-                                <TextControl
-                                    key={styleKey}
-                                    label={label}
-                                    value={styles['_root']?.[styleKey] || ''}
-                                    onChange={(val) => {
-                                        const newStyles = { ...styles };
-                                        newStyles['_root'] = { ...newStyles['_root'], [styleKey]: val };
-                                        setAttributes({ styles: newStyles });
-                                    }}
-                                />
-                            );
-                        })}
-                    </PanelBody>
-                )}
 
                 {mode === 'query' && templateId > 0 && (
                     <PanelBody title={__('Loop Options')} initialOpen={true}>
@@ -474,9 +470,8 @@ export default function Edit({ attributes, setAttributes, clientId }) {
                 {templateId > 0 && configurableFields.map((fieldNode) => {
                     const allowed = fieldNode.allowedSettings || { color: true, typography: true, spacing: true, borders: true, dimensions: fieldNode.type === 'image', backgroundImage: fieldNode.type === 'container' };
                     
-                    // Check if any standard OR registry keys are enabled
-                    const hasRegistryKeys = styleRegistry && styleRegistry.length > 0 && styleRegistry.some(k => allowed[k.property || k]);
-                    if (!allowed.color && !allowed.typography && !allowed.spacing && !allowed.borders && !allowed.alignment && !allowed.dimensions && !allowed.backgroundImage && !hasRegistryKeys) {
+                    // Check if any standard keys are enabled
+                    if (!allowed.color && !allowed.typography && !allowed.spacing && !allowed.borders && !allowed.alignment && !allowed.dimensions && !allowed.backgroundImage && !allowed.opacity && !allowed.boxShadow && !allowed.customStylesBox) {
                         return null; // No settings enabled for this node
                     }
 
@@ -531,38 +526,46 @@ export default function Edit({ attributes, setAttributes, clientId }) {
                                 />
                             )}
                             {allowed.typography && (
-                                <TextControl
-                                    label={__('Font Size (e.g. 16px, 1.2rem)', 'reusable-component-builder')}
+                                <AdvancedTypographyControl
+                                    label={__('Typography', 'reusable-component-builder')}
                                     value={(styles[fieldNode.field] && styles[fieldNode.field].fontSize) || ''}
-                                    onChange={(val) => updateStyle(fieldNode.field, 'fontSize', val)}
+                                    fontWeight={(styles[fieldNode.field] && styles[fieldNode.field].fontWeight) || ''}
+                                    textTransform={(styles[fieldNode.field] && styles[fieldNode.field].textTransform) || ''}
+                                    lineHeight={(styles[fieldNode.field] && styles[fieldNode.field].lineHeight) || ''}
+                                    letterSpacing={(styles[fieldNode.field] && styles[fieldNode.field].letterSpacing) || ''}
+                                    onChange={(prop, val) => updateStyle(fieldNode.field, prop, val)}
                                 />
                             )}
                             {allowed.spacing && (
                                 <>
-                                    <TextControl
-                                        label={__('Padding (e.g. 10px 20px)', 'reusable-component-builder')}
-                                        value={(styles[fieldNode.field] && styles[fieldNode.field].padding) || ''}
-                                        onChange={(val) => updateStyle(fieldNode.field, 'padding', val)}
-                                    />
-                                    <TextControl
-                                        label={__('Margin (e.g. 10px 0)', 'reusable-component-builder')}
-                                        value={(styles[fieldNode.field] && styles[fieldNode.field].margin) || ''}
-                                        onChange={(val) => updateStyle(fieldNode.field, 'margin', val)}
-                                    />
+                                    <div className="rcb-box-control-wrapper" style={{ marginBottom: '15px' }}>
+                                        <BoxControl
+                                            label={__('Padding', 'reusable-component-builder')}
+                                            values={parseBoxValue((styles[fieldNode.field] && styles[fieldNode.field].padding) || '')}
+                                            onChange={(val) => updateStyle(fieldNode.field, 'padding', serializeBoxValue(val))}
+                                        />
+                                    </div>
+                                    <div className="rcb-box-control-wrapper" style={{ marginBottom: '15px' }}>
+                                        <BoxControl
+                                            label={__('Margin', 'reusable-component-builder')}
+                                            values={parseBoxValue((styles[fieldNode.field] && styles[fieldNode.field].margin) || '')}
+                                            onChange={(val) => updateStyle(fieldNode.field, 'margin', serializeBoxValue(val))}
+                                        />
+                                    </div>
                                 </>
                             )}
                             {allowed.alignment && (
-                                <SelectControl
-                                    label={__('Text Alignment')}
-                                    value={(styles[fieldNode.field] && styles[fieldNode.field].textAlign) || ''}
-                                    options={[
-                                        { label: 'Default', value: '' },
-                                        { label: 'Left', value: 'left' },
-                                        { label: 'Center', value: 'center' },
-                                        { label: 'Right', value: 'right' }
-                                    ]}
-                                    onChange={(val) => updateStyle(fieldNode.field, 'textAlign', val)}
-                                />
+                                <ToggleGroupControl
+                                    label={__('Text Alignment', 'reusable-component-builder')}
+                                    value={(styles[fieldNode.field] && styles[fieldNode.field].textAlign) || 'default'}
+                                    isBlock
+                                    onChange={(val) => updateStyle(fieldNode.field, 'textAlign', val === 'default' ? '' : val)}
+                                >
+                                    <ToggleGroupControlOption value="default" label={__('Default')} />
+                                    <ToggleGroupControlOption value="left" label={__('Left')} />
+                                    <ToggleGroupControlOption value="center" label={__('Center')} />
+                                    <ToggleGroupControlOption value="right" label={__('Right')} />
+                                </ToggleGroupControl>
                             )}
                             {allowed.dimensions && (
                                 <>
@@ -580,39 +583,88 @@ export default function Edit({ attributes, setAttributes, clientId }) {
                             )}
                             {allowed.borders && (
                                 <>
-                                    <TextControl
-                                        label={__('Border Radius (e.g. 4px, 50%)', 'reusable-component-builder')}
-                                        value={(styles[fieldNode.field] && styles[fieldNode.field].borderRadius) || ''}
-                                        onChange={(val) => updateStyle(fieldNode.field, 'borderRadius', val)}
+                                    <RangeControl
+                                        label={__('Border Radius (px)', 'reusable-component-builder')}
+                                        value={parseInt(styles[fieldNode.field]?.[ 'borderRadius' ]) || 0}
+                                        onChange={(val) => updateStyle(fieldNode.field, 'borderRadius', val !== undefined ? `${val}px` : '')}
+                                        min={0}
+                                        max={100}
+                                        allowReset={true}
                                     />
-                                    <TextControl
-                                        label={__('Border Outline (e.g. 1px solid #ccc)', 'reusable-component-builder')}
+                                    <SelectControl
+                                        label={__('Border Outline', 'reusable-component-builder')}
                                         value={(styles[fieldNode.field] && styles[fieldNode.field].border) || ''}
+                                        options={[
+                                            { label: __('None', 'reusable-component-builder'), value: '' },
+                                            { label: __('Solid Light (1px solid #ccc)', 'reusable-component-builder'), value: '1px solid #ccc' },
+                                            { label: __('Solid Dark (1px solid #333)', 'reusable-component-builder'), value: '1px solid #333' },
+                                            { label: __('Dashed Light (1px dashed #ccc)', 'reusable-component-builder'), value: '1px dashed #ccc' },
+                                            { label: __('Dotted Light (1px dotted #ccc)', 'reusable-component-builder'), value: '1px dotted #ccc' },
+                                            { label: __('Thick Solid Dark (2px solid #333)', 'reusable-component-builder'), value: '2px solid #333' }
+                                        ]}
                                         onChange={(val) => updateStyle(fieldNode.field, 'border', val)}
                                     />
                                 </>
                             )}
 
-                            {/* Registry-based Custom Style Controls (inline, not nested) */}
-                            {styleRegistry && styleRegistry.length > 0 &&
-                                styleRegistry
-                                    .filter(styleItem => allowed[styleItem.property || styleItem])
-                                    .map(styleItem => {
-                                        const styleKey = styleItem.property || styleItem;
-                                        const displayLabel = styleItem.label || styleKey.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
-                                        // Convert kebab-case to camelCase for storage (e.g. z-index -> zIndex)
-                                        const camelKey = styleKey.replace(/-([a-z])/g, (_, c) => c.toUpperCase());
-                                        return (
+                            {allowed.opacity && (
+                                <RangeControl
+                                    label={__('Opacity', 'reusable-component-builder')}
+                                    value={parseFloat(styles[fieldNode.field]?.[ 'opacity' ]) ?? 1}
+                                    onChange={(val) => updateStyle(fieldNode.field, 'opacity', val)}
+                                    min={0}
+                                    max={1}
+                                    step={0.05}
+                                    allowReset={true}
+                                />
+                            )}
+                            {allowed.boxShadow && (
+                                <TextControl
+                                    label={__('Box Shadow', 'reusable-component-builder')}
+                                    value={styles[fieldNode.field]?.[ 'boxShadow' ] || ''}
+                                    onChange={(val) => updateStyle(fieldNode.field, 'boxShadow', val)}
+                                    help="e.g., 0px 4px 10px rgba(0,0,0,0.1)"
+                                />
+                            )}
+                            {allowed.customStylesBox && (
+                                <div style={{ marginTop: '15px', padding: '10px', border: '1px solid #ddd', borderRadius: '4px', background: '#fafafa' }}>
+                                    <strong style={{ display: 'block', marginBottom: '10px', fontSize: '12px' }}>{__('Custom Styles', 'reusable-component-builder')}</strong>
+                                    {(styles[fieldNode.field]?.customCssPairs || []).map((pair, idx) => (
+                                        <div key={idx} style={{ display: 'flex', gap: '5px', marginBottom: '5px', alignItems: 'center' }}>
                                             <TextControl
-                                                key={styleKey}
-                                                label={`${displayLabel} (${styleKey})`}
-                                                value={styles[fieldNode.field]?.[camelKey] || styles[fieldNode.field]?.[styleKey] || ''}
-                                                onChange={(val) => updateStyle(fieldNode.field, camelKey, val)}
-                                                placeholder={`e.g. ${styleKey === 'z-index' ? '10' : styleKey === 'opacity' ? '0.8' : styleKey === 'filter' ? 'blur(4px)' : '...'}`}
+                                                value={pair.key}
+                                                placeholder="z-index"
+                                                onChange={(val) => {
+                                                    const newPairs = [...(styles[fieldNode.field].customCssPairs || [])];
+                                                    newPairs[idx] = { ...newPairs[idx], key: val };
+                                                    updateStyle(fieldNode.field, 'customCssPairs', newPairs);
+                                                }}
+                                                style={{ flex: 1, marginBottom: 0 }}
                                             />
-                                        );
-                                    })
-                            }
+                                            <TextControl
+                                                value={pair.value}
+                                                placeholder="99"
+                                                onChange={(val) => {
+                                                    const newPairs = [...(styles[fieldNode.field].customCssPairs || [])];
+                                                    newPairs[idx] = { ...newPairs[idx], value: val };
+                                                    updateStyle(fieldNode.field, 'customCssPairs', newPairs);
+                                                }}
+                                                style={{ flex: 1, marginBottom: 0 }}
+                                            />
+                                            <Button isDestructive isSmall variant="tertiary" icon="trash" onClick={() => {
+                                                const newPairs = (styles[fieldNode.field].customCssPairs || []).filter((_, i) => i !== idx);
+                                                updateStyle(fieldNode.field, 'customCssPairs', newPairs.length ? newPairs : undefined);
+                                            }} />
+                                        </div>
+                                    ))}
+                                    <Button variant="secondary" isSmall onClick={() => {
+                                        const newPairs = [...(styles[fieldNode.field]?.customCssPairs || []), { key: '', value: '' }];
+                                        updateStyle(fieldNode.field, 'customCssPairs', newPairs);
+                                    }}>
+                                        + Add Custom Style
+                                    </Button>
+                                </div>
+                            )}
                         </PanelBody>
                     );
                 })}

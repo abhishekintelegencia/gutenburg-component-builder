@@ -122,9 +122,6 @@ function rcb_enqueue_admin_scripts( $hook ) {
 	global $post;
 	if ( ( $hook === 'post-new.php' || $hook === 'post.php' ) && isset( $post ) ) {
 		if ( 'component_template' === $post->post_type ) {
-			$global_registry_opt = get_option( 'rcb_global_style_registry', '' );
-			$global_registry_arr = array_filter( array_map( 'trim', explode( ',', $global_registry_opt ) ) );
-
 			$asset_file = RCB_PLUGIN_DIR . 'build/builder/index.asset.php';
 			if ( file_exists( $asset_file ) ) {
 				$assets = require $asset_file;
@@ -135,9 +132,8 @@ function rcb_enqueue_admin_scripts( $hook ) {
 					$assets['version'],
 					true
 				);
-				$registry_data = rcb_get_style_registry_data();
 				wp_localize_script( 'rcb-builder-js', 'rcbGlobalConfig', array(
-					'styleRegistry' => $registry_data
+					'styleRegistry' => array()
 				) );
 				wp_enqueue_style('wp-components');
 				if ( file_exists( RCB_PLUGIN_DIR . 'build/builder/style-index.css' ) ) {
@@ -154,253 +150,53 @@ function rcb_enqueue_admin_scripts( $hook ) {
 }
 add_action( 'admin_enqueue_scripts', 'rcb_enqueue_admin_scripts' );
 
-// Register Settings Page for Global Style Registry
-function rcb_register_global_settings_page() {
-	add_submenu_page(
-		'edit.php?post_type=component_template',
-		__( 'Allowed Style Control', 'reusable-component-builder' ),
-		__( 'Allowed Style Control', 'reusable-component-builder' ),
-		'manage_options',
-		'rcb-allowed-styles',
-		'rcb_render_global_settings_page'
-	);
-}
-add_action( 'admin_menu', 'rcb_register_global_settings_page' );
-
-function rcb_register_global_settings() {
-	register_setting( 'rcb_global_styles_group', 'rcb_global_style_registry' );
-}
-add_action( 'admin_init', 'rcb_register_global_settings' );
-
-/**
- * Helper to get style registry data (with migration support)
- */
-function rcb_get_style_registry_data() {
-	$registry = get_option( 'rcb_global_style_registry', '' );
-	
-	// If empty string, return empty array
-	if ( empty( $registry ) ) {
-		return array();
+// Add "Duplicate" row action to Component Templates list
+function rcb_duplicate_component_action( $actions, $post ) {
+	if ( $post->post_type === 'component_template' ) {
+		$url = wp_nonce_url( admin_url( 'admin.php?action=rcb_duplicate_component&post=' . $post->ID ), 'rcb_duplicate_' . $post->ID );
+		$actions['duplicate'] = '<a href="' . $url . '" title="' . esc_attr__( 'Duplicate this component', 'reusable-component-builder' ) . '">' . __( 'Duplicate', 'reusable-component-builder' ) . '</a>';
 	}
+	return $actions;
+}
+add_filter( 'post_row_actions', 'rcb_duplicate_component_action', 10, 2 );
 
-	// Try to decode as JSON
-	$decoded = json_decode( $registry, true );
-	if ( json_last_error() === JSON_ERROR_NONE && is_array( $decoded ) ) {
-		return $decoded;
-	}
+// Handle the duplication process
+function rcb_handle_duplicate_action() {
+	if ( isset( $_GET['action'] ) && $_GET['action'] === 'rcb_duplicate_component' && isset( $_GET['post'] ) ) {
+		$post_id = intval( $_GET['post'] );
+		check_admin_referer( 'rcb_duplicate_' . $post_id );
 
-	// Migration: Convert comma-separated string to object array
-	$items = array_filter( array_map( 'trim', explode( ',', $registry ) ) );
-	$new_registry = array();
-	foreach ( $items as $item ) {
-		$new_registry[] = array(
-			'id'       => uniqid(),
-			'label'    => ucwords( str_replace( '-', ' ', $item ) ),
-			'property' => $item
+		$post = get_post( $post_id );
+		if ( ! $post ) {
+			wp_die( __( 'Post not found.', 'reusable-component-builder' ) );
+		}
+
+		$current_user = wp_get_current_user();
+		$new_post = array(
+			'post_title'   => $post->post_title . ' (Copy)',
+			'post_content' => $post->post_content,
+			'post_status'  => 'draft',
+			'post_type'    => $post->post_type,
+			'post_author'  => $current_user->ID,
 		);
-	}
-	
-	// Save migrated version
-	update_option( 'rcb_global_style_registry', wp_json_encode( $new_registry ) );
-	return $new_registry;
-}
 
-function rcb_render_global_settings_page() {
-	$registry = rcb_get_style_registry_data();
-	$predefined_styles = array(
-		'z-index'        => 'Z-Index',
-		'opacity'        => 'Opacity',
-		'scale'          => 'Scale (Transform)',
-		'transition'     => 'Transition',
-		'box-shadow'     => 'Box Shadow',
-		'filter'         => 'Filter (Blur/Bright)',
-		'cursor'         => 'Cursor',
-		'width'          => 'Width',
-		'height'         => 'Height',
-		'aspect-ratio'   => 'Aspect Ratio',
-		'object-fit'     => 'Object Fit',
-		'perspective'    => 'Perspective',
-		'transform'      => 'Transform (Custom)',
-		'pointer-events' => 'Pointer Events',
-		'overflow'       => 'Overflow',
-		'position'       => 'Position (Absolute/Fixed)',
-		'top'            => 'Top Position',
-		'right'          => 'Right Position',
-		'bottom'         => 'Bottom Position',
-		'left'           => 'Left Position',
-		'background-size' => 'Background Size',
-		'flex-grow'      => 'Flex Grow',
-		'flex-shrink'    => 'Flex Shrink',
-	);
-	?>
-	<div class="wrap">
-		<h1><?php _e( 'Global Allowed Style Controls', 'reusable-component-builder' ); ?></h1>
-		<p><?php _e( 'Add custom CSS properties that you want to be available as style controls within the component builder.', 'reusable-component-builder' ); ?></p>
-		
-		<div class="rcb-settings-card" style="background:#fff; padding:20px; border:1px solid #ccd0d4; box-shadow:0 1px 1px rgba(0,0,0,.04); margin-bottom:20px; max-width:800px;">
-			<h2 style="margin-top:0;"><?php _e( 'Add New Style Control', 'reusable-component-builder' ); ?></h2>
-			<form id="rcb-add-style-form" style="display:flex; gap:15px; align-items:flex-end;">
-				<div style="flex:1;">
-					<label style="display:block; margin-bottom:5px; font-weight:600;"><?php _e( 'Style label name', 'reusable-component-builder' ); ?></label>
-					<input type="text" id="rcb-style-label" placeholder="e.g. Layer Depth" style="width:100%;" required>
-				</div>
-				<div style="flex:1;">
-					<label style="display:block; margin-bottom:5px; font-weight:600;"><?php _e( 'Predefined style name', 'reusable-component-builder' ); ?></label>
-					<select id="rcb-style-property" style="width:100%;">
-						<?php foreach($predefined_styles as $prop => $label): ?>
-							<option value="<?php echo esc_attr($prop); ?>"><?php echo esc_html($label); ?> (<?php echo esc_html($prop); ?>)</option>
-						<?php endforeach; ?>
-					</select>
-				</div>
-				<button type="submit" class="button button-primary"><?php _e( 'Save Style', 'reusable-component-builder' ); ?></button>
-			</form>
-		</div>
+		$new_post_id = wp_insert_post( $new_post );
 
-		<table class="wp-list-table widefat fixed striped" style="max-width:800px;">
-			<thead>
-				<tr>
-					<th style="width:50px;"><?php _e( 'S.No.', 'reusable-component-builder' ); ?></th>
-					<th><?php _e( 'Label Name', 'reusable-component-builder' ); ?></th>
-					<th><?php _e( 'Style name', 'reusable-component-builder' ); ?></th>
-					<th style="width:150px;"><?php _e( 'Action', 'reusable-component-builder' ); ?></th>
-				</tr>
-			</thead>
-			<tbody id="rcb-style-list-body">
-				<?php if (empty($registry)): ?>
-					<tr class="no-items"><td colspan="4" style="text-align:center;"><?php _e( 'No custom styles added yet.', 'reusable-component-builder' ); ?></td></tr>
-				<?php else: ?>
-					<?php foreach($registry as $index => $item): ?>
-						<tr data-id="<?php echo esc_attr($item['id']); ?>">
-							<td><?php echo $index + 1; ?></td>
-							<td class="col-label"><?php echo esc_html($item['label']); ?></td>
-							<td class="col-property"><code><?php echo esc_html($item['property']); ?></code></td>
-							<td>
-								<button class="button rcb-edit-style" data-id="<?php echo esc_attr($item['id']); ?>"><?php _e( 'Edit', 'reusable-component-builder' ); ?></button>
-								<button class="button rcb-delete-style button-link-delete" data-id="<?php echo esc_attr($item['id']); ?>"><?php _e( 'Delete', 'reusable-component-builder' ); ?></button>
-							</td>
-						</tr>
-					<?php endforeach; ?>
-				<?php endif; ?>
-			</tbody>
-		</table>
-	</div>
-
-	<script>
-	jQuery(document).ready(function($) {
-		const $form = $('#rcb-add-style-form');
-		const $list = $('#rcb-style-list-body');
-		let isEditing = false;
-		let editingId = null;
-
-		$form.on('submit', function(e) {
-			e.preventDefault();
-			const label = $('#rcb-style-label').val();
-			const property = $('#rcb-style-property').val();
-
-			$.post(ajaxurl, {
-				action: 'rcb_save_style_registry_item',
-				id: editingId,
-				label: label,
-				property: property,
-				nonce: '<?php echo wp_create_nonce("rcb_registry_nonce"); ?>'
-			}, function(response) {
-				if (response.success) {
-					location.reload();
-				} else {
-					alert(response.data || 'Error saving style.');
+		if ( $new_post_id ) {
+			// Copy all post meta (which includes _component_structure and other settings)
+			$meta = get_post_custom( $post_id );
+			foreach ( $meta as $key => $values ) {
+				foreach ( $values as $value ) {
+					add_post_meta( $new_post_id, $key, maybe_unserialize( $value ) );
 				}
-			});
-		});
+			}
 
-		$list.on('click', '.rcb-delete-style', function() {
-			if (!confirm('Are you sure you want to delete this style?')) return;
-			const id = $(this).data('id');
-			$.post(ajaxurl, {
-				action: 'rcb_delete_style_registry_item',
-				id: id,
-				nonce: '<?php echo wp_create_nonce("rcb_registry_nonce"); ?>'
-			}, function(response) {
-				if (response.success) {
-					location.reload();
-				}
-			});
-		});
-
-		$list.on('click', '.rcb-edit-style', function() {
-			const tr = $(this).closest('tr');
-			editingId = $(this).data('id');
-			const label = tr.find('.col-label').text();
-			const property = tr.find('.col-property code').text();
-
-			$('#rcb-style-label').val(label);
-			$('#rcb-style-property').val(property);
-			$form.find('button[type="submit"]').text('Update Style');
-			isEditing = true;
-			window.scrollTo(0,0);
-		});
-	});
-	</script>
-	<?php
-}
-
-/**
- * AJAX Handler: Save Style Registry Item
- */
-function rcb_save_style_registry_item_handler() {
-	check_ajax_referer( 'rcb_registry_nonce', 'nonce' );
-	if ( ! current_user_can( 'manage_options' ) ) wp_send_json_error( 'Permission denied' );
-
-	$id       = !empty($_POST['id']) ? sanitize_text_field($_POST['id']) : uniqid();
-	$label    = sanitize_text_field( $_POST['label'] );
-	$property = sanitize_text_field( $_POST['property'] );
-
-	if ( empty($label) || empty($property) ) wp_send_json_error( 'Missing fields' );
-
-	$registry = rcb_get_style_registry_data();
-	
-	$found = false;
-	foreach ($registry as &$item) {
-		if ($item['id'] === $_POST['id']) {
-			$item['label'] = $label;
-			$item['property'] = $property;
-			$found = true;
-			break;
+			// Redirect back to the post list
+			wp_redirect( admin_url( 'edit.php?post_type=component_template' ) );
+			exit;
+		} else {
+			wp_die( __( 'Failed to duplicate the component.', 'reusable-component-builder' ) );
 		}
 	}
-
-	if (!$found) {
-		$registry[] = array(
-			'id'       => $id,
-			'label'    => $label,
-			'property' => $property
-		);
-	}
-
-	update_option( 'rcb_global_style_registry', wp_json_encode( $registry ) );
-	wp_send_json_success();
 }
-add_action( 'wp_ajax_rcb_save_style_registry_item', 'rcb_save_style_registry_item_handler' );
-
-/**
- * AJAX Handler: Delete Style Registry Item
- */
-function rcb_delete_style_registry_item_handler() {
-	check_ajax_referer( 'rcb_registry_nonce', 'nonce' );
-	if ( ! current_user_can( 'manage_options' ) ) wp_send_json_error( 'Permission denied' );
-
-	$id = sanitize_text_field( $_POST['id'] );
-	if ( empty($id) ) wp_send_json_error( 'Missing ID' );
-
-	$registryArr = rcb_get_style_registry_data();
-	$newRegistry = array();
-	foreach ($registryArr as $item) {
-		if ($item['id'] !== $id) {
-			$newRegistry[] = $item;
-		}
-	}
-
-	update_option( 'rcb_global_style_registry', wp_json_encode( $newRegistry ) );
-	wp_send_json_success();
-}
-add_action( 'wp_ajax_rcb_delete_style_registry_item', 'rcb_delete_style_registry_item_handler' );
-
+add_action( 'admin_action_rcb_duplicate_component', 'rcb_handle_duplicate_action' );
