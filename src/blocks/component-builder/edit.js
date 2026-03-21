@@ -1,6 +1,6 @@
 import { __ } from '@wordpress/i18n';
 import { useBlockProps, InspectorControls, MediaUpload, MediaUploadCheck, PanelColorSettings, InnerBlocks } from '@wordpress/block-editor';
-import { PanelBody, SelectControl, TextControl, Button, ToggleControl, RangeControl, RadioControl, BaseControl, __experimentalBoxControl as BoxControl, __experimentalToggleGroupControl as ToggleGroupControl, __experimentalToggleGroupControlOption as ToggleGroupControlOption } from '@wordpress/components';
+import { PanelBody, SelectControl, TextControl, Button, ToggleControl, RangeControl, RadioControl, BaseControl, Dashicon, __experimentalBoxControl as BoxControl, __experimentalToggleGroupControl as ToggleGroupControl, __experimentalToggleGroupControlOption as ToggleGroupControlOption } from '@wordpress/components';
 import { useEffect, useState } from '@wordpress/element';
 import apiFetch from '@wordpress/api-fetch';
 
@@ -56,7 +56,7 @@ const AdvancedTypographyControl = ({ label, value, fontWeight, textTransform, li
     return (
         <div className="rcb-advanced-typography" style={{ marginBottom: '15px' }}>
             <span style={{ fontSize: '11px', fontWeight: 600, textTransform: 'uppercase', display: 'block', marginBottom: '10px' }}>{label}</span>
-            <div style={{ marginBottom: '10px' }}>
+            <div style={{ marginBottom: '15px' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
                     <span style={{ fontSize: '11px', color: '#666' }}>Size</span>
                     <SelectControl
@@ -77,7 +77,7 @@ const AdvancedTypographyControl = ({ label, value, fontWeight, textTransform, li
                     allowReset={true}
                 />
             </div>
-            <div style={{ display: 'flex', gap: '10px', marginBottom: '10px' }}>
+            <div style={{ display: 'flex', gap: '10px', marginBottom: '15px' }}>
                 <div style={{ flex: 1 }}>
                     <SelectControl
                         label="Weight"
@@ -102,12 +102,69 @@ const AdvancedTypographyControl = ({ label, value, fontWeight, textTransform, li
                     />
                 </div>
             </div>
-            <div style={{ display: 'flex', gap: '10px' }}>
-                <div style={{ flex: 1 }}>
-                    <TextControl label="Line Height" value={lineHeight || ''} onChange={(val) => onChange('lineHeight', val)} help="e.g. 1.5, 24px" />
+
+            {/* Line Height Control (Two-Row) */}
+            <div className="rcb-typo-control-wrapper">
+                <div className="rcb-typo-header">
+                    <label className="rcb-typo-label">{__('Line Height', 'reusable-component-builder')}</label>
+                    <Button 
+                        className="rcb-typo-reset-btn" 
+                        variant="link" 
+                        onClick={() => onChange('lineHeight', '')}
+                    >
+                        {__('Reset', 'reusable-component-builder')}
+                    </Button>
                 </div>
-                <div style={{ flex: 1 }}>
-                    <TextControl label="Letter Spacing" value={letterSpacing || ''} onChange={(val) => onChange('letterSpacing', val)} help="e.g. 1px" />
+                <div className="rcb-typo-control-row">
+                    <div className="rcb-typo-icon"><Dashicon icon="editor-lineheight" /></div>
+                    <div className="rcb-typo-input">
+                        <TextControl
+                            value={lineHeight || ''}
+                            placeholder="1.5"
+                            onChange={(val) => onChange('lineHeight', val)}
+                        />
+                    </div>
+                    <div className="rcb-typo-slider">
+                        <RangeControl
+                            value={parseFloat(lineHeight) || 1.5}
+                            onChange={(val) => onChange('lineHeight', val)}
+                            min={0.5}
+                            max={3}
+                            step={0.1}
+                        />
+                    </div>
+                </div>
+            </div>
+
+            {/* Letter Spacing Control (Two-Row) */}
+            <div className="rcb-typo-control-wrapper">
+                <div className="rcb-typo-header">
+                    <label className="rcb-typo-label">{__('Letter Spacing', 'reusable-component-builder')}</label>
+                    <Button 
+                        className="rcb-typo-reset-btn" 
+                        variant="link" 
+                        onClick={() => onChange('letterSpacing', '')}
+                    >
+                        {__('Reset', 'reusable-component-builder')}
+                    </Button>
+                </div>
+                <div className="rcb-typo-control-row">
+                    <div className="rcb-typo-icon"><Dashicon icon="editor-spellcheck" /></div>
+                    <div className="rcb-typo-input">
+                        <TextControl
+                            value={parseInt(letterSpacing) || 0}
+                            onChange={(val) => onChange('letterSpacing', `${val}px`)}
+                        />
+                    </div>
+                    <div className="rcb-typo-slider">
+                        <RangeControl
+                            value={parseInt(letterSpacing) || 0}
+                            onChange={(val) => onChange('letterSpacing', `${val}px`)}
+                            min={-5}
+                            max={20}
+                            step={1}
+                        />
+                    </div>
                 </div>
             </div>
         </div>
@@ -214,9 +271,17 @@ export default function Edit({ attributes, setAttributes, clientId }) {
                     }
                 });
             }
+
+            // Explicitly ensure typography values are correctly typed and fallback for preview
+            if (nodeStyles.fontWeight) {
+                // Force string for numeric weights to ensure React handles them correctly
+                // Note: React styles do not support !important in objects, so we just set it here
+                // and we will also handle it in the frontend renderer.
+                nodeStyles.fontWeight = nodeStyles.fontWeight.toString();
+            }
             
-            // Container background image implementation
-            if (node.type === 'container' && content[`${node.field}_bg_url`]) {
+            // Background image implementation for any node type
+            if (content[`${node.field}_bg_url`]) {
                 nodeStyles.backgroundImage = `url(${content[`${node.field}_bg_url`]})`;
                 nodeStyles.backgroundSize = 'cover';
                 nodeStyles.backgroundPosition = 'center';
@@ -347,6 +412,24 @@ export default function Edit({ attributes, setAttributes, clientId }) {
 
     return (
         <div { ...blockProps }>
+            {/* Take 3: Dynamic Style Injection for Editor Specificity */}
+            <style>
+                {configurableFields.map(node => {
+                    const nodeStyle = styles[node.field] || {};
+                    let css = '';
+                    if (nodeStyle.fontWeight) {
+                        css += `.rcb-instance-${uniqueId} .${node.id} { font-weight: ${nodeStyle.fontWeight} !important; } `;
+                    }
+                    if (nodeStyle.lineHeight) {
+                        css += `.rcb-instance-${uniqueId} .${node.id} { line-height: ${nodeStyle.lineHeight} !important; } `;
+                    }
+                    if (nodeStyle.letterSpacing) {
+                        css += `.rcb-instance-${uniqueId} .${node.id} { letter-spacing: ${nodeStyle.letterSpacing} !important; } `;
+                    }
+                    return css;
+                }).join('\n')}
+            </style>
+            
             <InspectorControls>
 
                 {mode === 'query' && templateId > 0 && (
@@ -432,11 +515,18 @@ export default function Edit({ attributes, setAttributes, clientId }) {
                                                     allowedTypes={['image']}
                                                     value={content[`${fieldNode.field}_id`]}
                                                     render={({ open }) => (
-                                                        <div className="rcb-media-upload-wrapper" style={{display:'flex', gap:'10px', alignItems:'flex-start', marginTop:'5px'}}>
-                                                            {content[`${fieldNode.field}_url`] && <img src={content[`${fieldNode.field}_url`]} style={{width:'50px', height:'auto', border: '1px solid #ccc'}} />}
+                                                        <div className="rcb-media-upload-wrapper" style={{display:'flex', gap:'10px', alignItems:'flex-start', marginTop:'5px', flexWrap:'wrap'}}>
+                                                            {content[`${fieldNode.field}_url`] && <img src={content[`${fieldNode.field}_url`]} style={{width:'50px', height:'auto', border: '1px solid #ccc', borderRadius: '3px'}} />}
                                                             <Button isSecondary onClick={open}>
                                                                 {content[`${fieldNode.field}_url`] ? 'Change Image' : 'Select Image'}
                                                             </Button>
+                                                            {content[`${fieldNode.field}_url`] && (
+                                                                <Button isDestructive isSmall variant="tertiary" onClick={() => {
+                                                                    setAttributes({ content: { ...content, [`${fieldNode.field}_id`]: undefined, [`${fieldNode.field}_url`]: undefined } });
+                                                                }}>
+                                                                    Remove
+                                                                </Button>
+                                                            )}
                                                         </div>
                                                     )}
                                                 />
@@ -468,7 +558,13 @@ export default function Edit({ attributes, setAttributes, clientId }) {
 
                 {/* STYLE MAPPING */}
                 {templateId > 0 && configurableFields.map((fieldNode) => {
-                    const allowed = fieldNode.allowedSettings || { color: true, typography: true, spacing: true, borders: true, dimensions: fieldNode.type === 'image', backgroundImage: fieldNode.type === 'container' };
+                    // backgroundImage as a style control only makes sense for non-image nodes (image nodes use content upload)
+                    const defaultBgImage = fieldNode.type !== 'image';
+                    const allowed = fieldNode.allowedSettings || { color: true, typography: true, spacing: true, borders: true, dimensions: fieldNode.type === 'image', backgroundImage: defaultBgImage };
+                    // Runtime override: image-type nodes should never show bg-image style control
+                    if (fieldNode.type === 'image') {
+                        allowed.backgroundImage = false;
+                    }
                     
                     // Check if any standard keys are enabled
                     if (!allowed.color && !allowed.typography && !allowed.spacing && !allowed.borders && !allowed.alignment && !allowed.dimensions && !allowed.backgroundImage && !allowed.opacity && !allowed.boxShadow && !allowed.customStylesBox) {
@@ -479,7 +575,7 @@ export default function Edit({ attributes, setAttributes, clientId }) {
                         <PanelBody key={`style-${fieldNode.id}`} title={`${fieldNode.type.toUpperCase()} Styles (${fieldNode.field})`} initialOpen={false}>
                             
                             {/* Background Image capability for Containers */}
-                            {allowed.backgroundImage && fieldNode.type === 'container' && (
+                            {allowed.backgroundImage && (
                                 <BaseControl id={`bg-${fieldNode.field}`} label={__('Background Image')} help="Will apply inline background-image to this container.">
                                     <MediaUploadCheck>
                                         <MediaUpload
@@ -495,11 +591,18 @@ export default function Edit({ attributes, setAttributes, clientId }) {
                                             allowedTypes={['image']}
                                             value={content[`${fieldNode.field}_bg_id`]}
                                             render={({ open }) => (
-                                                <div style={{display:'flex', gap:'10px', alignItems:'flex-start', marginTop:'5px', marginBottom:'15px'}}>
-                                                    {content[`${fieldNode.field}_bg_url`] && <img src={content[`${fieldNode.field}_bg_url`]} style={{width:'50px', height:'auto', border: '1px solid #ccc'}} />}
+                                                <div style={{display:'flex', gap:'10px', alignItems:'flex-start', marginTop:'5px', marginBottom:'15px', flexWrap:'wrap'}}>
+                                                    {content[`${fieldNode.field}_bg_url`] && <img src={content[`${fieldNode.field}_bg_url`]} style={{width:'50px', height:'auto', border: '1px solid #ccc', borderRadius: '3px'}} />}
                                                     <Button isSecondary onClick={open}>
                                                         {content[`${fieldNode.field}_bg_url`] ? 'Change BG Image' : 'Select BG Image'}
                                                     </Button>
+                                                    {content[`${fieldNode.field}_bg_url`] && (
+                                                        <Button isDestructive isSmall variant="tertiary" onClick={() => {
+                                                            setAttributes({ content: { ...content, [`${fieldNode.field}_bg_id`]: undefined, [`${fieldNode.field}_bg_url`]: undefined } });
+                                                        }}>
+                                                            Remove BG
+                                                        </Button>
+                                                    )}
                                                 </div>
                                             )}
                                         />

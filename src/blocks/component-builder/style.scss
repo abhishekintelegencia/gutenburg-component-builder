@@ -19,17 +19,75 @@
     border-radius: 3px;
 }
 
-/* Fix for BoxControl styling alignment in inspector */
-.rcb-box-control-wrapper .components-base-control {
-    margin-bottom: 0 !important;
+/* Take 3: Exact two-row layout for Typography to match Padding/Margin */
+.rcb-typo-control-wrapper {
+    margin-bottom: 15px;
 }
-.rcb-box-control-wrapper .components-box-control__slider {
-    max-width: 60px;
-    margin-left: 16px; /* Space between input box and slider */
-}
-.rcb-box-control-wrapper .components-box-control__row {
+
+.rcb-typo-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
     margin-bottom: 8px;
 }
-.rcb-box-control-wrapper .components-base-control__field {
+
+.rcb-typo-label {
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    color: #1e1e1e;
+    margin: 0;
+}
+
+.rcb-typo-reset-btn {
+    height: auto !important;
+    padding: 0 !important;
+    min-height: auto !important;
+    font-size: 11px !important;
+    color: #757575 !important;
+    text-decoration: none !important;
+    &:hover {
+        color: #1e1e1e !important;
+    }
+}
+
+.rcb-typo-control-row {
+    display: flex;
     align-items: center;
+    gap: 8px;
+}
+
+.rcb-typo-icon {
+    flex: 0 0 20px;
+    display: flex;
+    justify-content: center;
+    color: #757575;
+    .dashicon {
+        font-size: 16px;
+        width: 16px;
+        height: 16px;
+    }
+}
+
+.rcb-typo-input {
+    flex: 0 0 55px;
+    .components-text-control__input {
+        height: 30px !important;
+        padding: 0 4px !important;
+        text-align: center;
+        font-size: 12px !important;
+    }
+    .components-base-control__field {
+        margin-bottom: 0 !important;
+    }
+}
+
+.rcb-typo-slider {
+    flex: 1;
+    .components-range-control__row {
+        margin-bottom: 0 !important;
+    }
+    .components-base-control__field {
+        margin-bottom: 0 !important;
+    }
 }
