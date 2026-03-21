@@ -103,13 +103,11 @@ const NodeEditor = ({ node, updateNode, removeNode, duplicateNode, addChild, mov
                                     checked={node.allowedSettings?.color || false}
                                     onChange={() => toggleSetting('color')}
                                 />
-                                {node.type === 'container' && (
-                                    <CheckboxControl
-                                        label="Background Image"
-                                        checked={node.allowedSettings?.backgroundImage || false}
-                                        onChange={() => toggleSetting('backgroundImage')}
-                                    />
-                                )}
+                                <CheckboxControl
+                                    label="Background Image"
+                                    checked={node.allowedSettings?.backgroundImage || false}
+                                    onChange={() => toggleSetting('backgroundImage')}
+                                />
                                 {node.type !== 'image' && (
                                     <CheckboxControl
                                         label="Typography (Font Size)"

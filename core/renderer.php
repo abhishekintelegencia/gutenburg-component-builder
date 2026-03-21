@@ -13,9 +13,13 @@ function rcb_build_inline_style( $styles ) {
 
 	$style_string = '';
 	foreach ( $styles as $key => $value ) {
-		if ( empty( $value ) ) continue;
+		if ( $value === '' || $value === null ) continue;
 		$css_prop = strtolower( preg_replace( '/(?<!^)[A-Z]/', '-$0', $key ) );
-		$style_string .= esc_attr( $css_prop ) . ':' . esc_attr( $value ) . ';';
+		
+		// Add !important to font-weight to override theme defaults (as requested by user)
+		$suffix = ( $css_prop === 'font-weight' ) ? ' !important' : '';
+		
+		$style_string .= esc_attr( $css_prop ) . ':' . esc_attr( $value ) . $suffix . ';';
 	}
 
 	return $style_string ? 'style="' . $style_string . '"' : '';
@@ -65,6 +69,10 @@ function rcb_render_component_builder_block( $attributes, $content ) {
 	}
 	if ( ! empty( $global_allowed_settings['typography'] ) ) {
 		if ( isset( $root_styles['fontSize'] ) ) $final_root_styles['fontSize'] = $root_styles['fontSize'];
+		if ( isset( $root_styles['fontWeight'] ) ) $final_root_styles['fontWeight'] = $root_styles['fontWeight'];
+		if ( isset( $root_styles['lineHeight'] ) ) $final_root_styles['lineHeight'] = $root_styles['lineHeight'];
+		if ( isset( $root_styles['letterSpacing'] ) ) $final_root_styles['letterSpacing'] = $root_styles['letterSpacing'];
+		if ( isset( $root_styles['textTransform'] ) ) $final_root_styles['textTransform'] = $root_styles['textTransform'];
 	}
 	if ( ! empty( $global_allowed_settings['spacing'] ) ) {
 		if ( isset( $root_styles['padding'] ) ) $final_root_styles['padding'] = $root_styles['padding'];
@@ -186,6 +194,10 @@ function rcb_render_visual_nodes_with_visibility( $nodes, $content_data, $styles
 		}
 		if ( ! empty( $allowed['typography'] ) ) {
 			if ( isset( $raw_styles['fontSize'] ) ) $final_styles['fontSize'] = $raw_styles['fontSize'];
+			if ( isset( $raw_styles['fontWeight'] ) ) $final_styles['fontWeight'] = $raw_styles['fontWeight'];
+			if ( isset( $raw_styles['lineHeight'] ) ) $final_styles['lineHeight'] = $raw_styles['lineHeight'];
+			if ( isset( $raw_styles['letterSpacing'] ) ) $final_styles['letterSpacing'] = $raw_styles['letterSpacing'];
+			if ( isset( $raw_styles['textTransform'] ) ) $final_styles['textTransform'] = $raw_styles['textTransform'];
 		}
 		if ( ! empty( $allowed['borders'] ) ) {
 			if ( isset( $raw_styles['borderRadius'] ) ) $final_styles['borderRadius'] = $raw_styles['borderRadius'];
@@ -206,14 +218,17 @@ function rcb_render_visual_nodes_with_visibility( $nodes, $content_data, $styles
 			}
 		}
 
-		// Special case for container background image
-		if ( $type === 'container' ) {
+		// Background image capability for any element if enabled
+		if ( ! empty( $allowed['backgroundImage'] ) ) {
 			if ( isset( $content_data[ $field . '_bg_url' ] ) && ! empty( $content_data[ $field . '_bg_url' ] ) ) {
 				$bg_url = esc_url( $content_data[ $field . '_bg_url' ] );
 				$final_styles['background-image']    = "url('{$bg_url}')";
 				$final_styles['background-size']     = 'cover';
 				$final_styles['background-position'] = 'center';
 			}
+		}
+
+		if ( $type === 'container' ) {
 
 			if ( $node_columns > 1 ) {
 				$final_styles['display'] = 'grid';

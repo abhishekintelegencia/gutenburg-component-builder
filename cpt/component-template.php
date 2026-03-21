@@ -132,9 +132,12 @@ function rcb_enqueue_admin_scripts( $hook ) {
 					$assets['version'],
 					true
 				);
+				
+				// Pass the ACTUAL registry data
 				wp_localize_script( 'rcb-builder-js', 'rcbGlobalConfig', array(
-					'styleRegistry' => array()
+					'styleRegistry' => rcb_get_style_registry_data()
 				) );
+				
 				wp_enqueue_style('wp-components');
 				if ( file_exists( RCB_PLUGIN_DIR . 'build/builder/style-index.css' ) ) {
 					wp_enqueue_style(
@@ -200,3 +203,259 @@ function rcb_handle_duplicate_action() {
 	}
 }
 add_action( 'admin_action_rcb_duplicate_component', 'rcb_handle_duplicate_action' );
+
+/**
+ * Helper to get the Style Registry from options.
+ * Handles migration from legacy comma-separated string to JSON array of objects.
+ */
+function rcb_get_style_registry_data() {
+	$option_name = 'rcb_allowed_style_registry';
+	$raw_data = get_option( $option_name, '' );
+
+	// If it's a JSON string, decode it.
+	if ( ! empty( $raw_data ) && ( strpos( $raw_data, '[' ) === 0 || strpos( $raw_data, '{' ) === 0 ) ) {
+		$decoded = json_decode( $raw_data, true );
+		if ( is_array( $decoded ) ) {
+			return $decoded;
+		}
+	}
+
+	// Migration logic: if it's a comma-separated string (old format)
+	if ( ! empty( $raw_data ) && is_string( $raw_data ) ) {
+		$items = array_filter( array_map( 'trim', explode( ',', $raw_data ) ) );
+		$new_data = array();
+		foreach ( $items as $item ) {
+			$new_data[] = array(
+				'id'       => uniqid(),
+				'label'    => ucfirst( $item ),
+				'property' => $item
+			);
+		}
+		update_option( $option_name, wp_json_encode( $new_data ) );
+		return $new_data;
+	}
+
+	return array();
+}
+
+/**
+ * Add a settings sub-menu for Global Allowed Styles.
+ */
+function rcb_add_global_settings_menu() {
+	add_submenu_page(
+		'edit.php?post_type=component_template',
+		__( 'Allowed Style Control', 'reusable-component-builder' ),
+		__( 'Allowed Style Control', 'reusable-component-builder' ),
+		'manage_options',
+		'rcb-allowed-styles',
+		'rcb_render_global_settings_page'
+	);
+}
+add_action( 'admin_menu', 'rcb_add_global_settings_menu' );
+
+/**
+ * Render the Global Allowed Style Control settings page.
+ */
+function rcb_render_global_settings_page() {
+	$registry = rcb_get_style_registry_data();
+	?>
+	<div class="wrap" id="rcb-style-registry-admin">
+		<h1><?php _e( 'Global Allowed Style Controls', 'reusable-component-builder' ); ?></h1>
+		<p><?php _e( 'Manage the CSS properties that users are allowed to control via the component builder.', 'reusable-component-builder' ); ?></p>
+		
+		<div class="rcb-settings-layout" style="display: flex; gap: 30px; margin-top: 20px;">
+			<div class="rcb-settings-form" style="flex: 0 0 350px; background: #fff; padding: 20px; border: 1px solid #ccd0d4; border-radius: 4px; align-self: flex-start;">
+				<h3><?php _e( 'Add/Edit Style Control', 'reusable-component-builder' ); ?></h3>
+				<form id="rcb-style-control-form">
+					<input type="hidden" id="rcb_style_id" name="id" value="">
+					
+					<div style="margin-bottom: 15px;">
+						<label style="display: block; font-weight: 600; margin-bottom: 5px;"><?php _e( 'Style label name', 'reusable-component-builder' ); ?></label>
+						<input type="text" id="rcb_style_label" name="label" class="widefat" placeholder="e.g. Z-Index" required>
+					</div>
+					
+					<div style="margin-bottom: 20px;">
+						<label style="display: block; font-weight: 600; margin-bottom: 5px;"><?php _e( 'Predefined style name', 'reusable-component-builder' ); ?></label>
+						<select id="rcb_style_property" name="property" class="widefat" required>
+							<option value=""><?php _e( '-- Select Property --', 'reusable-component-builder' ); ?></option>
+							<optgroup label="Layout">
+								<option value="z-index">z-index</option>
+								<option value="opacity">opacity</option>
+								<option value="overflow">overflow</option>
+								<option value="cursor">cursor</option>
+							</optgroup>
+							<optgroup label="Visual">
+								<option value="scale">scale</option>
+								<option value="rotate">rotate</option>
+								<option value="transition">transition</option>
+								<option value="filter">filter</option>
+								<option value="backdrop-filter">backdrop-filter</option>
+							</optgroup>
+						</select>
+					</div>
+					
+					<button type="submit" class="button button-primary"><?php _e( 'Register Style Control', 'reusable-component-builder' ); ?></button>
+					<button type="button" id="rcb-reset-form" class="button" style="display:none;"><?php _e( 'Cancel', 'reusable-component-builder' ); ?></button>
+				</form>
+			</div>
+			
+			<div class="rcb-settings-list" style="flex: 1;">
+				<table class="wp-list-table widefat fixed striped">
+					<thead>
+						<tr>
+							<th><?php _e( 'Label', 'reusable-component-builder' ); ?></th>
+							<th><?php _e( 'CSS Property', 'reusable-component-builder' ); ?></th>
+							<th style="width: 150px;"><?php _e( 'Actions', 'reusable-component-builder' ); ?></th>
+						</tr>
+					</thead>
+					<tbody id="rcb-style-registry-table-body">
+						<?php if ( empty( $registry ) ) : ?>
+							<tr><td colspan="3"><?php _e( 'No styles registered yet.', 'reusable-component-builder' ); ?></td></tr>
+						<?php else : ?>
+							<?php foreach ( $registry as $item ) : ?>
+								<tr data-id="<?php echo esc_attr( $item['id'] ); ?>" data-label="<?php echo esc_attr( $item['label'] ); ?>" data-property="<?php echo esc_attr( $item['property'] ); ?>">
+									<td><strong><?php echo esc_html( $item['label'] ); ?></strong></td>
+									<td><code><?php echo esc_html( $item['property'] ); ?></code></td>
+									<td>
+										<button class="button button-small rcb-edit-style"><?php _e( 'Edit', 'reusable-component-builder' ); ?></button>
+										<button class="button button-small button-link-delete rcb-delete-style"><?php _e( 'Delete', 'reusable-component-builder' ); ?></button>
+									</td>
+								</tr>
+							<?php endforeach; ?>
+						<?php endif; ?>
+					</tbody>
+				</table>
+			</div>
+		</div>
+	</div>
+
+	<script type="text/javascript">
+	jQuery(document).ready(function($) {
+		const $form = $('#rcb-style-control-form');
+		const $tableBody = $('#rcb-style-registry-table-body');
+		const $submitBtn = $form.find('button[type="submit"]');
+		const $resetBtn = $('#rcb-reset-form');
+
+		// Handle Save/Add
+		$form.on('submit', function(e) {
+			e.preventDefault();
+			const data = {
+				action: 'rcb_save_style_registry_item',
+				nonce: '<?php echo wp_create_nonce( "rcb_style_registry_nonce" ); ?>',
+				id: $('#rcb_style_id').val(),
+				label: $('#rcb_style_label').val(),
+				property: $('#rcb_style_property').val()
+			};
+
+			$submitBtn.prop('disabled', true).text('Saving...');
+
+			$.post(ajaxurl, data, function(response) {
+				if (response.success) {
+					location.reload();
+				} else {
+					alert(response.data || 'Error saving style control.');
+					$submitBtn.prop('disabled', false).text('Register Style Control');
+				}
+			});
+		});
+
+		// Handle Edit click
+		$tableBody.on('click', '.rcb-edit-style', function() {
+			const $tr = $(this).closest('tr');
+			$('#rcb_style_id').val($tr.data('id'));
+			$('#rcb_style_label').val($tr.data('label'));
+			$('#rcb_style_property').val($tr.data('property'));
+			
+			$submitBtn.text('Update Style Control');
+			$resetBtn.show();
+		});
+
+		$resetBtn.on('click', function() {
+			$form[0].reset();
+			$('#rcb_style_id').val('');
+			$submitBtn.text('Register Style Control');
+			$(this).hide();
+		});
+
+		// Handle Delete
+		$tableBody.on('click', '.rcb-delete-style', function() {
+			if (!confirm('Are you sure you want to delete this style control?')) return;
+			
+			const $tr = $(this).closest('tr');
+			const data = {
+				action: 'rcb_delete_style_registry_item',
+				nonce: '<?php echo wp_create_nonce( "rcb_style_registry_nonce" ); ?>',
+				id: $tr.data('id')
+			};
+
+			$.post(ajaxurl, data, function(response) {
+				if (response.success) {
+					$tr.fadeOut(function() { $(this).remove(); });
+				} else {
+					alert('Error deleting style.');
+				}
+			});
+		});
+	});
+	</script>
+	<?php
+}
+
+/**
+ * AJAX Handler: Save or Update Style Registry Item.
+ */
+function rcb_save_style_registry_item() {
+	check_ajax_referer( 'rcb_style_registry_nonce', 'nonce' );
+	if ( ! current_user_can( 'manage_options' ) ) wp_send_json_error( 'Unauthorized' );
+
+	$id       = ! empty( $_POST['id'] ) ? sanitize_text_field( $_POST['id'] ) : uniqid();
+	$label    = sanitize_text_field( $_POST['label'] );
+	$property = sanitize_text_field( $_POST['property'] );
+
+	if ( empty( $label ) || empty( $property ) ) {
+		wp_send_json_error( 'Label and Property are required.' );
+	}
+
+	$registry = rcb_get_style_registry_data();
+	$found = false;
+
+	foreach ( $registry as &$item ) {
+		if ( $item['id'] === $id ) {
+			$item['label']    = $label;
+			$item['property'] = $property;
+			$found = true;
+			break;
+		}
+	}
+
+	if ( ! $found ) {
+		$registry[] = array(
+			'id'       => $id,
+			'label'    => $label,
+			'property' => $property
+		);
+	}
+
+	update_option( 'rcb_allowed_style_registry', wp_json_encode( $registry ) );
+	wp_send_json_success();
+}
+add_action( 'wp_ajax_rcb_save_style_registry_item', 'rcb_save_style_registry_item' );
+
+/**
+ * AJAX Handler: Delete Style Registry Item.
+ */
+function rcb_delete_style_registry_item() {
+	check_ajax_referer( 'rcb_style_registry_nonce', 'nonce' );
+	if ( ! current_user_can( 'manage_options' ) ) wp_send_json_error( 'Unauthorized' );
+
+	$id = sanitize_text_field( $_POST['id'] );
+	$registry = rcb_get_style_registry_data();
+	
+	$new_registry = array_filter( $registry, function( $item ) use ( $id ) {
+		return $item['id'] !== $id;
+	} );
+
+	update_option( 'rcb_allowed_style_registry', wp_json_encode( array_values( $new_registry ) ) );
+	wp_send_json_success();
+}
+add_action( 'wp_ajax_rcb_delete_style_registry_item', 'rcb_delete_style_registry_item' );
