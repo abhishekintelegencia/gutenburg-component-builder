@@ -74,6 +74,7 @@ function rcb_render_component_builder_block( $attributes, $content ) {
 	}
 	if ( ! empty( $global_allowed_settings['borders'] ) ) {
 		if ( isset( $root_styles['borderRadius'] ) ) $final_root_styles['borderRadius'] = $root_styles['borderRadius'];
+		if ( isset( $root_styles['border'] ) ) $final_root_styles['border'] = $root_styles['border'];
 	}
 
 	if ( ! empty( $global_allowed_settings['alignment'] ) ) {
@@ -208,6 +209,7 @@ function rcb_render_visual_nodes_with_visibility( $nodes, $content_data, $styles
 		}
 		if ( ! empty( $allowed['borders'] ) ) {
 			if ( isset( $raw_styles['borderRadius'] ) ) $final_styles['borderRadius'] = $raw_styles['borderRadius'];
+			if ( isset( $raw_styles['border'] ) ) $final_styles['border'] = $raw_styles['border'];
 		}
 
 		if ( ! empty( $allowed['alignment'] ) ) {
