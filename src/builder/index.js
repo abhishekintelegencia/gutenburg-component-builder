@@ -2,10 +2,66 @@ import { render, useState, useEffect } from '@wordpress/element';
 import { Button, TextControl, SelectControl, CheckboxControl, Modal, TextareaControl } from '@wordpress/components';
 import './style.scss';
 
+const CATEGORIZED_STYLE_OPTIONS = [
+    {
+        title: 'Colors & Background',
+        options: [
+            { id: 'color', label: 'Color (Text & Background)' },
+            { id: 'backgroundImage', label: 'Background Image' },
+        ],
+    },
+    {
+        title: 'Typography',
+        options: [
+            { id: 'typography', label: 'Typography (Font Size, Weight, etc)' },
+            { id: 'alignment', label: 'Text Alignment' },
+        ],
+    },
+    {
+        title: 'Spacing & Dimensions',
+        options: [
+            { id: 'spacing', label: 'Spacing (Padding, Margin)' },
+            { id: 'dimensions', label: 'Dimensions (Width/Height)' },
+        ],
+    },
+    {
+        title: 'Borders & Effects',
+        options: [
+            { id: 'borders', label: 'Borders & Radius' },
+            { id: 'boxShadow', label: 'Box Shadow' },
+            { id: 'opacity', label: 'Opacity' },
+        ],
+    },
+    {
+        title: 'Advanced Layout',
+        options: [
+            { id: 'zIndex', label: 'Z-Index' },
+            { id: 'overflow', label: 'Overflow' },
+            { id: 'visibility', label: 'Visibility' },
+            { id: 'cursor', label: 'Cursor' },
+        ],
+    },
+    {
+        title: 'Animations & Filters',
+        options: [
+            { id: 'transition', label: 'Transition' },
+            { id: 'filter', label: 'Filter' },
+            { id: 'backdropFilter', label: 'Backdrop Filter' },
+            { id: 'transform', label: 'Transform' },
+        ],
+    },
+    {
+        title: 'Custom',
+        options: [
+            { id: 'customStylesBox', label: 'Custom CSS Box' },
+        ],
+    }
+];
+
 // Recursive Component
 const NodeEditor = ({ node, updateNode, removeNode, duplicateNode, addChild, moveNodeUp, moveNodeDown, styleRegistry = [], parentType = null }) => {
     const [isEditing, setIsEditing] = useState(false);
-    const [newStyleKey, setNewStyleKey] = useState('');
+    const [activeTab, setActiveTab] = useState('Colors & Background');
 
     const toggleSetting = (setting) => {
         const allowed = node.allowedSettings || {};
@@ -97,63 +153,36 @@ const NodeEditor = ({ node, updateNode, removeNode, duplicateNode, addChild, mov
                         <fieldset style={{border: '1px solid #ddd', padding: '15px', borderRadius: '4px'}}>
                             <legend style={{padding: '0 10px', fontWeight: 'bold'}}>Allowed Style Controls (For Block Editor)</legend>
                             
-                            <div className="rcb-settings-grid" style={{display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px'}}>
-                                <CheckboxControl
-                                    label="Color (Text & Background)"
-                                    checked={node.allowedSettings?.color || false}
-                                    onChange={() => toggleSetting('color')}
-                                />
-                                <CheckboxControl
-                                    label="Background Image"
-                                    checked={node.allowedSettings?.backgroundImage || false}
-                                    onChange={() => toggleSetting('backgroundImage')}
-                                />
-                                {node.type !== 'image' && (
-                                    <CheckboxControl
-                                        label="Typography (Font Size)"
-                                        checked={node.allowedSettings?.typography || false}
-                                        onChange={() => toggleSetting('typography')}
-                                    />
-                                )}
-                                <CheckboxControl
-                                    label="Spacing (Padding, Margin)"
-                                    checked={node.allowedSettings?.spacing || false}
-                                    onChange={() => toggleSetting('spacing')}
-                                />
-                                <CheckboxControl
-                                    label="Alignment"
-                                    checked={node.allowedSettings?.alignment || false}
-                                    onChange={() => toggleSetting('alignment')}
-                                />
-                                <CheckboxControl
-                                    label="Borders & Radius"
-                                    checked={node.allowedSettings?.borders || false}
-                                    onChange={() => toggleSetting('borders')}
-                                />
-                                {node.type === 'image' && (
-                                    <CheckboxControl
-                                        label="Dimensions (Width/Height)"
-                                        checked={node.allowedSettings?.dimensions || false}
-                                        onChange={() => toggleSetting('dimensions')}
-                                    />
-                                )}
-                                <CheckboxControl
-                                    label="Opacity"
-                                    checked={node.allowedSettings?.opacity || false}
-                                    onChange={() => toggleSetting('opacity')}
-                                />
-                                <CheckboxControl
-                                    label="Box Shadow"
-                                    checked={node.allowedSettings?.boxShadow || false}
-                                    onChange={() => toggleSetting('boxShadow')}
-                                />
-                                <CheckboxControl
-                                    label="Custom Styles Box"
-                                    checked={node.allowedSettings?.customStylesBox || false}
-                                    onChange={() => toggleSetting('customStylesBox')}
-                                />
-
-
+                            <div style={{ display: 'flex', gap: '20px' }}>
+                                <div style={{ flex: '0 0 200px', borderRight: '1px solid #ddd', paddingRight: '10px' }}>
+                                    {CATEGORIZED_STYLE_OPTIONS.map((cat) => (
+                                        <div 
+                                            key={cat.title}
+                                            onClick={() => setActiveTab(cat.title)}
+                                            style={{
+                                                padding: '8px 10px', 
+                                                cursor: 'pointer', 
+                                                backgroundColor: activeTab === cat.title ? '#007cba' : 'transparent',
+                                                color: activeTab === cat.title ? '#fff' : '#3c434a',
+                                                borderRadius: '3px',
+                                                marginBottom: '5px',
+                                                fontWeight: activeTab === cat.title ? '600' : '400'
+                                            }}
+                                        >
+                                            {cat.title}
+                                        </div>
+                                    ))}
+                                </div>
+                                <div style={{ flex: '1', display: 'grid', gridTemplateColumns: '1fr', gap: '10px', alignContent: 'start' }}>
+                                    {CATEGORIZED_STYLE_OPTIONS.find(c => c.title === activeTab)?.options.map(opt => (
+                                        <CheckboxControl
+                                            key={opt.id}
+                                            label={opt.label}
+                                            checked={node.allowedSettings?.[opt.id] || false}
+                                            onChange={() => toggleSetting(opt.id)}
+                                        />
+                                    ))}
+                                </div>
                             </div>
                         </fieldset>
 
@@ -338,6 +367,7 @@ const App = () => {
     const [globalCustomStyles, setGlobalCustomStyles] = useState(defaultGlobalStyles);
     const [globalAllowedSettings, setGlobalAllowedSettings] = useState(initialData.globalAllowedSettings || { color: true, spacing: true });
     const [isEditingGlobal, setIsEditingGlobal] = useState(false);
+    const [globalActiveTab, setGlobalActiveTab] = useState('Colors & Background');
 
     useEffect(() => {
         if (inputElement) {
@@ -415,43 +445,36 @@ const App = () => {
                             <fieldset style={{border: '1px solid #ddd', padding: '15px', borderRadius: '4px'}}>
                                 <legend style={{padding: '0 10px', fontWeight: 'bold'}}>Global Style Controls</legend>
                                 
-                                <div style={{display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px'}}>
-                                    <CheckboxControl
-                                        label="Color (Text & Background)"
-                                        checked={globalAllowedSettings.color || false}
-                                        onChange={() => setGlobalAllowedSettings({...globalAllowedSettings, color: !globalAllowedSettings.color})}
-                                    />
-                                    <CheckboxControl
-                                        label="Spacing (Padding, Margin)"
-                                        checked={globalAllowedSettings.spacing || false}
-                                        onChange={() => setGlobalAllowedSettings({...globalAllowedSettings, spacing: !globalAllowedSettings.spacing})}
-                                    />
-                                    <CheckboxControl
-                                        label="Typography (Global)"
-                                        checked={globalAllowedSettings.typography || false}
-                                        onChange={() => setGlobalAllowedSettings({...globalAllowedSettings, typography: !globalAllowedSettings.typography})}
-                                    />
-                                    <CheckboxControl
-                                        label="Borders & Radius"
-                                        checked={globalAllowedSettings.borders || false}
-                                        onChange={() => setGlobalAllowedSettings({...globalAllowedSettings, borders: !globalAllowedSettings.borders})}
-                                    />
-
-                                    <CheckboxControl
-                                        label="Opacity"
-                                        checked={globalAllowedSettings.opacity || false}
-                                        onChange={() => setGlobalAllowedSettings({...globalAllowedSettings, opacity: !globalAllowedSettings.opacity})}
-                                    />
-                                    <CheckboxControl
-                                        label="Box Shadow"
-                                        checked={globalAllowedSettings.boxShadow || false}
-                                        onChange={() => setGlobalAllowedSettings({...globalAllowedSettings, boxShadow: !globalAllowedSettings.boxShadow})}
-                                    />
-                                    <CheckboxControl
-                                        label="Custom Styles Box"
-                                        checked={globalAllowedSettings.customStylesBox || false}
-                                        onChange={() => setGlobalAllowedSettings({...globalAllowedSettings, customStylesBox: !globalAllowedSettings.customStylesBox})}
-                                    />
+                                <div style={{ display: 'flex', gap: '20px' }}>
+                                    <div style={{ flex: '0 0 200px', borderRight: '1px solid #ddd', paddingRight: '10px' }}>
+                                        {CATEGORIZED_STYLE_OPTIONS.map((cat) => (
+                                            <div 
+                                                key={cat.title}
+                                                onClick={() => setGlobalActiveTab(cat.title)}
+                                                style={{
+                                                    padding: '8px 10px', 
+                                                    cursor: 'pointer', 
+                                                    backgroundColor: globalActiveTab === cat.title ? '#007cba' : 'transparent',
+                                                    color: globalActiveTab === cat.title ? '#fff' : '#3c434a',
+                                                    borderRadius: '3px',
+                                                    marginBottom: '5px',
+                                                    fontWeight: globalActiveTab === cat.title ? '600' : '400'
+                                                }}
+                                            >
+                                                {cat.title}
+                                            </div>
+                                        ))}
+                                    </div>
+                                    <div style={{ flex: '1', display: 'grid', gridTemplateColumns: '1fr', gap: '10px', alignContent: 'start' }}>
+                                        {CATEGORIZED_STYLE_OPTIONS.find(c => c.title === globalActiveTab)?.options.map(opt => (
+                                            <CheckboxControl
+                                                key={opt.id}
+                                                label={opt.label}
+                                                checked={globalAllowedSettings[opt.id] || false}
+                                                onChange={() => setGlobalAllowedSettings({...globalAllowedSettings, [opt.id]: !globalAllowedSettings[opt.id]})}
+                                            />
+                                        ))}
+                                    </div>
                                 </div>
                             </fieldset>
 

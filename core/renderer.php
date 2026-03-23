@@ -49,12 +49,6 @@ function rcb_render_component_builder_block( $attributes, $content ) {
 	$structure_data = $structure_json ? json_decode( $structure_json, true ) : array();
 	$nodes          = isset( $structure_data['structure'] ) ? $structure_data['structure'] : array();
 	
-	$style_registry_raw     = isset( $structure_data['styleRegistry'] ) ? (array) $structure_data['styleRegistry'] : array();
-	$style_registry = array();
-	foreach ( $style_registry_raw as $item ) {
-		$style_registry[] = is_array( $item ) ? $item['property'] : $item;
-	}
-
 	$global_allowed_settings = isset( $structure_data['globalAllowedSettings'] ) ? (array) $structure_data['globalAllowedSettings'] : array();
 	$global_custom_keys      = isset( $structure_data['globalCustomStyles'] ) ? (array) $structure_data['globalCustomStyles'] : array();
 
@@ -82,20 +76,33 @@ function rcb_render_component_builder_block( $attributes, $content ) {
 		if ( isset( $root_styles['borderRadius'] ) ) $final_root_styles['borderRadius'] = $root_styles['borderRadius'];
 	}
 
-	// Custom allowed styles (Legacy & Registry)
-	$all_custom_keys = array_unique( array_merge( $global_custom_keys, $style_registry ) );
-	foreach ( $all_custom_keys as $key ) {
-		// Convert kebab-case to camelCase for lookup (e.g. z-index -> zIndex)
-		$camel_key = str_replace(' ', '', lcfirst(ucwords(str_replace('-', ' ', $key))));
-		
-		if ( ! empty( $global_allowed_settings[ $key ] ) ) {
-			if ( isset( $root_styles[ $camel_key ] ) ) {
-				$final_root_styles[ $camel_key ] = $root_styles[ $camel_key ];
-			} elseif ( isset( $root_styles[ $key ] ) ) {
-				$final_root_styles[ $key ] = $root_styles[ $key ];
+	if ( ! empty( $global_allowed_settings['alignment'] ) ) {
+		if ( isset( $root_styles['textAlign'] ) ) $final_root_styles['textAlign'] = $root_styles['textAlign'];
+	}
+	if ( ! empty( $global_allowed_settings['dimensions'] ) ) {
+		if ( isset( $root_styles['width'] ) ) $final_root_styles['width'] = $root_styles['width'];
+		if ( isset( $root_styles['height'] ) ) $final_root_styles['height'] = $root_styles['height'];
+	}
+
+	// Direct Props Mapping (for keys that match CSS property name in CamelCase)
+	$direct_props = array( 'opacity', 'boxShadow', 'zIndex', 'overflow', 'visibility', 'cursor', 'transition', 'filter', 'backdropFilter', 'transform' );
+	foreach ( $direct_props as $prop ) {
+		if ( ! empty( $global_allowed_settings[ $prop ] ) && isset( $root_styles[ $prop ] ) ) {
+			$final_root_styles[ $prop ] = $root_styles[ $prop ];
+		}
+	}
+
+	// Custom CSS Box
+	if ( ! empty( $global_allowed_settings['customStylesBox'] ) ) {
+		if ( isset( $root_styles['customCssPairs'] ) && is_array( $root_styles['customCssPairs'] ) ) {
+			foreach ( $root_styles['customCssPairs'] as $pair ) {
+				if ( ! empty( $pair['key'] ) ) {
+					$final_root_styles[ $pair['key'] ] = $pair['value'];
+				}
 			}
 		}
 	}
+
 	$root_style_attr = rcb_build_inline_style( $final_root_styles );
 
 	$final_output = '';
@@ -130,7 +137,7 @@ function rcb_render_component_builder_block( $attributes, $content ) {
 				global $post;
 
 				$final_output .= sprintf( '<div class="rcb-instance rcb-instance-%s rcb-loop-item" %s>', esc_attr( $unique_id ), $root_style_attr );
-				$final_output .= rcb_render_visual_nodes_with_visibility( $nodes, $content_data, $styles_data, $mode, $post, $visibility, $content, $style_registry );
+				$final_output .= rcb_render_visual_nodes_with_visibility( $nodes, $content_data, $styles_data, $mode, $post, $visibility, $content );
 				$final_output .= '</div>';
 			}
 
@@ -154,7 +161,7 @@ function rcb_render_component_builder_block( $attributes, $content ) {
 	} else {
 		// Static rendering
 		$final_output .= sprintf( '<div class="rcb-instance rcb-instance-%s" %s>', esc_attr( $unique_id ), $root_style_attr );
-		$final_output .= rcb_render_visual_nodes_with_visibility( $nodes, $content_data, $styles_data, $mode, null, $visibility, $content, $style_registry );
+		$final_output .= rcb_render_visual_nodes_with_visibility( $nodes, $content_data, $styles_data, $mode, null, $visibility, $content );
 		$final_output .= '</div>';
 	}
 
@@ -164,7 +171,7 @@ function rcb_render_component_builder_block( $attributes, $content ) {
 /**
  * Render nodes with visibility toggles and style registry support.
  */
-function rcb_render_visual_nodes_with_visibility( $nodes, $content_data, $styles_data, $mode, $post = null, $visibility = array(), $inner_blocks_content = '', $style_registry = array() ) {
+function rcb_render_visual_nodes_with_visibility( $nodes, $content_data, $styles_data, $mode, $post = null, $visibility = array(), $inner_blocks_content = '' ) {
 	$html = '';
 	$assigned = array(
 		'heading' => false,
@@ -203,17 +210,29 @@ function rcb_render_visual_nodes_with_visibility( $nodes, $content_data, $styles
 			if ( isset( $raw_styles['borderRadius'] ) ) $final_styles['borderRadius'] = $raw_styles['borderRadius'];
 		}
 
-		// Custom styles from registry if allowed
-		foreach ( $style_registry as $style_item ) {
-			$key = is_array( $style_item ) ? $style_item['property'] : $style_item;
-			// Convert kebab-case to camelCase for lookup (e.g. z-index -> zIndex)
-			$camel_key = str_replace(' ', '', lcfirst(ucwords(str_replace('-', ' ', $key))));
+		if ( ! empty( $allowed['alignment'] ) ) {
+			if ( isset( $raw_styles['textAlign'] ) ) $final_styles['textAlign'] = $raw_styles['textAlign'];
+		}
+		if ( ! empty( $allowed['dimensions'] ) ) {
+			if ( isset( $raw_styles['width'] ) ) $final_styles['width'] = $raw_styles['width'];
+			if ( isset( $raw_styles['height'] ) ) $final_styles['height'] = $raw_styles['height'];
+		}
 
-			if ( ! empty( $allowed[ $key ] ) ) {
-				if ( isset( $raw_styles[ $camel_key ] ) ) {
-					$final_styles[ $camel_key ] = $raw_styles[ $camel_key ];
-				} elseif ( isset( $raw_styles[ $key ] ) ) {
-					$final_styles[ $key ] = $raw_styles[ $key ];
+		// Direct Props Mapping (for keys that match CSS property name in CamelCase)
+		$direct_props = array( 'opacity', 'boxShadow', 'zIndex', 'overflow', 'visibility', 'cursor', 'transition', 'filter', 'backdropFilter', 'transform' );
+		foreach ( $direct_props as $prop ) {
+			if ( ! empty( $allowed[ $prop ] ) && isset( $raw_styles[ $prop ] ) ) {
+				$final_styles[ $prop ] = $raw_styles[ $prop ];
+			}
+		}
+
+		// Custom CSS Box
+		if ( ! empty( $allowed['customStylesBox'] ) ) {
+			if ( isset( $raw_styles['customCssPairs'] ) && is_array( $raw_styles['customCssPairs'] ) ) {
+				foreach ( $raw_styles['customCssPairs'] as $pair ) {
+					if ( ! empty( $pair['key'] ) ) {
+						$final_styles[ $pair['key'] ] = $pair['value'];
+					}
 				}
 			}
 		}
@@ -243,7 +262,7 @@ function rcb_render_visual_nodes_with_visibility( $nodes, $content_data, $styles
 			case 'container':
 				$children_html = '';
 				if ( ! empty( $node['children'] ) ) {
-					$children_html = rcb_render_visual_nodes_with_visibility( $node['children'], $content_data, $styles_data, $mode, $post, $visibility, $inner_blocks_content, $style_registry );
+					$children_html = rcb_render_visual_nodes_with_visibility( $node['children'], $content_data, $styles_data, $mode, $post, $visibility, $inner_blocks_content );
 				}
 				$html .= sprintf( '<div class="rcb-container %s" %s>%s</div>', esc_attr( $id ), $style_attr, $children_html );
 				break;
@@ -251,7 +270,7 @@ function rcb_render_visual_nodes_with_visibility( $nodes, $content_data, $styles
 			case 'column':
 				$children_html = '';
 				if ( ! empty( $node['children'] ) ) {
-					$children_html = rcb_render_visual_nodes_with_visibility( $node['children'], $content_data, $styles_data, $mode, $post, $visibility, $inner_blocks_content, $style_registry );
+					$children_html = rcb_render_visual_nodes_with_visibility( $node['children'], $content_data, $styles_data, $mode, $post, $visibility, $inner_blocks_content );
 				}
 				$html .= sprintf( '<div class="rcb-column %s" %s>%s</div>', esc_attr( $id ), $style_attr, $children_html );
 				break;
