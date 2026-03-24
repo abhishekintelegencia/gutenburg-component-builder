@@ -254,8 +254,9 @@ function rcb_render_visual_nodes_with_visibility( $nodes, $content_data, $styles
 			if ( isset( $content_data[ $field . '_bg_url' ] ) && ! empty( $content_data[ $field . '_bg_url' ] ) ) {
 				$bg_url = esc_url( $content_data[ $field . '_bg_url' ] );
 				$final_styles['background-image']    = "url('{$bg_url}')";
-				$final_styles['background-size']     = 'cover';
-				$final_styles['background-position'] = 'center';
+				$final_styles['background-size']     = isset( $raw_styles['backgroundSize'] ) ? $raw_styles['backgroundSize'] : 'cover';
+				$final_styles['background-position'] = isset( $raw_styles['backgroundPosition'] ) ? $raw_styles['backgroundPosition'] : 'center';
+				$final_styles['background-repeat']   = isset( $raw_styles['backgroundRepeat'] ) ? $raw_styles['backgroundRepeat'] : 'no-repeat';
 			}
 		}
 
