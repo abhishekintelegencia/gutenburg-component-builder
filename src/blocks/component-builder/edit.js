@@ -2,6 +2,7 @@ import { __ } from '@wordpress/i18n';
 import { useBlockProps, InspectorControls, MediaUpload, MediaUploadCheck, PanelColorSettings, InnerBlocks } from '@wordpress/block-editor';
 import { PanelBody, SelectControl, TextControl, Button, ToggleControl, RangeControl, RadioControl, BaseControl, Dashicon, __experimentalBoxControl as BoxControl, __experimentalToggleGroupControl as ToggleGroupControl, __experimentalToggleGroupControlOption as ToggleGroupControlOption } from '@wordpress/components';
 import { useEffect, useState } from '@wordpress/element';
+import { useSelect } from '@wordpress/data';
 import apiFetch from '@wordpress/api-fetch';
 
 const parseBoxValue = (value) => {
@@ -173,6 +174,28 @@ const AdvancedTypographyControl = ({ label, value, fontWeight, textTransform, li
 
 export default function Edit({ attributes, setAttributes, clientId }) {
     const { templateId, content, styles, uniqueId, mode, postType, taxonomy, termId, layout, columns, postsPerPage, pagination, visibilityVars } = attributes;
+    
+    // Fetch live data for static mode previews (e.g. ACF meta, title)
+    const { currentPostTitle, currentPostExcerpt, currentPostDate, currentPostAuthorName, currentPostMeta, currentPostACF } = useSelect((select) => {
+        const { getEditedPostAttribute } = select('core/editor');
+        const { getEntityRecord } = select('core');
+        
+        let authorName = '';
+        const authorId = getEditedPostAttribute('author');
+        if (authorId) {
+            const author = getEntityRecord('root', 'user', authorId);
+            if (author) authorName = author.name || '';
+        }
+
+        return {
+            currentPostTitle: getEditedPostAttribute('title'),
+            currentPostExcerpt: getEditedPostAttribute('excerpt'),
+            currentPostDate: getEditedPostAttribute('date'),
+            currentPostAuthorName: authorName,
+            currentPostMeta: getEditedPostAttribute('meta') || {},
+            currentPostACF: getEditedPostAttribute('acf') || {}
+        };
+    }, []);
     
     // We already know our templateId from the variation registration.
     // Fetch specifically this template immediately.
@@ -359,13 +382,44 @@ export default function Edit({ attributes, setAttributes, clientId }) {
             let url = content[`${node.field}_url`];
 
             if (mode !== 'query' && node.dynamicSource) {
-                if (node.type === 'image') {
-                    url = 'https://via.placeholder.com/600x400?text=Dynamic+Image';
-                } else if (node.type === 'button') {
-                     nodeContent = `[Dynamic: ${node.dynamicSource}]`;
-                     url = '#';
+                const source = node.dynamicSource;
+                if (source === 'post_title') {
+                    nodeContent = currentPostTitle || 'Post Title';
+                } else if (source === 'post_excerpt') {
+                    nodeContent = currentPostExcerpt?.replace(/(<([^>]+)>)/gi, "") || 'Post Excerpt';
+                } else if (source === 'post_date') {
+                    nodeContent = currentPostDate ? new Date(currentPostDate).toLocaleDateString() : 'Post Date';
+                } else if (source === 'post_author') {
+                    nodeContent = currentPostAuthorName || 'Post Author';
+                } else if (source === 'featured_image') {
+                    url = 'https://via.placeholder.com/600x400?text=Featured+Image';
+                } else if (source === 'permalink') {
+                    nodeContent = content[node.field] || __('Read More', 'reusable-component-builder');
+                    url = '#';
+                } else if (source === 'term') {
+                    nodeContent = `[Term: ${node.dynamicField}]`;
+                } else if (source === 'custom_meta') {
+                    const metaKey = node.dynamicField;
+                    let metaVal = currentPostMeta[metaKey] || (currentPostACF && currentPostACF[metaKey]);
+                    
+                    // Fallback to checking the DOM for ACF classic metabox fields
+                    if (!metaVal && typeof document !== 'undefined') {
+                        const acfInput = document.querySelector(`.acf-field[data-name="${metaKey}"] input[type="text"], .acf-field[data-name="${metaKey}"] textarea, .acf-field[data-name="${metaKey}"] input[type="number"]`);
+                        if (acfInput && acfInput.value) {
+                            metaVal = acfInput.value;
+                        }
+                    }
+
+                    if (node.type === 'image') {
+                        url = metaVal || 'https://via.placeholder.com/600x400?text=Dynamic+Image';
+                    } else if (node.type === 'button') {
+                        url = metaVal || '#';
+                        nodeContent = content[node.field] || __('Read More', 'reusable-component-builder');
+                    } else {
+                        nodeContent = metaVal || `[Meta: ${metaKey}]`;
+                    }
                 } else {
-                     nodeContent = `[Dynamic: ${node.dynamicSource}]`;
+                    nodeContent = `[Dynamic: ${source}]`;
                 }
             } else if (mode === 'query' && post) {
                 const source = node.dynamicSource;
@@ -531,11 +585,18 @@ export default function Edit({ attributes, setAttributes, clientId }) {
                 {/* CONTENT MAPPING - Only for Static Mode */}
                 {templateId > 0 && mode === 'static' && (
                     <PanelBody title={`${templateName} Content`} initialOpen={true}>
-                        {configurableFields.map((fieldNode) => {
-                            if (fieldNode.type === 'container') {
-                                // For containers, check if BG image is allowed in style, but we put it in content since it's an asset
-                                return null;
+                        {(() => {
+                            const fieldsToRender = configurableFields.filter(f => f.type !== 'container' && !f.dynamicSource);
+                            
+                            if (fieldsToRender.length === 0) {
+                                return (
+                                    <div style={{ padding: '10px', background: '#f8f9fa', border: '1px solid #e2e4e7', borderRadius: '4px' }}>
+                                        <p style={{ margin: 0, fontSize: '12px', color: '#646970' }}>All content in this component is configured to load dynamically (e.g. from Custom Fields). No manual input is required here.</p>
+                                    </div>
+                                );
                             }
+
+                            return fieldsToRender.map((fieldNode) => {
 
                             if (fieldNode.type === 'image') {
                                 return (
@@ -593,7 +654,7 @@ export default function Edit({ attributes, setAttributes, clientId }) {
                                     )}
                                 </div>
                             );
-                        })}
+                        })})()}
                     </PanelBody>
                 )}
 
