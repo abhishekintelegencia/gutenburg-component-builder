@@ -44,6 +44,14 @@
       "type": "number",
       "default": 3
     },
+    "taxonomy": {
+      "type": "string",
+      "default": ""
+    },
+    "termId": {
+      "type": "number",
+      "default": 0
+    },
     "postsPerPage": {
       "type": "number",
       "default": 3

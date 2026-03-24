@@ -16,7 +16,10 @@ apiFetch({ path: '/rcb/v1/templates/' }).then((templates) => {
             name: `template-${template.id}`,
             title: template.title || `Component ${template.id}`,
             icon: 'layout',
-            attributes: { templateId: template.id },
+            attributes: { 
+                templateId: template.id,
+                mode: template.type === 'query' ? 'query' : 'static'
+            },
             isActive: (blockAttributes) => blockAttributes.templateId === template.id,
             scope: ['inserter']
         });

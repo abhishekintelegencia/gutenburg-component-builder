@@ -124,6 +124,18 @@ function rcb_render_component_builder_block( $attributes, $content ) {
 			'paged'          => $paged,
 		);
 
+		$taxonomy = isset( $attributes['taxonomy'] ) ? $attributes['taxonomy'] : '';
+		$term_id  = isset( $attributes['termId'] ) ? intval( $attributes['termId'] ) : 0;
+		if ( ! empty( $taxonomy ) && ! empty( $term_id ) ) {
+			$args['tax_query'] = array(
+				array(
+					'taxonomy' => $taxonomy,
+					'field'    => 'term_id',
+					'terms'    => $term_id,
+				),
+			);
+		}
+
 		$query = new WP_Query( $args );
 
 		if ( $query->have_posts() ) {
@@ -160,9 +172,10 @@ function rcb_render_component_builder_block( $attributes, $content ) {
 			$final_output .= '<p>' . __( 'No posts found.', 'reusable-component-builder' ) . '</p>';
 		}
 	} else {
-		// Static rendering
+		// Static rendering (now passing global $post to support dynamic sources mapped to current page)
+		global $post;
 		$final_output .= sprintf( '<div class="rcb-instance rcb-instance-%s" %s>', esc_attr( $unique_id ), $root_style_attr );
-		$final_output .= rcb_render_visual_nodes_with_visibility( $nodes, $content_data, $styles_data, $mode, null, $visibility, $content );
+		$final_output .= rcb_render_visual_nodes_with_visibility( $nodes, $content_data, $styles_data, $mode, $post, $visibility, $content );
 		$final_output .= '</div>';
 	}
 
@@ -174,12 +187,6 @@ function rcb_render_component_builder_block( $attributes, $content ) {
  */
 function rcb_render_visual_nodes_with_visibility( $nodes, $content_data, $styles_data, $mode, $post = null, $visibility = array(), $inner_blocks_content = '' ) {
 	$html = '';
-	$assigned = array(
-		'heading' => false,
-		'text'    => false,
-		'image'   => false,
-		'button'  => false,
-	);
 
 	foreach ( $nodes as $node ) {
 		$type         = isset( $node['type'] ) ? $node['type'] : '';
@@ -187,6 +194,9 @@ function rcb_render_visual_nodes_with_visibility( $nodes, $content_data, $styles
 		$field        = isset( $node['field'] ) ? $node['field'] : '';
 		$node_columns = isset( $node['columns'] ) ? intval( $node['columns'] ) : 1;
 		$allowed      = isset( $node['allowedSettings'] ) ? (array) $node['allowedSettings'] : array();
+		
+		$dynamic_source = isset( $node['dynamicSource'] ) ? $node['dynamicSource'] : '';
+		$dynamic_field  = isset( $node['dynamicField'] ) ? $node['dynamicField'] : '';
 		
 		$raw_styles    = isset( $styles_data[ $field ] ) ? $styles_data[ $field ] : array();
 		$final_styles  = array();
@@ -282,10 +292,23 @@ function rcb_render_visual_nodes_with_visibility( $nodes, $content_data, $styles
 				break;
 
 			case 'heading':
-				if ( $mode === 'query' ) {
-					if ( empty( $visibility['showTitle'] ) || $assigned['heading'] ) break;
-					$node_content = get_the_title( $post );
-					$assigned['heading'] = true;
+				if ( ! empty( $dynamic_source ) && $post ) {
+					if ( $dynamic_source === 'post_title' ) {
+						$node_content = get_the_title( $post );
+					} elseif ( $dynamic_source === 'post_excerpt' ) {
+						$node_content = get_the_excerpt( $post );
+					} elseif ( $dynamic_source === 'post_date' ) {
+						$node_content = get_the_date( '', $post );
+					} elseif ( $dynamic_source === 'post_author' ) {
+						$node_content = get_the_author_meta( 'display_name', $post->post_author );
+					} elseif ( $dynamic_source === 'term' ) {
+						$terms = get_the_terms( $post, $dynamic_field );
+						$node_content = ( $terms && ! is_wp_error( $terms ) ) ? $terms[0]->name : '';
+					} elseif ( $dynamic_source === 'custom_meta' ) {
+						$node_content = get_post_meta( $post->ID, $dynamic_field, true );
+					} else {
+						$node_content = isset( $content_data[ $field ] ) ? $content_data[ $field ] : '';
+					}
 				} else {
 					$node_content = isset( $content_data[ $field ] ) ? $content_data[ $field ] : '';
 				}
@@ -293,10 +316,23 @@ function rcb_render_visual_nodes_with_visibility( $nodes, $content_data, $styles
 				break;
 
 			case 'text':
-				if ( $mode === 'query' ) {
-					if ( empty( $visibility['showExcerpt'] ) || $assigned['text'] ) break;
-					$node_content = wp_trim_words( get_the_excerpt( $post ), 20, '...' );
-					$assigned['text'] = true;
+				if ( ! empty( $dynamic_source ) && $post ) {
+					if ( $dynamic_source === 'post_title' ) {
+						$node_content = get_the_title( $post );
+					} elseif ( $dynamic_source === 'post_excerpt' ) {
+						$node_content = wp_trim_words( get_the_excerpt( $post ), 20, '...' );
+					} elseif ( $dynamic_source === 'post_date' ) {
+						$node_content = get_the_date( '', $post );
+					} elseif ( $dynamic_source === 'post_author' ) {
+						$node_content = get_the_author_meta( 'display_name', $post->post_author );
+					} elseif ( $dynamic_source === 'term' ) {
+						$terms = get_the_terms( $post, $dynamic_field );
+						$node_content = ( $terms && ! is_wp_error( $terms ) ) ? $terms[0]->name : '';
+					} elseif ( $dynamic_source === 'custom_meta' ) {
+						$node_content = get_post_meta( $post->ID, $dynamic_field, true );
+					} else {
+						$node_content = isset( $content_data[ $field ] ) ? $content_data[ $field ] : '';
+					}
 				} else {
 					$node_content = isset( $content_data[ $field ] ) ? $content_data[ $field ] : '';
 				}
@@ -304,12 +340,19 @@ function rcb_render_visual_nodes_with_visibility( $nodes, $content_data, $styles
 				break;
 
 			case 'image':
-				if ( $mode === 'query' ) {
-					if ( empty( $visibility['showImage'] ) || $assigned['image'] ) break;
-					$url = get_the_post_thumbnail_url( $post, 'large' );
-					if ( ! $url ) $url = 'https://via.placeholder.com/600x400?text=No+Image';
-					$alt = get_the_title( $post );
-					$assigned['image'] = true;
+				$url = '';
+				$alt = '';
+				if ( ! empty( $dynamic_source ) && $post ) {
+					if ( $dynamic_source === 'featured_image' ) {
+						$url = get_the_post_thumbnail_url( $post, 'large' );
+						$alt = get_the_title( $post );
+					} elseif ( $dynamic_source === 'custom_meta' ) {
+						$url = get_post_meta( $post->ID, $dynamic_field, true );
+						$alt = 'Custom Image';
+					} else {
+						$url = isset( $content_data[ $field . '_url' ] ) ? $content_data[ $field . '_url' ] : '';
+						$alt = isset( $content_data[ $field ] ) ? $content_data[ $field ] : '';
+					}
 				} else {
 					$url = isset( $content_data[ $field . '_url' ] ) ? $content_data[ $field . '_url' ] : '';
 					$alt = isset( $content_data[ $field ] ) ? $content_data[ $field ] : '';
@@ -317,17 +360,21 @@ function rcb_render_visual_nodes_with_visibility( $nodes, $content_data, $styles
 
 				if ( $url ) {
 					$html .= sprintf( '<img src="%s" class="rcb-image %s" alt="%s" %s />', esc_url( $url ), esc_attr( $id ), esc_attr( $alt ), $style_attr );
-				} else {
+				} elseif ( current_user_can( 'edit_posts' ) ) {
 					$html .= sprintf( '<div class="rcb-image-placeholder %s" %s style="background:#ddd;min-height:100px;display:flex;align-items:center;justify-content:center;">Image Placeholder: %s</div>', esc_attr( $id ), $style_attr, esc_html( $field ) );
 				}
 				break;
 
 			case 'button':
-				if ( $mode === 'query' ) {
-					if ( empty( $visibility['showButton'] ) || $assigned['button'] ) break;
-					$btn_url      = get_permalink( $post );
-					$node_content = __( 'Read More', 'reusable-component-builder' );
-					$assigned['button'] = true;
+				if ( ! empty( $dynamic_source ) && $post ) {
+					if ( $dynamic_source === 'permalink' ) {
+						$btn_url = get_permalink( $post );
+					} elseif ( $dynamic_source === 'custom_meta' ) {
+						$btn_url = get_post_meta( $post->ID, $dynamic_field, true );
+					} else {
+						$btn_url = isset( $content_data[ $field . '_url' ] ) ? $content_data[ $field . '_url' ] : '#';
+					}
+					$node_content = isset( $content_data[ $field ] ) && ! empty( $content_data[ $field ] ) ? $content_data[ $field ] : __( 'Read More', 'reusable-component-builder' );
 				} else {
 					$btn_url      = isset( $content_data[ $field . '_url' ] ) ? $content_data[ $field . '_url' ] : '#';
 					$node_content = isset( $content_data[ $field ] ) ? $content_data[ $field ] : 'Button';

@@ -59,7 +59,7 @@ const CATEGORIZED_STYLE_OPTIONS = [
 ];
 
 // Recursive Component
-const NodeEditor = ({ node, updateNode, removeNode, duplicateNode, addChild, moveNodeUp, moveNodeDown, styleRegistry = [], parentType = null }) => {
+const NodeEditor = ({ node, updateNode, removeNode, duplicateNode, addChild, moveNodeUp, moveNodeDown, styleRegistry = [], parentType = null, templateType = 'query' }) => {
     const [isEditing, setIsEditing] = useState(false);
     const [activeTab, setActiveTab] = useState('Colors & Background');
 
@@ -96,6 +96,36 @@ const NodeEditor = ({ node, updateNode, removeNode, duplicateNode, addChild, mov
                             onChange={(val) => updateNode({ ...node, field: val })}
                             help="Used to map content and settings in the Block editor."
                         />
+                        {node.type !== 'container' && node.type !== 'column' && node.type !== 'innerblocks' && (
+                            <div style={{marginTop: '15px', padding: '15px', background: '#f5f5f5', border: '1px solid #ddd', borderRadius: '4px'}}>
+                                <strong>Dynamic Content Binding</strong>
+                                <p style={{fontSize: '11px', color: '#666', marginBottom: '10px'}}>In a Query Loop, this applies to each post. In a Static Layout, this applies to the current page/post.</p>
+                                <SelectControl
+                                    label="Dynamic Source"
+                                    value={node.dynamicSource || ''}
+                                    options={[
+                                        { label: 'Static Template Content', value: '' },
+                                        { label: 'Post Title', value: 'post_title' },
+                                        { label: 'Post Excerpt', value: 'post_excerpt' },
+                                        { label: 'Post Date', value: 'post_date' },
+                                        { label: 'Post Author', value: 'post_author' },
+                                        { label: 'Featured Image', value: 'featured_image' },
+                                        { label: 'Permalink', value: 'permalink' },
+                                        { label: 'Taxonomy Term', value: 'term' },
+                                        { label: 'Custom Meta Field', value: 'custom_meta' }
+                                    ]}
+                                    onChange={(val) => updateNode({ ...node, dynamicSource: val })}
+                                />
+                                {(node.dynamicSource === 'term' || node.dynamicSource === 'custom_meta') && (
+                                    <TextControl
+                                        label={node.dynamicSource === 'term' ? "Taxonomy Slug (e.g. category, event_category)" : "Meta Key (e.g. _my_custom_field)"}
+                                        value={node.dynamicField || ''}
+                                        onChange={(val) => updateNode({ ...node, dynamicField: val })}
+                                        help={node.dynamicSource === 'term' ? "Enter the taxonomy slug to retrieve the first term." : "Enter the exact post meta key."}
+                                    />
+                                )}
+                            </div>
+                        )}
                         {node.type === 'container' && (
                             <div className="rcb-column-selector" style={{marginBottom: '20px'}}>
                                 <label style={{display: 'block', marginBottom: '10px', fontWeight: 'bold'}}>Column Structure</label>
@@ -220,6 +250,7 @@ const NodeEditor = ({ node, updateNode, removeNode, duplicateNode, addChild, mov
                                         key={child.id}
                                         node={child}
                                         parentType="container"
+                                        templateType={templateType}
                                         updateNode={(updated) => {
                                             const next = node.children.map(c => c.id === child.id ? updated : c);
                                             updateNode({ ...node, children: next });
@@ -254,6 +285,7 @@ const NodeEditor = ({ node, updateNode, removeNode, duplicateNode, addChild, mov
                                         key={child.id}
                                         node={child}
                                         parentType={node.type}
+                                        templateType={templateType}
                                         updateNode={(updated) => {
                                             const next = [...node.children];
                                             next[index] = updated;
@@ -344,7 +376,9 @@ const AddElementButton = ({ onAdd, label = "Add Element", insideColumn = false }
 
 const App = () => {
     const inputElement = document.getElementById('rcb_component_structure_input');
+    const typeInputElement = document.getElementById('rcb-template-type-data');
     const initialData = inputElement && inputElement.value ? JSON.parse(inputElement.value) : {};
+    const defaultType = typeInputElement && typeInputElement.value ? typeInputElement.value : 'visual';
     
     // Removed global style registry dependency
     const generateId = (type) => `${type}_${Math.random().toString(36).substr(2, 6)}`;
@@ -366,6 +400,7 @@ const App = () => {
     const [structure, setStructure] = useState(defaultStructure);
     const [globalCustomStyles, setGlobalCustomStyles] = useState(defaultGlobalStyles);
     const [globalAllowedSettings, setGlobalAllowedSettings] = useState(initialData.globalAllowedSettings || { color: true, spacing: true });
+    const [templateType, setTemplateType] = useState(defaultType);
     const [isEditingGlobal, setIsEditingGlobal] = useState(false);
     const [globalActiveTab, setGlobalActiveTab] = useState('Colors & Background');
 
@@ -373,7 +408,10 @@ const App = () => {
         if (inputElement) {
             inputElement.value = JSON.stringify({ structure, globalCustomStyles, globalAllowedSettings });
         }
-    }, [structure, globalCustomStyles, globalAllowedSettings]);
+        if (typeInputElement) {
+            typeInputElement.value = templateType;
+        }
+    }, [structure, globalCustomStyles, globalAllowedSettings, templateType]);
 
     const addRootElement = (type) => {
         const id = generateId(type);
@@ -424,8 +462,8 @@ const App = () => {
     return (
         <div className="rcb-new-builder-layout">
             <div className="rcb-main-area">
-                <div className="rcb-builder-header">
-                    <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center'}}>
+                <div className="rcb-builder-header" style={{flexDirection: 'column', alignItems: 'flex-start', gap: '15px'}}>
+                    <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%'}}>
                         <div>
                             <h3>Template Builder</h3>
                             <p>Build your layout visually. Add components below and configure their unique field IDs.</p>
@@ -433,6 +471,21 @@ const App = () => {
                         <Button isPrimary onClick={() => setIsEditingGlobal(true)}>
                             Global Component Settings (Root Block)
                         </Button>
+                    </div>
+                    <div style={{background: '#fff', border: '1px solid #ddd', padding: '15px', borderRadius: '4px', width: '100%', display: 'flex', gap: '20px', alignItems: 'center'}}>
+                        <strong style={{minWidth: '150px'}}>Component Type:</strong>
+                        <SelectControl
+                            value={templateType}
+                            options={[
+                                { label: 'Static Visual Layout', value: 'visual' },
+                                { label: 'Dynamic Post Loop', value: 'query' }
+                            ]}
+                            onChange={(val) => setTemplateType(val)}
+                            style={{marginBottom: '0', minWidth: '250px'}}
+                        />
+                        <span style={{fontSize: '12px', color: '#666', fontStyle: 'italic', display: 'inline-block', lineHeight: '1.4'}}>
+                            {templateType === 'query' ? 'Will render as a loop. Dynamic Content Bindings will pull data automatically.' : 'Will render exactly as designed. Content input via block attributes.'}
+                        </span>
                     </div>
                 </div>
 
@@ -495,6 +548,7 @@ const App = () => {
                         <NodeEditor
                             key={node.id}
                             node={node}
+                            templateType={templateType}
                             updateNode={(updatedNode) => {
                                 const newStructure = [...structure];
                                 newStructure[index] = updatedNode;

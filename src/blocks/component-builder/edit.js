@@ -172,7 +172,7 @@ const AdvancedTypographyControl = ({ label, value, fontWeight, textTransform, li
 };
 
 export default function Edit({ attributes, setAttributes, clientId }) {
-    const { templateId, content, styles, uniqueId, mode, postType, layout, columns, postsPerPage, pagination, visibilityVars } = attributes;
+    const { templateId, content, styles, uniqueId, mode, postType, taxonomy, termId, layout, columns, postsPerPage, pagination, visibilityVars } = attributes;
     
     // We already know our templateId from the variation registration.
     // Fetch specifically this template immediately.
@@ -181,6 +181,10 @@ export default function Edit({ attributes, setAttributes, clientId }) {
     const [globalCustomStyles, setGlobalCustomStyles] = useState([]);
     const [globalAllowedSettings, setGlobalAllowedSettings] = useState({});
     const [previewPosts, setPreviewPosts] = useState([]);
+    
+    // Taxonomy API loading state
+    const [taxonomies, setTaxonomies] = useState([]);
+    const [terms, setTerms] = useState([]);
 
     // Optional loop visibility settings
     const vVars = visibilityVars || { showTitle: true, showExcerpt: true, showImage: true, showButton: true };
@@ -206,13 +210,45 @@ export default function Edit({ attributes, setAttributes, clientId }) {
     useEffect(() => {
         if (mode === 'query') {
             const route = postType === 'events' ? 'events' : (postType === 'page' ? 'pages' : 'posts');
-            apiFetch({ path: `/wp/v2/${route}?per_page=${postsPerPage}` }).then(posts => {
+            let path = `/wp/v2/${route}?per_page=${postsPerPage}`;
+            if (taxonomy && termId) {
+                // To fetch filtered posts, we need to know the term's taxonomy query var, we'll rough it in preview
+                path += `&${taxonomy}=${termId}`;
+            }
+            apiFetch({ path }).then(posts => {
                 setPreviewPosts(posts);
             }).catch(() => setPreviewPosts([]));
         } else {
             setPreviewPosts([]);
         }
-    }, [mode, postType, postsPerPage, templateId]);
+    }, [mode, postType, taxonomy, termId, postsPerPage, templateId]);
+
+    // Fetch taxonomies for the post type
+    useEffect(() => {
+        if (mode === 'query' && postType) {
+            apiFetch({ path: `/wp/v2/taxonomies?type=${postType}` }).then(data => {
+                const taxOptions = Object.keys(data).map(key => ({ label: data[key].name, value: data[key].slug, rest_base: data[key].rest_base }));
+                setTaxonomies([{ label: 'All Categories (No Filter)', value: '', rest_base: '' }, ...taxOptions]);
+            }).catch(() => setTaxonomies([]));
+        }
+    }, [mode, postType]);
+
+    // Fetch terms for the taxonomy
+    useEffect(() => {
+        if (mode === 'query' && taxonomy) {
+            const selectedTax = taxonomies.find(t => t.value === taxonomy);
+            if (selectedTax && selectedTax.rest_base) {
+                apiFetch({ path: `/wp/v2/${selectedTax.rest_base}?per_page=100` }).then(data => {
+                    const termOptions = data.map(term => ({ label: term.name, value: term.id }));
+                    setTerms([{ label: 'All Terms (No Filter)', value: 0 }, ...termOptions]);
+                }).catch(() => setTerms([]));
+            } else {
+                 setTerms([]);
+            }
+        } else {
+            setTerms([]);
+        }
+    }, [mode, taxonomy, taxonomies]);
 
     const getAllFields = (nodes) => {
         let fields = [];
@@ -249,12 +285,6 @@ export default function Edit({ attributes, setAttributes, clientId }) {
             });
         }
     };
-    
-    // Track dynamic loop assignments locally for preview mapping
-    let headingAssigned = false;
-    let textAssigned = false;
-    let imageAssigned = false;
-    let buttonAssigned = false;
 
     // Render nodes (Visual Structure)
     const renderPreviewNodes = (nodes, post = null) => {
@@ -318,7 +348,7 @@ export default function Edit({ attributes, setAttributes, clientId }) {
             }
 
             // In static mode, content is user input. 
-            // In query mode, content is auto-populated from typical post properties!
+            // In query mode, content is populated from dynamicSource!
             const placeholderMap = {
                 'heading': 'Enter heading...',
                 'text': 'Enter text content...',
@@ -328,34 +358,34 @@ export default function Edit({ attributes, setAttributes, clientId }) {
             let nodeContent = content[node.field] || placeholderMap[node.type] || '';
             let url = content[`${node.field}_url`];
 
-            if (mode === 'query' && post) {
-                if (node.type === 'heading' && !headingAssigned && vVars.showTitle) {
+            if (mode !== 'query' && node.dynamicSource) {
+                if (node.type === 'image') {
+                    url = 'https://via.placeholder.com/600x400?text=Dynamic+Image';
+                } else if (node.type === 'button') {
+                     nodeContent = `[Dynamic: ${node.dynamicSource}]`;
+                     url = '#';
+                } else {
+                     nodeContent = `[Dynamic: ${node.dynamicSource}]`;
+                }
+            } else if (mode === 'query' && post) {
+                const source = node.dynamicSource;
+                if (source === 'post_title') {
                     nodeContent = post.title?.rendered || 'Post Title';
-                    headingAssigned = true; // mapped
-                } else if (node.type === 'heading' && (!vVars.showTitle || headingAssigned)) {
-                    return null; // hide or duplicate skipped
-                }
-
-                if (node.type === 'text' && !textAssigned && vVars.showExcerpt) {
+                } else if (source === 'post_excerpt') {
                     nodeContent = post.excerpt?.rendered?.replace(/(<([^>]+)>)/gi, "") || 'Post Excerpt';
-                    textAssigned = true;
-                } else if (node.type === 'text' && (!vVars.showExcerpt || textAssigned)) {
-                    return null;
-                }
-
-                if (node.type === 'image' && !imageAssigned && vVars.showImage) {
+                } else if (source === 'post_date') {
+                    nodeContent = new Date(post.date).toLocaleDateString() || 'Post Date';
+                } else if (source === 'post_author') {
+                    nodeContent = 'Post Author';
+                } else if (source === 'featured_image') {
                     url = post.featured_media ? 'https://via.placeholder.com/600x400?text=Featured+Image' : 'https://via.placeholder.com/600x400?text=No+Image';
-                    imageAssigned = true;
-                } else if (node.type === 'image' && (!vVars.showImage || imageAssigned)) {
-                    return null;
-                }
-
-                if (node.type === 'button' && !buttonAssigned && vVars.showButton) {
-                    nodeContent = __('Read More', 'reusable-component-builder');
+                } else if (source === 'permalink') {
+                    nodeContent = nodeContent || __('Read More', 'reusable-component-builder');
                     url = post.link || '#';
-                    buttonAssigned = true;
-                } else if (node.type === 'button' && (!vVars.showButton || buttonAssigned)) {
-                    return null;
+                } else if (source === 'term') {
+                    nodeContent = `Term: ${node.dynamicField || 'name'}`;
+                } else if (source === 'custom_meta') {
+                    nodeContent = `Meta: ${node.dynamicField || 'value'}`;
                 }
             }
 
@@ -442,8 +472,24 @@ export default function Edit({ attributes, setAttributes, clientId }) {
                                 { label: 'Pages', value: 'page' },
                                 { label: 'Events', value: 'events' },
                             ]}
-                            onChange={(val) => setAttributes({ postType: val })}
+                            onChange={(val) => setAttributes({ postType: val, taxonomy: '', termId: 0 })}
                         />
+                        {taxonomies.length > 1 && (
+                            <SelectControl
+                                label={__('Filter by Taxonomy')}
+                                value={taxonomy}
+                                options={taxonomies}
+                                onChange={(val) => setAttributes({ taxonomy: val, termId: 0 })}
+                            />
+                        )}
+                        {taxonomy && terms.length > 1 && (
+                            <SelectControl
+                                label={__('Filter by Term')}
+                                value={termId}
+                                options={terms}
+                                onChange={(val) => setAttributes({ termId: parseInt(val, 10) || 0 })}
+                            />
+                        )}
                         <RangeControl
                             label={__('Posts Per Page')}
                             value={postsPerPage}
@@ -476,13 +522,8 @@ export default function Edit({ attributes, setAttributes, clientId }) {
                         />
                         
                         <div style={{marginTop: '20px', padding: '10px', background: '#f0f0f0', borderRadius: '4px'}}>
-                            <strong>Loop Display Visibility:</strong>
-                            <p style={{fontSize: '12px', marginTop: '5px'}}>The Loop automatically pairs your template's elements mapping Header=Title, Text=Excerpt, Image=Thumbnail. Toggle visibility below:</p>
-                            
-                            <ToggleControl label="Show Title" checked={vVars.showTitle} onChange={(val) => setAttributes({ visibilityVars: { ...vVars, showTitle: val } })} />
-                            <ToggleControl label="Show Excerpt" checked={vVars.showExcerpt} onChange={(val) => setAttributes({ visibilityVars: { ...vVars, showExcerpt: val } })} />
-                            <ToggleControl label="Show Featured Image" checked={vVars.showImage} onChange={(val) => setAttributes({ visibilityVars: { ...vVars, showImage: val } })} />
-                            <ToggleControl label="Show Post Button" checked={vVars.showButton} onChange={(val) => setAttributes({ visibilityVars: { ...vVars, showButton: val } })} />
+                            <strong>Dynamic Rendering Note:</strong>
+                            <p style={{fontSize: '12px', marginTop: '5px'}}>The Loop populates elements that have a "Dynamic Source" set in the Template Builder.</p>
                         </div>
                     </PanelBody>
                 )}
@@ -866,10 +907,7 @@ export default function Edit({ attributes, setAttributes, clientId }) {
                     mode === 'query' ? (
                         previewPosts.length > 0 ? previewPosts.map((post, idx) => {
                             // Reset per post loop preview
-                            headingAssigned = false;
-                            textAssigned = false;
-                            imageAssigned = false;
-                            buttonAssigned = false;
+
 
                             return (
                                 <div key={`post-${idx}`} className={`rcb-instance rcb-instance-${uniqueId}`}>

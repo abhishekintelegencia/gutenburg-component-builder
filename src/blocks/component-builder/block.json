@@ -20,6 +20,8 @@
     "postType": { "type": "string", "default": "post" },
     "layout": { "type": "string", "default": "grid" },
     "columns": { "type": "number", "default": 3 },
+    "taxonomy": { "type": "string", "default": "" },
+    "termId": { "type": "number", "default": 0 },
     "postsPerPage": { "type": "number", "default": 3 },
     "pagination": { "type": "boolean", "default": false },
     "visibilityVars": {
