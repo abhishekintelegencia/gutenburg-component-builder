@@ -567,7 +567,7 @@ export default function Edit({ attributes, setAttributes, clientId }) {
                     }
                     
                     // Check if any standard keys are enabled
-                    if (!allowed.color && !allowed.typography && !allowed.spacing && !allowed.borders && !allowed.alignment && !allowed.dimensions && !allowed.backgroundImage && !allowed.opacity && !allowed.boxShadow && !allowed.customStylesBox) {
+                    if (!allowed.color && !allowed.typography && !allowed.spacing && !allowed.borders && !allowed.alignment && !allowed.dimensions && !allowed.backgroundImage && !allowed.opacity && !allowed.boxShadow && !allowed.customStylesBox && !allowed.zIndex && !allowed.overflow && !allowed.visibility && !allowed.cursor && !allowed.transition && !allowed.filter && !allowed.backdropFilter && !allowed.transform) {
                         return null; // No settings enabled for this node
                     }
 
@@ -727,6 +727,90 @@ export default function Edit({ attributes, setAttributes, clientId }) {
                                     value={styles[fieldNode.field]?.[ 'boxShadow' ] || ''}
                                     onChange={(val) => updateStyle(fieldNode.field, 'boxShadow', val)}
                                     help="e.g., 0px 4px 10px rgba(0,0,0,0.1)"
+                                />
+                            )}
+                            
+                            {/* ADVANCED LAYOUT */}
+                            {allowed.zIndex && (
+                                <TextControl
+                                    label={__('Z-Index', 'reusable-component-builder')}
+                                    value={styles[fieldNode.field]?.[ 'zIndex' ] || ''}
+                                    onChange={(val) => updateStyle(fieldNode.field, 'zIndex', val)}
+                                    type="number"
+                                />
+                            )}
+                            {allowed.overflow && (
+                                <SelectControl
+                                    label={__('Overflow', 'reusable-component-builder')}
+                                    value={styles[fieldNode.field]?.[ 'overflow' ] || ''}
+                                    options={[
+                                        { label: __('Default', 'reusable-component-builder'), value: '' },
+                                        { label: __('Visible', 'reusable-component-builder'), value: 'visible' },
+                                        { label: __('Hidden', 'reusable-component-builder'), value: 'hidden' },
+                                        { label: __('Scroll', 'reusable-component-builder'), value: 'scroll' },
+                                        { label: __('Auto', 'reusable-component-builder'), value: 'auto' }
+                                    ]}
+                                    onChange={(val) => updateStyle(fieldNode.field, 'overflow', val)}
+                                />
+                            )}
+                            {allowed.visibility && (
+                                <SelectControl
+                                    label={__('Visibility', 'reusable-component-builder')}
+                                    value={styles[fieldNode.field]?.[ 'visibility' ] || ''}
+                                    options={[
+                                        { label: __('Default', 'reusable-component-builder'), value: '' },
+                                        { label: __('Visible', 'reusable-component-builder'), value: 'visible' },
+                                        { label: __('Hidden', 'reusable-component-builder'), value: 'hidden' }
+                                    ]}
+                                    onChange={(val) => updateStyle(fieldNode.field, 'visibility', val)}
+                                />
+                            )}
+                            {allowed.cursor && (
+                                <SelectControl
+                                    label={__('Cursor', 'reusable-component-builder')}
+                                    value={styles[fieldNode.field]?.[ 'cursor' ] || ''}
+                                    options={[
+                                        { label: __('Default', 'reusable-component-builder'), value: '' },
+                                        { label: __('Pointer (Hand)', 'reusable-component-builder'), value: 'pointer' },
+                                        { label: __('Text', 'reusable-component-builder'), value: 'text' },
+                                        { label: __('Not Allowed', 'reusable-component-builder'), value: 'not-allowed' },
+                                        { label: __('Help', 'reusable-component-builder'), value: 'help' }
+                                    ]}
+                                    onChange={(val) => updateStyle(fieldNode.field, 'cursor', val)}
+                                />
+                            )}
+
+                            {/* ANIMATIONS & FILTERS */}
+                            {allowed.transition && (
+                                <TextControl
+                                    label={__('Transition', 'reusable-component-builder')}
+                                    value={styles[fieldNode.field]?.[ 'transition' ] || ''}
+                                    onChange={(val) => updateStyle(fieldNode.field, 'transition', val)}
+                                    help="e.g., all 0.3s ease"
+                                />
+                            )}
+                            {allowed.filter && (
+                                <TextControl
+                                    label={__('Filter', 'reusable-component-builder')}
+                                    value={styles[fieldNode.field]?.[ 'filter' ] || ''}
+                                    onChange={(val) => updateStyle(fieldNode.field, 'filter', val)}
+                                    help="e.g., blur(5px) or grayscale(100%)"
+                                />
+                            )}
+                            {allowed.backdropFilter && (
+                                <TextControl
+                                    label={__('Backdrop Filter', 'reusable-component-builder')}
+                                    value={styles[fieldNode.field]?.[ 'backdropFilter' ] || ''}
+                                    onChange={(val) => updateStyle(fieldNode.field, 'backdropFilter', val)}
+                                    help="e.g., blur(10px) (Ideal for glassmorphism)"
+                                />
+                            )}
+                            {allowed.transform && (
+                                <TextControl
+                                    label={__('Transform', 'reusable-component-builder')}
+                                    value={styles[fieldNode.field]?.[ 'transform' ] || ''}
+                                    onChange={(val) => updateStyle(fieldNode.field, 'transform', val)}
+                                    help="e.g., scale(1.05) translateY(-5px)"
                                 />
                             )}
                             {allowed.customStylesBox && (
