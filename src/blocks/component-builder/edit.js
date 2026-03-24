@@ -276,8 +276,8 @@ export default function Edit({ attributes, setAttributes, clientId }) {
     const getAllFields = (nodes) => {
         let fields = [];
         nodes.forEach(node => {
-            // Skip column and container nodes — they are structural, not content fields
-            if (node.field && node.type !== 'column' && node.type !== 'container') {
+            // Include all nodes with a field (ID), so styling panels can be generated for them
+            if (node.field) {
                 fields.push(node);
             }
             if (node.children) fields = fields.concat(getAllFields(node.children));
@@ -336,8 +336,9 @@ export default function Edit({ attributes, setAttributes, clientId }) {
             // Background image implementation for any node type
             if (content[`${node.field}_bg_url`]) {
                 nodeStyles.backgroundImage = `url(${content[`${node.field}_bg_url`]})`;
-                nodeStyles.backgroundSize = 'cover';
-                nodeStyles.backgroundPosition = 'center';
+                nodeStyles.backgroundSize = nodeStyles.backgroundSize || 'cover';
+                nodeStyles.backgroundPosition = nodeStyles.backgroundPosition || 'center';
+                nodeStyles.backgroundRepeat = nodeStyles.backgroundRepeat || 'no-repeat';
             }
 
             // Columns layout for container — use grid on container itself
@@ -348,11 +349,7 @@ export default function Edit({ attributes, setAttributes, clientId }) {
                 // In grid mode, render only column children inside the grid
                 return (
                     <div key={i} className={`rcb-container ${node.id}`} style={nodeStyles}>
-                        {(node.children || []).filter(c => c.type === 'column').map((col, ci) => (
-                            <div key={ci} className={`rcb-column ${col.id}`} style={styles[col.field] || {}}>
-                                {col.children && renderPreviewNodes(col.children, post)}
-                            </div>
-                        ))}
+                        {renderPreviewNodes((node.children || []).filter(c => c.type === 'column'), post)}
                     </div>
                 );
             }
@@ -586,7 +583,7 @@ export default function Edit({ attributes, setAttributes, clientId }) {
                 {templateId > 0 && mode === 'static' && (
                     <PanelBody title={`${templateName} Content`} initialOpen={true}>
                         {(() => {
-                            const fieldsToRender = configurableFields.filter(f => f.type !== 'container' && !f.dynamicSource);
+                            const fieldsToRender = configurableFields.filter(f => f.type !== 'container' && f.type !== 'column' && !f.dynamicSource);
                             
                             if (fieldsToRender.length === 0) {
                                 return (
@@ -709,6 +706,47 @@ export default function Edit({ attributes, setAttributes, clientId }) {
                                             )}
                                         />
                                     </MediaUploadCheck>
+                                    
+                                    {content[`${fieldNode.field}_bg_url`] && (
+                                        <div style={{ marginTop: '15px', borderTop: '1px solid #eee', paddingTop: '15px' }}>
+                                            <SelectControl
+                                                label={__('Background Size')}
+                                                value={(styles[fieldNode.field] && styles[fieldNode.field].backgroundSize) || 'cover'}
+                                                options={[
+                                                    { label: 'Cover', value: 'cover' },
+                                                    { label: 'Contain', value: 'contain' },
+                                                    { label: 'Auto (Original)', value: 'auto' }
+                                                ]}
+                                                onChange={(val) => updateStyle(fieldNode.field, 'backgroundSize', val)}
+                                            />
+                                            <SelectControl
+                                                label={__('Background Position')}
+                                                value={(styles[fieldNode.field] && styles[fieldNode.field].backgroundPosition) || 'center center'}
+                                                options={[
+                                                    { label: 'Center', value: 'center center' },
+                                                    { label: 'Top Left', value: 'left top' },
+                                                    { label: 'Top Center', value: 'center top' },
+                                                    { label: 'Top Right', value: 'right top' },
+                                                    { label: 'Bottom Left', value: 'left bottom' },
+                                                    { label: 'Bottom Center', value: 'center bottom' },
+                                                    { label: 'Bottom Right', value: 'right bottom' }
+                                                ]}
+                                                onChange={(val) => updateStyle(fieldNode.field, 'backgroundPosition', val)}
+                                            />
+                                            <SelectControl
+                                                label={__('Background Repeat')}
+                                                value={(styles[fieldNode.field] && styles[fieldNode.field].backgroundRepeat) || 'no-repeat'}
+                                                options={[
+                                                    { label: 'No Repeat', value: 'no-repeat' },
+                                                    { label: 'Repeat XY', value: 'repeat' },
+                                                    { label: 'Repeat X', value: 'repeat-x' },
+                                                    { label: 'Repeat Y', value: 'repeat-y' }
+                                                ]}
+                                                onChange={(val) => updateStyle(fieldNode.field, 'backgroundRepeat', val)}
+                                            />
+                                        </div>
+                                    )}
+
                                 </BaseControl>
                             )}
 
