@@ -269,6 +269,10 @@ function rcb_render_visual_nodes_with_visibility( $nodes, $content_data, $styles
 			}
 		}
 
+		if ( in_array( $type, array( 'text', 'heading' ) ) ) {
+			$final_styles['white-space'] = 'pre-wrap';
+		}
+
 		$style_attr = rcb_build_inline_style( $final_styles );
 
 		switch ( $type ) {

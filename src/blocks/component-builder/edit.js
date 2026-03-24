@@ -1,6 +1,6 @@
 import { __ } from '@wordpress/i18n';
 import { useBlockProps, InspectorControls, MediaUpload, MediaUploadCheck, PanelColorSettings, InnerBlocks } from '@wordpress/block-editor';
-import { PanelBody, SelectControl, TextControl, Button, ToggleControl, RangeControl, RadioControl, BaseControl, Dashicon, __experimentalBoxControl as BoxControl, __experimentalToggleGroupControl as ToggleGroupControl, __experimentalToggleGroupControlOption as ToggleGroupControlOption } from '@wordpress/components';
+import { PanelBody, SelectControl, TextControl, TextareaControl, Button, ToggleControl, RangeControl, RadioControl, BaseControl, Dashicon, __experimentalBoxControl as BoxControl, __experimentalToggleGroupControl as ToggleGroupControl, __experimentalToggleGroupControlOption as ToggleGroupControlOption } from '@wordpress/components';
 import { useEffect, useState } from '@wordpress/element';
 import { useSelect } from '@wordpress/data';
 import apiFetch from '@wordpress/api-fetch';
@@ -460,9 +460,9 @@ export default function Edit({ attributes, setAttributes, clientId }) {
                         </div>
                     );
                 case 'heading':
-                    return <h2 key={i} className={`rcb-heading ${node.id}`} style={nodeStyles}>{nodeContent}</h2>;
+                    return <h2 key={i} className={`rcb-heading ${node.id}`} style={{...nodeStyles, whiteSpace: 'pre-wrap'}}>{nodeContent}</h2>;
                 case 'text':
-                    return <div key={i} className={`rcb-text ${node.id}`} style={nodeStyles}>{nodeContent}</div>;
+                    return <div key={i} className={`rcb-text ${node.id}`} style={{...nodeStyles, whiteSpace: 'pre-wrap'}}>{nodeContent}</div>;
                 case 'image':
                     if (url) {
                         return <img key={i} src={url} className={`rcb-image ${node.id}`} alt={nodeContent} style={{...nodeStyles, display: 'block'}} />;
@@ -631,6 +631,19 @@ export default function Edit({ attributes, setAttributes, clientId }) {
                                                 />
                                             </MediaUploadCheck>
                                         </BaseControl>
+                                    </div>
+                                );
+                            }
+
+                            if (fieldNode.type === 'text') {
+                                return (
+                                    <div key={fieldNode.id} className="rcb-field-row" style={{marginBottom: '15px'}}>
+                                        <TextareaControl
+                                            label={`${fieldNode.field} (Text)`}
+                                            value={content[fieldNode.field] || ''}
+                                            onChange={(val) => updateContent(fieldNode.field, val)}
+                                            rows={5}
+                                        />
                                     </div>
                                 );
                             }
