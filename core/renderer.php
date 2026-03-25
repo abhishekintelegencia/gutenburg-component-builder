@@ -115,7 +115,14 @@ function rcb_render_component_builder_block( $attributes, $content ) {
 		$columns        = isset( $attributes['columns'] ) ? intval( $attributes['columns'] ) : 3;
 		$pagination     = isset( $attributes['pagination'] ) ? $attributes['pagination'] : false;
 
-		$paged = ( get_query_var( 'paged' ) ) ? get_query_var( 'paged' ) : 1;
+		$paged = 1;
+		if ( $pagination ) {
+			// On singular pages, custom loops usually shouldn't sync with the main page's 'paged' value
+			// unless we are specifically on an archive. This prevents "No posts found" if the URL has /page/X/
+			if ( ! is_singular() ) {
+				$paged = ( get_query_var( 'paged' ) ) ? get_query_var( 'paged' ) : 1;
+			}
+		}
 
 		$args = array(
 			'post_type'      => $post_type,
