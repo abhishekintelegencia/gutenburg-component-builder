@@ -16,8 +16,8 @@ function rcb_build_inline_style( $styles ) {
 		if ( $value === '' || $value === null ) continue;
 		$css_prop = strtolower( preg_replace( '/(?<!^)[A-Z]/', '-$0', $key ) );
 		
-		// Add !important to font-weight to override theme defaults (as requested by user)
-		$suffix = ( $css_prop === 'font-weight' ) ? ' !important' : '';
+		// Add !important to font-weight and font-family to override theme defaults
+		$suffix = ( $css_prop === 'font-weight' || $css_prop === 'font-family' ) ? ' !important' : '';
 		
 		$style_string .= esc_attr( $css_prop ) . ':' . esc_attr( $value ) . $suffix . ';';
 	}
@@ -157,7 +157,7 @@ function rcb_render_component_builder_block( $attributes, $content ) {
 				global $post;
 
 				$final_output .= sprintf( '<div class="rcb-instance rcb-instance-%s rcb-loop-item" %s>', esc_attr( $unique_id ), $root_style_attr );
-				$final_output .= rcb_render_visual_nodes_with_visibility( $nodes, $content_data, $styles_data, $mode, $post, $visibility, $content );
+				$final_output .= rcb_render_visual_nodes_with_visibility( $nodes, $content_data, $styles_data, $mode, $post, $visibility, $content, $style_registry );
 				$final_output .= '</div>';
 			}
 
@@ -211,39 +211,33 @@ function rcb_render_visual_nodes_with_visibility( $nodes, $content_data, $styles
 		$raw_styles    = isset( $styles_data[ $field ] ) ? $styles_data[ $field ] : array();
 		$final_styles  = array();
 
-		// Standard styles based on 'allowed'
-		if ( ! empty( $allowed['color'] ) ) {
-			if ( isset( $raw_styles['color'] ) ) $final_styles['color'] = $raw_styles['color'];
-			if ( isset( $raw_styles['backgroundColor'] ) ) $final_styles['backgroundColor'] = $raw_styles['backgroundColor'];
-		}
-		if ( ! empty( $allowed['spacing'] ) ) {
-			if ( isset( $raw_styles['padding'] ) ) $final_styles['padding'] = $raw_styles['padding'];
-			if ( isset( $raw_styles['margin'] ) ) $final_styles['margin'] = $raw_styles['margin'];
-		}
-		if ( ! empty( $allowed['typography'] ) ) {
-			if ( isset( $raw_styles['fontSize'] ) ) $final_styles['fontSize'] = $raw_styles['fontSize'];
-			if ( isset( $raw_styles['fontWeight'] ) ) $final_styles['fontWeight'] = $raw_styles['fontWeight'];
-			if ( isset( $raw_styles['lineHeight'] ) ) $final_styles['lineHeight'] = $raw_styles['lineHeight'];
-			if ( isset( $raw_styles['letterSpacing'] ) ) $final_styles['letterSpacing'] = $raw_styles['letterSpacing'];
-			if ( isset( $raw_styles['textTransform'] ) ) $final_styles['textTransform'] = $raw_styles['textTransform'];
-		}
-		if ( ! empty( $allowed['borders'] ) ) {
-			if ( isset( $raw_styles['borderRadius'] ) ) $final_styles['borderRadius'] = $raw_styles['borderRadius'];
-			if ( isset( $raw_styles['border'] ) ) $final_styles['border'] = $raw_styles['border'];
-		}
+		// Standard styles - Map if they exist in raw_styles, regardless of allowedSettings
+		// This ensures robustness if allowedSettings ever gets out of sync or missing
+		if ( isset( $raw_styles['color'] ) ) $final_styles['color'] = $raw_styles['color'];
+		if ( isset( $raw_styles['backgroundColor'] ) ) $final_styles['backgroundColor'] = $raw_styles['backgroundColor'];
+		
+		if ( isset( $raw_styles['padding'] ) ) $final_styles['padding'] = $raw_styles['padding'];
+		if ( isset( $raw_styles['margin'] ) ) $final_styles['margin'] = $raw_styles['margin'];
 
-		if ( ! empty( $allowed['alignment'] ) ) {
-			if ( isset( $raw_styles['textAlign'] ) ) $final_styles['textAlign'] = $raw_styles['textAlign'];
-		}
-		if ( ! empty( $allowed['dimensions'] ) ) {
-			if ( isset( $raw_styles['width'] ) ) $final_styles['width'] = $raw_styles['width'];
-			if ( isset( $raw_styles['height'] ) ) $final_styles['height'] = $raw_styles['height'];
-		}
+		if ( isset( $raw_styles['fontSize'] ) ) $final_styles['fontSize'] = $raw_styles['fontSize'];
+		if ( isset( $raw_styles['fontWeight'] ) ) $final_styles['fontWeight'] = $raw_styles['fontWeight'];
+		if ( isset( $raw_styles['lineHeight'] ) ) $final_styles['lineHeight'] = $raw_styles['lineHeight'];
+		if ( isset( $raw_styles['letterSpacing'] ) ) $final_styles['letterSpacing'] = $raw_styles['letterSpacing'];
+		if ( isset( $raw_styles['textTransform'] ) ) $final_styles['textTransform'] = $raw_styles['textTransform'];
+		if ( isset( $raw_styles['fontFamily'] ) ) $final_styles['fontFamily'] = $raw_styles['fontFamily'];
 
-		// Direct Props Mapping (for keys that match CSS property name in CamelCase)
+		if ( isset( $raw_styles['borderRadius'] ) ) $final_styles['borderRadius'] = $raw_styles['borderRadius'];
+		if ( isset( $raw_styles['border'] ) ) $final_styles['border'] = $raw_styles['border'];
+
+		if ( isset( $raw_styles['textAlign'] ) ) $final_styles['textAlign'] = $raw_styles['textAlign'];
+		
+		if ( isset( $raw_styles['width'] ) ) $final_styles['width'] = $raw_styles['width'];
+		if ( isset( $raw_styles['height'] ) ) $final_styles['height'] = $raw_styles['height'];
+
+		// Direct Props Mapping
 		$direct_props = array( 'opacity', 'boxShadow', 'zIndex', 'overflow', 'visibility', 'cursor', 'transition', 'filter', 'backdropFilter', 'transform' );
 		foreach ( $direct_props as $prop ) {
-			if ( ! empty( $allowed[ $prop ] ) && isset( $raw_styles[ $prop ] ) ) {
+			if ( isset( $raw_styles[ $prop ] ) ) {
 				$final_styles[ $prop ] = $raw_styles[ $prop ];
 			}
 		}
@@ -290,6 +284,14 @@ function rcb_render_visual_nodes_with_visibility( $nodes, $content_data, $styles
 			if ( isset( $raw_styles['textSizePreset'] ) && isset( $size_map[ $raw_styles['textSizePreset'] ] ) ) {
 				$final_styles['font-size'] = $size_map[ $raw_styles['textSizePreset'] ];
 			}
+
+			// Add direct typography mapping for buttons
+			if ( isset( $raw_styles['fontFamily'] ) ) $final_styles['fontFamily'] = $raw_styles['fontFamily'];
+			if ( isset( $raw_styles['fontWeight'] ) ) $final_styles['fontWeight'] = $raw_styles['fontWeight'];
+			if ( isset( $raw_styles['textTransform'] ) ) $final_styles['textTransform'] = $raw_styles['textTransform'];
+			if ( isset( $raw_styles['lineHeight'] ) ) $final_styles['lineHeight'] = $raw_styles['lineHeight'];
+			if ( isset( $raw_styles['letterSpacing'] ) ) $final_styles['letterSpacing'] = $raw_styles['letterSpacing'];
+			if ( isset( $raw_styles['fontSize'] ) ) $final_styles['fontSize'] = $raw_styles['fontSize'];
 
 			// Hover States
 			$hover_css = '';
