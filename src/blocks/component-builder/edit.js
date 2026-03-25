@@ -477,7 +477,97 @@ export default function Edit({ attributes, setAttributes, clientId }) {
                     }
                     return <div key={i} className={`rcb-image-placeholder ${node.id}`} style={{...nodeStyles, background: '#ccc', minHeight: '100px', display: 'flex', alignItems: 'center', justifyContent: 'center'}}>Image Placeholder: {node.field}</div>;
                 case 'button':
-                    return <a key={i} href={url || '#'} className={`rcb-button ${node.id}`} style={{...nodeStyles, display: 'inline-block'}} onClick={e => e.preventDefault()}>{nodeContent}</a>;
+                    const btnStyles = { ...nodeStyles };
+                    
+                    // Handle Padding X/Y
+                    if (nodeStyles.paddingX !== undefined || nodeStyles.paddingY !== undefined) {
+                        const px = nodeStyles.paddingX !== undefined ? `${nodeStyles.paddingX}rem` : '1rem';
+                        const py = nodeStyles.paddingY !== undefined ? `${nodeStyles.paddingY}rem` : '0.5rem';
+                        btnStyles.padding = `${py} ${px}`;
+                    }
+
+                    // Handle Border Radius/Width Rem
+                    if (nodeStyles.borderRadiusRem !== undefined) btnStyles.borderRadius = `${nodeStyles.borderRadiusRem}rem`;
+                    if (nodeStyles.borderWidthRem !== undefined) {
+                        btnStyles.borderWidth = `${nodeStyles.borderWidthRem}rem`;
+                        btnStyles.borderStyle = btnStyles.borderStyle || 'solid';
+                        if (nodeStyles.borderColor) btnStyles.borderColor = nodeStyles.borderColor;
+                    }
+
+                    // Handle Text Size Presets
+                    const sizeMap = { 'S': '12px', 'M': '14px', 'L': '16px', 'XL': '20px', '1XL': '24px', '2XL': '32px' };
+                    if (nodeStyles.textSizePreset && sizeMap[nodeStyles.textSizePreset]) {
+                        btnStyles.fontSize = sizeMap[nodeStyles.textSizePreset];
+                    }
+
+                    // Alignment wrapper
+                    const alignMap = { 'start': 'flex-start', 'center': 'center', 'end': 'flex-end' };
+                    const wrapperStyles = { 
+                        display: 'flex', 
+                        justifyContent: alignMap[nodeStyles.buttonAlign || 'start'],
+                        width: '100%'
+                    };
+
+                    const iconMode = content[`${node.field}_icon_mode`] || 'Default';
+                    const iconSize = parseFloat(nodeStyles.iconSize) || 0.8;
+                    const url = content[`${node.field}_url`] || '';
+                    
+                    return (
+                        <div key={i} style={wrapperStyles} className="rcb-button-wrapper">
+                            <style>{`
+                                .rcb-button-wrapper .rcb-button.${node.id}:hover {
+                                    color: ${nodeStyles.hoverColor || 'inherit'} !important;
+                                    background-color: ${nodeStyles.hoverBgColor || 'transparent'} !important;
+                                    border-color: ${nodeStyles.hoverBorderColor || 'transparent'} !important;
+                                    text-decoration: ${nodeStyles.hoverUnderline ? 'underline' : 'none'} !important;
+                                }
+                                .rcb-button-wrapper .rcb-button.${node.id}:hover .rcb-button-icon {
+                                    color: ${nodeStyles.iconHoverColor || 'inherit'} !important;
+                                    background-color: ${nodeStyles.iconHoverBgColor || 'transparent'} !important;
+                                    border-color: ${nodeStyles.iconHoverBorderColor || 'transparent'} !important;
+                                }
+                            `}</style>
+                            <a 
+                                href={url || '#'} 
+                                className={`rcb-button ${node.id}`} 
+                                style={{
+                                    ...btnStyles, 
+                                    display: 'inline-flex', 
+                                    alignItems: 'center', 
+                                    gap: '8px',
+                                    textDecoration: 'none',
+                                    transition: 'all 0.3s ease-in-out'
+                                }} 
+                                onClick={e => e.preventDefault()}
+                            >
+                                {nodeContent}
+                                {iconMode !== 'Default' && (
+                                    <span 
+                                        className="rcb-button-icon"
+                                        style={{ 
+                                            display: 'inline-flex',
+                                            alignItems: 'center',
+                                            justifyContent: 'center',
+                                            background: iconMode === 'Icon with Bg' ? (nodeStyles.iconBgColor || '#f0f0f0') : 'transparent',
+                                            color: nodeStyles.iconColor || 'inherit',
+                                            borderRadius: '50%',
+                                            width: iconMode === 'Icon with Bg' ? `${iconSize * 1.875}em` : 'auto',
+                                            height: iconMode === 'Icon with Bg' ? `${iconSize * 1.875}em` : 'auto',
+                                            border: iconMode === 'Icon with Bg' ? `${nodeStyles.iconBorderWidth || 0.1}rem solid ${nodeStyles.iconBorderColor || 'transparent'}` : 'none',
+                                            fontSize: `${iconSize}em`,
+                                            lineHeight: 1,
+                                            marginLeft: iconMode === 'Icon with Bg' ? '4px' : '0',
+                                            transition: 'all 0.3s ease-in-out'
+                                        }}
+                                    >
+                                        <svg width="1em" height="1em" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ display: 'block' }}>
+                                            <path d="M5 12H19M19 12L13 6M19 12L13 18" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                                        </svg>
+                                    </span>
+                                )}
+                            </a>
+                        </div>
+                    );
                 default:
                     return null;
             }
@@ -681,13 +771,21 @@ export default function Edit({ attributes, setAttributes, clientId }) {
                     // backgroundImage as a style control only makes sense for non-image nodes (image nodes use content upload)
                     const defaultBgImage = fieldNode.type !== 'image';
                     const allowed = fieldNode.allowedSettings || { color: true, typography: true, spacing: true, borders: true, dimensions: fieldNode.type === 'image', backgroundImage: defaultBgImage };
+                    
+                    // Force button-specific settings
+                    if (fieldNode.type === 'button') {
+                        allowed.buttonSettings = true;
+                        allowed.iconSettings = true;
+                        // For buttons, we might want to hide generic panels if not explicitly enabled
+                    }
+                    
                     // Runtime override: image-type nodes should never show bg-image style control
                     if (fieldNode.type === 'image') {
                         allowed.backgroundImage = false;
                     }
                     
                     // Check if any standard keys are enabled
-                    if (!allowed.color && !allowed.typography && !allowed.spacing && !allowed.borders && !allowed.alignment && !allowed.dimensions && !allowed.backgroundImage && !allowed.opacity && !allowed.boxShadow && !allowed.customStylesBox && !allowed.zIndex && !allowed.overflow && !allowed.visibility && !allowed.cursor && !allowed.transition && !allowed.filter && !allowed.backdropFilter && !allowed.transform) {
+                    if (!allowed.buttonSettings && !allowed.iconSettings && !allowed.color && !allowed.typography && !allowed.spacing && !allowed.borders && !allowed.alignment && !allowed.dimensions && !allowed.backgroundImage && !allowed.opacity && !allowed.boxShadow && !allowed.customStylesBox && !allowed.zIndex && !allowed.overflow && !allowed.visibility && !allowed.cursor && !allowed.transition && !allowed.filter && !allowed.backdropFilter && !allowed.transform) {
                         return null; // No settings enabled for this node
                     }
 
@@ -771,7 +869,7 @@ export default function Edit({ attributes, setAttributes, clientId }) {
                                 </BaseControl>
                             )}
 
-                            {allowed.color && (
+                            {allowed.color && !allowed.buttonSettings && (
                                 <PanelColorSettings
                                     title={__('Colors', 'reusable-component-builder')}
                                     initialOpen={false}
@@ -789,7 +887,7 @@ export default function Edit({ attributes, setAttributes, clientId }) {
                                     ]}
                                 />
                             )}
-                            {allowed.typography && (
+                            {allowed.typography && !allowed.buttonSettings && (
                                 <AdvancedTypographyControl
                                     label={__('Typography', 'reusable-component-builder')}
                                     value={(styles[fieldNode.field] && styles[fieldNode.field].fontSize) || ''}
@@ -800,7 +898,7 @@ export default function Edit({ attributes, setAttributes, clientId }) {
                                     onChange={(prop, val) => updateStyle(fieldNode.field, prop, val)}
                                 />
                             )}
-                            {allowed.spacing && (
+                            {allowed.spacing && !allowed.buttonSettings && (
                                 <>
                                     <div className="rcb-box-control-wrapper" style={{ marginBottom: '15px' }}>
                                         <BoxControl
@@ -818,7 +916,7 @@ export default function Edit({ attributes, setAttributes, clientId }) {
                                     </div>
                                 </>
                             )}
-                            {allowed.alignment && (
+                            {allowed.alignment && !allowed.buttonSettings && (
                                 <ToggleGroupControl
                                     label={__('Text Alignment', 'reusable-component-builder')}
                                     value={(styles[fieldNode.field] && styles[fieldNode.field].textAlign) || 'default'}
@@ -845,7 +943,7 @@ export default function Edit({ attributes, setAttributes, clientId }) {
                                     />
                                 </>
                             )}
-                            {allowed.borders && (
+                            {allowed.borders && !allowed.buttonSettings && (
                                 <>
                                     <RangeControl
                                         label={__('Border Radius (px)', 'reusable-component-builder')}
@@ -974,6 +1072,272 @@ export default function Edit({ attributes, setAttributes, clientId }) {
                                     help="e.g., scale(1.05) translateY(-5px)"
                                 />
                             )}
+                            {allowed.buttonSettings && (
+                                <PanelBody title={__('Button Settings', 'reusable-component-builder')} initialOpen={true}>
+                                    <TextControl
+                                        label={__('BUTTON TEXT', 'reusable-component-builder')}
+                                        value={content[fieldNode.field] || ''}
+                                        onChange={(val) => updateContent(fieldNode.field, val)}
+                                    />
+                                    <SelectControl
+                                        label={__('BUTTON FONTWEIGHT', 'reusable-component-builder')}
+                                        value={styles[fieldNode.field]?.fontWeight || '400'}
+                                        options={[
+                                            { label: 'Thin', value: '100' },
+                                            { label: 'Extra-Light', value: '200' },
+                                            { label: 'Light', value: '300' },
+                                            { label: 'Regular', value: '400' },
+                                            { label: 'Medium', value: '500' },
+                                            { label: 'Semi-Bold', value: '600' },
+                                            { label: 'Bold', value: '700' },
+                                            { label: 'Extra-Bold', value: '800' },
+                                            { label: 'Black', value: '900' },
+                                        ]}
+                                        onChange={(val) => updateStyle(fieldNode.field, 'fontWeight', val)}
+                                    />
+                                    <PanelColorSettings
+                                        title={__('Button Color', 'reusable-component-builder')}
+                                        initialOpen={false}
+                                        colorSettings={[
+                                            {
+                                                value: styles[fieldNode.field]?.color || '',
+                                                onChange: (val) => updateStyle(fieldNode.field, 'color', val),
+                                                label: __('Button Text Color', 'reusable-component-builder'),
+                                            },
+                                            {
+                                                value: styles[fieldNode.field]?.backgroundColor || '',
+                                                onChange: (val) => updateStyle(fieldNode.field, 'backgroundColor', val),
+                                                label: __('Background Color', 'reusable-component-builder'),
+                                            },
+                                        ]}
+                                    />
+                                    <ToggleGroupControl
+                                        label={__('Text Size', 'reusable-component-builder')}
+                                        value={styles[fieldNode.field]?.textSizePreset || 'None'}
+                                        isBlock
+                                        onChange={(val) => updateStyle(fieldNode.field, 'textSizePreset', val)}
+                                        style={{ marginBottom: '20px' }}
+                                    >
+                                        <ToggleGroupControlOption value="S" label="S" />
+                                        <ToggleGroupControlOption value="M" label="M" />
+                                        <ToggleGroupControlOption value="L" label="L" />
+                                        <ToggleGroupControlOption value="XL" label="XL" />
+                                        <ToggleGroupControlOption value="1XL" label="1XL" />
+                                        <ToggleGroupControlOption value="2XL" label="2XL" />
+                                        <ToggleGroupControlOption value="None" label="None" />
+                                    </ToggleGroupControl>
+
+                                    <SelectControl
+                                        label={__('Text Transform', 'reusable-component-builder')}
+                                        value={styles[fieldNode.field]?.textTransform || ''}
+                                        options={[
+                                            { label: 'None', value: '' },
+                                            { label: 'Uppercase', value: 'uppercase' },
+                                            { label: 'Lowercase', value: 'lowercase' },
+                                            { label: 'Capitalize', value: 'capitalize' }
+                                        ]}
+                                        onChange={(val) => updateStyle(fieldNode.field, 'textTransform', val)}
+                                    />
+                                    <RangeControl
+                                        label={__('Line Height', 'reusable-component-builder')}
+                                        value={parseFloat(styles[fieldNode.field]?.lineHeight) || 1.2}
+                                        onChange={(val) => updateStyle(fieldNode.field, 'lineHeight', val)}
+                                        min={0.5}
+                                        max={4}
+                                        step={0.1}
+                                        allowReset
+                                    />
+                                    <RangeControl
+                                        label={__('Letter Spacing', 'reusable-component-builder')}
+                                        value={parseFloat(styles[fieldNode.field]?.letterSpacing) || 0}
+                                        onChange={(val) => updateStyle(fieldNode.field, 'letterSpacing', val)}
+                                        min={-5}
+                                        max={20}
+                                        step={1}
+                                        allowReset
+                                    />
+                                    
+                                    <PanelColorSettings
+                                        title={__('Border', 'reusable-component-builder')}
+                                        initialOpen={false}
+                                        colorSettings={[
+                                            {
+                                                value: styles[fieldNode.field]?.borderColor || '',
+                                                onChange: (val) => updateStyle(fieldNode.field, 'borderColor', val),
+                                                label: __('Border Color', 'reusable-component-builder'),
+                                            },
+                                        ]}
+                                    />
+                                    <RangeControl
+                                        label={__('PADDING-X (REM)', 'reusable-component-builder')}
+                                        value={parseFloat(styles[fieldNode.field]?.paddingX) ?? 1}
+                                        onChange={(val) => updateStyle(fieldNode.field, 'paddingX', val)}
+                                        min={0}
+                                        max={5}
+                                        step={0.1}
+                                    />
+                                    <RangeControl
+                                        label={__('PADDING-Y (REM)', 'reusable-component-builder')}
+                                        value={parseFloat(styles[fieldNode.field]?.paddingY) ?? 0.5}
+                                        onChange={(val) => updateStyle(fieldNode.field, 'paddingY', val)}
+                                        min={0}
+                                        max={5}
+                                        step={0.1}
+                                    />
+                                    <RangeControl
+                                        label={__('BORDER RADIUS (REM)', 'reusable-component-builder')}
+                                        value={parseFloat(styles[fieldNode.field]?.borderRadiusRem) ?? 0}
+                                        onChange={(val) => updateStyle(fieldNode.field, 'borderRadiusRem', val)}
+                                        min={0}
+                                        max={5}
+                                        step={0.1}
+                                    />
+                                    <RangeControl
+                                        label={__('BORDER WIDTH (REM)', 'reusable-component-builder')}
+                                        value={parseFloat(styles[fieldNode.field]?.borderWidthRem) ?? 0.1}
+                                        onChange={(val) => updateStyle(fieldNode.field, 'borderWidthRem', val)}
+                                        min={0}
+                                        max={1}
+                                        step={0.05}
+                                    />
+
+                                    <PanelColorSettings
+                                        title={__('Button Hover', 'reusable-component-builder')}
+                                        initialOpen={false}
+                                        colorSettings={[
+                                            {
+                                                value: styles[fieldNode.field]?.hoverBgColor || '',
+                                                onChange: (val) => updateStyle(fieldNode.field, 'hoverBgColor', val),
+                                                label: __('Background Color', 'reusable-component-builder'),
+                                            },
+                                            {
+                                                value: styles[fieldNode.field]?.hoverColor || '',
+                                                onChange: (val) => updateStyle(fieldNode.field, 'hoverColor', val),
+                                                label: __('Text Color', 'reusable-component-builder'),
+                                            },
+                                            {
+                                                value: styles[fieldNode.field]?.hoverBorderColor || '',
+                                                onChange: (val) => updateStyle(fieldNode.field, 'hoverBorderColor', val),
+                                                label: __('Border Color', 'reusable-component-builder'),
+                                            },
+                                        ]}
+                                    />
+                                    <ToggleControl
+                                        label={__('Show Underline', 'reusable-component-builder')}
+                                        checked={styles[fieldNode.field]?.hoverUnderline || false}
+                                        onChange={(val) => updateStyle(fieldNode.field, 'hoverUnderline', val)}
+                                    />
+
+                                    <ToggleGroupControl
+                                        label={__('Button Alignment', 'reusable-component-builder')}
+                                        value={styles[fieldNode.field]?.buttonAlign || 'start'}
+                                        isBlock
+                                        onChange={(val) => updateStyle(fieldNode.field, 'buttonAlign', val)}
+                                        style={{ marginTop: '20px' }}
+                                    >
+                                        <ToggleGroupControlOption value="start" label="start" />
+                                        <ToggleGroupControlOption value="center" label="center" />
+                                        <ToggleGroupControlOption value="end" label="end" />
+                                    </ToggleGroupControl>
+
+                                    <TextControl
+                                        label={__('BUTTON URL', 'reusable-component-builder')}
+                                        value={content[`${fieldNode.field}_url`] || ''}
+                                        onChange={(val) => updateContent(`${fieldNode.field}_url`, val)}
+                                        style={{ marginTop: '20px' }}
+                                    />
+                                    
+                                    <ToggleGroupControl
+                                        label={__('Button target link', 'reusable-component-builder')}
+                                        value={content[`${fieldNode.field}_target`] || '_self'}
+                                        isBlock
+                                        onChange={(val) => updateContent(`${fieldNode.field}_target`, val)}
+                                    >
+                                        <ToggleGroupControlOption value="_blank" label="_blank" />
+                                        <ToggleGroupControlOption value="_self" label="_self" />
+                                    </ToggleGroupControl>
+                                </PanelBody>
+                            )}
+
+                            {allowed.iconSettings && (
+                                <PanelBody title={__('Icon Settings', 'reusable-component-builder')} initialOpen={false}>
+                                    <SelectControl
+                                        label={__('ICON CLASS', 'reusable-component-builder')}
+                                        value={content[`${fieldNode.field}_icon_mode`] || 'Default'}
+                                        options={[
+                                            { label: 'Default', value: 'Default' },
+                                            { label: 'With Icon', value: 'With Icon' },
+                                            { label: 'Icon with Bg', value: 'Icon with Bg' },
+                                        ]}
+                                        onChange={(val) => updateContent(`${fieldNode.field}_icon_mode`, val)}
+                                    />
+                                    {content[`${fieldNode.field}_icon_mode`] !== 'Default' && (
+                                        <RangeControl
+                                            label={__('Icon Size (REM)', 'reusable-component-builder')}
+                                            value={parseFloat(styles[fieldNode.field]?.iconSize) || 0.8}
+                                            onChange={(val) => updateStyle(fieldNode.field, 'iconSize', val)}
+                                            min={0.5}
+                                            max={3}
+                                            step={0.1}
+                                        />
+                                    )}
+                                    {content[`${fieldNode.field}_icon_mode`] === 'Icon with Bg' && (
+                                        <>
+                                            <PanelColorSettings
+                                                title={__('Icon Settings Style', 'reusable-component-builder')}
+                                                initialOpen={true}
+                                                colorSettings={[
+                                                    {
+                                                        value: styles[fieldNode.field]?.iconBgColor || '',
+                                                        onChange: (val) => updateStyle(fieldNode.field, 'iconBgColor', val),
+                                                        label: __('Bg Color', 'reusable-component-builder'),
+                                                    },
+                                                    {
+                                                        value: styles[fieldNode.field]?.iconColor || '',
+                                                        onChange: (val) => updateStyle(fieldNode.field, 'iconColor', val),
+                                                        label: __('Color', 'reusable-component-builder'),
+                                                    },
+                                                    {
+                                                        value: styles[fieldNode.field]?.iconBorderColor || '',
+                                                        onChange: (val) => updateStyle(fieldNode.field, 'iconBorderColor', val),
+                                                        label: __('Border Color', 'reusable-component-builder'),
+                                                    },
+                                                ]}
+                                            />
+                                            <RangeControl
+                                                label={__('BORDER WIDTH (REM)', 'reusable-component-builder')}
+                                                value={parseFloat(styles[fieldNode.field]?.iconBorderWidth) ?? 0.1}
+                                                onChange={(val) => updateStyle(fieldNode.field, 'iconBorderWidth', val)}
+                                                min={0}
+                                                max={1}
+                                                step={0.05}
+                                            />
+                                            <PanelColorSettings
+                                                title={__('Icon Hover Settings', 'reusable-component-builder')}
+                                                initialOpen={false}
+                                                colorSettings={[
+                                                    {
+                                                        value: styles[fieldNode.field]?.iconHoverBgColor || '',
+                                                        onChange: (val) => updateStyle(fieldNode.field, 'iconHoverBgColor', val),
+                                                        label: __('Bg Color', 'reusable-component-builder'),
+                                                    },
+                                                    {
+                                                        value: styles[fieldNode.field]?.iconHoverColor || '',
+                                                        onChange: (val) => updateStyle(fieldNode.field, 'iconHoverColor', val),
+                                                        label: __('Color', 'reusable-component-builder'),
+                                                    },
+                                                    {
+                                                        value: styles[fieldNode.field]?.iconHoverBorderColor || '',
+                                                        onChange: (val) => updateStyle(fieldNode.field, 'iconHoverBorderColor', val),
+                                                        label: __('Border Color', 'reusable-component-builder'),
+                                                    },
+                                                ]}
+                                            />
+                                        </>
+                                    )}
+                                </PanelBody>
+                            )}
+
                             {allowed.customStylesBox && (
                                 <div style={{ marginTop: '15px', padding: '10px', border: '1px solid #ddd', borderRadius: '4px', background: '#fafafa' }}>
                                     <strong style={{ display: 'block', marginBottom: '10px', fontSize: '12px' }}>{__('Custom Styles', 'reusable-component-builder')}</strong>

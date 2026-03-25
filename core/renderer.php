@@ -179,10 +179,13 @@ function rcb_render_component_builder_block( $attributes, $content ) {
 			$final_output .= '<p>' . __( 'No posts found.', 'reusable-component-builder' ) . '</p>';
 		}
 	} else {
-		// Static rendering (now passing global $post to support dynamic sources mapped to current page)
 		global $post;
+		$style_registry = '';
+		$inner_html = rcb_render_visual_nodes_with_visibility( $nodes, $content_data, $styles_data, $mode, $post, $visibility, $content, $style_registry );
+		
+		$final_output .= ( ! empty( $style_registry ) ) ? '<style>' . $style_registry . '</style>' : '';
 		$final_output .= sprintf( '<div class="rcb-instance rcb-instance-%s" %s>', esc_attr( $unique_id ), $root_style_attr );
-		$final_output .= rcb_render_visual_nodes_with_visibility( $nodes, $content_data, $styles_data, $mode, $post, $visibility, $content );
+		$final_output .= $inner_html;
 		$final_output .= '</div>';
 	}
 
@@ -192,7 +195,7 @@ function rcb_render_component_builder_block( $attributes, $content ) {
 /**
  * Render nodes with visibility toggles and style registry support.
  */
-function rcb_render_visual_nodes_with_visibility( $nodes, $content_data, $styles_data, $mode, $post = null, $visibility = array(), $inner_blocks_content = '' ) {
+function rcb_render_visual_nodes_with_visibility( $nodes, $content_data, $styles_data, $mode, $post = null, $visibility = array(), $inner_blocks_content = '', &$style_registry = '' ) {
 	$html = '';
 
 	foreach ( $nodes as $node ) {
@@ -267,8 +270,64 @@ function rcb_render_visual_nodes_with_visibility( $nodes, $content_data, $styles
 			}
 		}
 
-		if ( $type === 'container' ) {
+		// Handle Advanced Button Settings
+		if ( $type === 'button' && ! empty( $allowed['buttonSettings'] ) ) {
+			// Padding X/Y
+			$padding_x = isset( $raw_styles['paddingX'] ) ? floatval( $raw_styles['paddingX'] ) : 1;
+			$padding_y = isset( $raw_styles['paddingY'] ) ? floatval( $raw_styles['paddingY'] ) : 0.5;
+			$final_styles['padding'] = "{$padding_y}rem {$padding_x}rem";
 
+			// Border Radius/Width Rem
+			if ( isset( $raw_styles['borderRadiusRem'] ) ) $final_styles['border-radius'] = floatval( $raw_styles['borderRadiusRem'] ) . 'rem';
+			if ( isset( $raw_styles['borderWidthRem'] ) ) {
+				$final_styles['border-width'] = floatval( $raw_styles['borderWidthRem'] ) . 'rem';
+				if ( ! isset( $final_styles['border-style'] ) ) $final_styles['border-style'] = 'solid';
+				if ( isset( $raw_styles['borderColor'] ) ) $final_styles['border-color'] = $raw_styles['borderColor'];
+			}
+
+			// Text Size Presets
+			$size_map = array( 'S' => '12px', 'M' => '14px', 'L' => '16px', 'XL' => '20px', '1XL' => '24px', '2XL' => '32px' );
+			if ( isset( $raw_styles['textSizePreset'] ) && isset( $size_map[ $raw_styles['textSizePreset'] ] ) ) {
+				$final_styles['font-size'] = $size_map[ $raw_styles['textSizePreset'] ];
+			}
+
+			// Hover States
+			$hover_css = '';
+			if ( isset( $raw_styles['hoverBgColor'] ) && ! empty( $raw_styles['hoverBgColor'] ) ) {
+				$hover_css .= "background-color: {$raw_styles['hoverBgColor']} !important;";
+			}
+			if ( isset( $raw_styles['hoverTextColor'] ) && ! empty( $raw_styles['hoverTextColor'] ) ) {
+				$hover_css .= "color: {$raw_styles['hoverTextColor']} !important;";
+			}
+			if ( ! empty( $raw_styles['hoverUnderline'] ) ) {
+				$hover_css .= "text-decoration: underline !important;";
+			} else {
+				$hover_css .= "text-decoration: none !important;";
+			}
+
+			if ( ! empty( $hover_css ) ) {
+				$style_registry .= ".rcb-button.{$id}:hover { {$hover_css} }";
+			}
+			
+			// Icon Hover
+			if ( ! empty( $allowed['iconSettings'] ) ) {
+				$icon_hover_css = '';
+				if ( isset( $raw_styles['iconHoverBgColor'] ) && ! empty( $raw_styles['iconHoverBgColor'] ) ) {
+					$icon_hover_css .= "background-color: {$raw_styles['iconHoverBgColor']} !important;";
+				}
+				if ( isset( $raw_styles['iconHoverColor'] ) && ! empty( $raw_styles['iconHoverColor'] ) ) {
+					$icon_hover_css .= "color: {$raw_styles['iconHoverColor']} !important;";
+				}
+				if ( isset( $raw_styles['iconHoverBorderColor'] ) && ! empty( $raw_styles['iconHoverBorderColor'] ) ) {
+					$icon_hover_css .= "border-color: {$raw_styles['iconHoverBorderColor']} !important;";
+				}
+				if ( ! empty( $icon_hover_css ) ) {
+					$style_registry .= ".rcb-button.{$id}:hover .rcb-button-icon { {$icon_hover_css} }";
+				}
+			}
+		}
+
+		if ( $type === 'container' ) {
 			if ( $node_columns > 1 ) {
 				$final_styles['display'] = 'grid';
 				$final_styles['grid-template-columns'] = "repeat({$node_columns}, 1fr)";
@@ -286,7 +345,7 @@ function rcb_render_visual_nodes_with_visibility( $nodes, $content_data, $styles
 			case 'container':
 				$children_html = '';
 				if ( ! empty( $node['children'] ) ) {
-					$children_html = rcb_render_visual_nodes_with_visibility( $node['children'], $content_data, $styles_data, $mode, $post, $visibility, $inner_blocks_content );
+					$children_html = rcb_render_visual_nodes_with_visibility( $node['children'], $content_data, $styles_data, $mode, $post, $visibility, $inner_blocks_content, $style_registry );
 				}
 				$html .= sprintf( '<div class="rcb-container %s" %s>%s</div>', esc_attr( $id ), $style_attr, $children_html );
 				break;
@@ -294,7 +353,7 @@ function rcb_render_visual_nodes_with_visibility( $nodes, $content_data, $styles
 			case 'column':
 				$children_html = '';
 				if ( ! empty( $node['children'] ) ) {
-					$children_html = rcb_render_visual_nodes_with_visibility( $node['children'], $content_data, $styles_data, $mode, $post, $visibility, $inner_blocks_content );
+					$children_html = rcb_render_visual_nodes_with_visibility( $node['children'], $content_data, $styles_data, $mode, $post, $visibility, $inner_blocks_content, $style_registry );
 				}
 				$html .= sprintf( '<div class="rcb-column %s" %s>%s</div>', esc_attr( $id ), $style_attr, $children_html );
 				break;
@@ -374,7 +433,6 @@ function rcb_render_visual_nodes_with_visibility( $nodes, $content_data, $styles
 					$html .= sprintf( '<img src="%s" class="rcb-image %s" alt="%s" %s />', esc_url( $url ), esc_attr( $id ), esc_attr( $alt ), $style_attr );
 				} elseif ( ! empty( $dynamic_source ) ) {
 					// Don't show generic placeholders for missing dynamic images on frontend
-					// unless it's a static image placeholder (which would have no dynamic_source)
 					break; 
 				} elseif ( current_user_can( 'edit_posts' ) ) {
 					$html .= sprintf( '<div class="rcb-image-placeholder %s" %s style="background:#ddd;min-height:100px;display:flex;align-items:center;justify-content:center;">Image Placeholder: %s</div>', esc_attr( $id ), $style_attr, esc_html( $field ) );
@@ -395,7 +453,80 @@ function rcb_render_visual_nodes_with_visibility( $nodes, $content_data, $styles
 					$btn_url      = isset( $content_data[ $field . '_url' ] ) ? $content_data[ $field . '_url' ] : '#';
 					$node_content = isset( $content_data[ $field ] ) ? $content_data[ $field ] : 'Button';
 				}
-				$html .= sprintf( '<a href="%s" class="rcb-button %s" %s style="display:inline-block;">%s</a>', esc_url( $btn_url ), esc_attr( $id ), $style_attr, esc_html( $node_content ) );
+
+				$btn_target = isset( $content_data[ $field . '_target' ] ) ? $content_data[ $field . '_target' ] : '_self';
+				$align      = isset( $raw_styles['buttonAlign'] ) ? $raw_styles['buttonAlign'] : 'start';
+				$align_map  = array( 'start' => 'flex-start', 'center' => 'center', 'end' => 'flex-end' );
+				$justify    = isset( $align_map[ $align ] ) ? $align_map[ $align ] : 'flex-start';
+
+				$icon_mode = isset( $content_data[ $field . '_icon_mode' ] ) ? $content_data[ $field . '_icon_mode' ] : 'Default';
+				$icon_html = '';
+				$icon_size = isset( $raw_styles['iconSize'] ) ? floatval( $raw_styles['iconSize'] ) : 0.8;
+
+				if ( $icon_mode !== 'Default' ) {
+					$icon_style = "font-size:{$icon_size}em; line-height:1; transition:all 0.3s ease-in-out;";
+					if ( $icon_mode === 'Icon with Bg' ) {
+						$icon_bg      = isset( $raw_styles['iconBgColor'] ) ? $raw_styles['iconBgColor'] : '#f0f0f0';
+						$icon_col     = isset( $raw_styles['iconColor'] ) ? $raw_styles['iconColor'] : 'inherit';
+						$icon_bd_col  = isset( $raw_styles['iconBorderColor'] ) ? $raw_styles['iconBorderColor'] : 'transparent';
+						$icon_bd_w    = isset( $raw_styles['iconBorderWidth'] ) ? floatval( $raw_styles['iconBorderWidth'] ) : 0.1;
+						$circle_size  = $icon_size * 1.875; 
+						$icon_style  .= "background:{$icon_bg}; color:{$icon_col}; border:{$icon_bd_w}rem solid {$icon_bd_col}; border-radius:50%; width:{$circle_size}em; height:{$circle_size}em;";
+					} else {
+						$icon_col     = isset( $raw_styles['iconColor'] ) ? $raw_styles['iconColor'] : 'inherit';
+						$icon_style   .= "color:{$icon_col};";
+					}
+					$icon_svg  = '<svg width="1em" height="1em" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" style="display:block;"><path d="M5 12H19M19 12L13 6M19 12L13 18" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+					$icon_html = sprintf( '<span class="rcb-button-icon" style="display:inline-flex;align-items:center;justify-content:center;%s">%s</span>', esc_attr( $icon_style ), $icon_svg );
+				}
+
+				// Scoped CSS for hover
+				$btn_css_id = 'rcb-btn-' . $id;
+				$hover_css  = '';
+				
+				$h_bg     = isset( $raw_styles['hoverBgColor'] ) ? $raw_styles['hoverBgColor'] : '';
+				$h_col    = isset( $raw_styles['hoverColor'] ) ? $raw_styles['hoverColor'] : '';
+				$h_bd_col = isset( $raw_styles['hoverBorderColor'] ) ? $raw_styles['hoverBorderColor'] : '';
+				$h_und    = isset( $raw_styles['hoverUnderline'] ) && $raw_styles['hoverUnderline'] ? 'underline' : 'none';
+
+				if ( $h_bg || $h_col || $h_bd_col || $h_und !== 'none' ) {
+					$hover_css .= ".{$btn_css_id}:hover {";
+					if ( $h_bg ) $hover_css .= "background-color:{$h_bg} !important;";
+					if ( $h_col ) $hover_css .= "color:{$h_col} !important;";
+					if ( $h_bd_col ) $hover_css .= "border-color:{$h_bd_col} !important;";
+					$hover_css .= "text-decoration:{$h_und} !important;";
+					$hover_css .= "}";
+				}
+
+				// Icon Hover
+				$hi_bg  = isset( $raw_styles['iconHoverBgColor'] ) ? $raw_styles['iconHoverBgColor'] : '';
+				$hi_col = isset( $raw_styles['iconHoverColor'] ) ? $raw_styles['iconHoverColor'] : '';
+				if ( $hi_bg || $hi_col ) {
+					$hover_css .= ".{$btn_css_id}:hover .rcb-button-icon {";
+					if ( $hi_bg ) $hover_css .= "background-color:{$hi_bg} !important;";
+					if ( $hi_col ) $hover_css .= "color:{$hi_col} !important;";
+					$hover_css .= "}";
+				}
+
+				$style_tag = $hover_css ? "<style>{$hover_css}</style>" : '';
+
+				$btn_style_inline = "display:inline-flex;align-items:center;gap:8px;text-decoration:none;transition:all 0.3s ease-in-out;";
+				$final_style_attr = str_replace( 'style="', 'style="' . $btn_style_inline, $style_attr );
+
+				$html .= sprintf( 
+					'%s<div class="rcb-button-wrapper" style="display:flex;width:100%%;justify-content:%s;">
+						<a href="%s" target="%s" class="rcb-button %s %s" %s>%s %s</a>
+					</div>', 
+					$style_tag,
+					esc_attr( $justify ),
+					esc_url( $btn_url ), 
+					esc_attr( $btn_target ),
+					esc_attr( $id ), 
+					esc_attr( $btn_css_id ),
+					$final_style_attr,
+					esc_html( $node_content ),
+					$icon_html
+				);
 				break;
 		}
 	}

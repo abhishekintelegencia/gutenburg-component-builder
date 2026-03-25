@@ -51,6 +51,18 @@ const CATEGORIZED_STYLE_OPTIONS = [
         ],
     },
     {
+        title: 'Button Settings',
+        options: [
+            { id: 'buttonSettings', label: 'Button Settings (Text, Size, Padding, Hover, etc)' },
+        ],
+    },
+    {
+        title: 'Icon Settings',
+        options: [
+            { id: 'iconSettings', label: 'Icon Settings (Icon Type, Colors, Hover)' },
+        ],
+    },
+    {
         title: 'Custom',
         options: [
             { id: 'customStylesBox', label: 'Custom CSS Box' },
@@ -185,7 +197,12 @@ const NodeEditor = ({ node, updateNode, removeNode, duplicateNode, addChild, mov
                             
                             <div style={{ display: 'flex', gap: '20px' }}>
                                 <div style={{ flex: '0 0 200px', borderRight: '1px solid #ddd', paddingRight: '10px' }}>
-                                    {CATEGORIZED_STYLE_OPTIONS.map((cat) => (
+                                    {CATEGORIZED_STYLE_OPTIONS.filter(cat => {
+                                        if (node.type === 'button') {
+                                            return cat.title !== 'Button Settings' && cat.title !== 'Icon Settings';
+                                        }
+                                        return true;
+                                    }).map((cat) => (
                                         <div 
                                             key={cat.title}
                                             onClick={() => setActiveTab(cat.title)}
@@ -419,8 +436,21 @@ const App = () => {
             id,
             type,
             field: generateId(type),
-            allowedSettings: { color: true, typography: true, spacing: true, borders: true, opacity: false, boxShadow: false, customStylesBox: false, dimensions: type === 'image', backgroundImage: type === 'container' },
-            ...(type === 'container' ? { children: [] } : {})
+            allowedSettings: { 
+                color: type !== 'button', 
+                typography: type !== 'button', 
+                spacing: type !== 'button', 
+                borders: type !== 'button', 
+                alignment: type !== 'button',
+                opacity: true, 
+                boxShadow: true, 
+                customStylesBox: true, 
+                dimensions: type === 'image', 
+                backgroundImage: type === 'container' || type === 'column',
+                buttonSettings: type === 'button',
+                iconSettings: type === 'button'
+            },
+            ...(type === 'container' || type === 'column' ? { children: [] } : {})
         };
         setStructure([...structure, newNode]);
     };
@@ -433,7 +463,20 @@ const App = () => {
                     id: subId,
                     type,
                     field: generateId(type),
-                    allowedSettings: { color: true, typography: true, spacing: true, borders: true, opacity: false, boxShadow: false, customStylesBox: false, dimensions: type === 'image', backgroundImage: type === 'container' },
+                    allowedSettings: { 
+                        color: type !== 'button', 
+                        typography: type !== 'button', 
+                        spacing: type !== 'button', 
+                        borders: type !== 'button', 
+                        alignment: type !== 'button',
+                        opacity: true, 
+                        boxShadow: true, 
+                        customStylesBox: true, 
+                        dimensions: type === 'image', 
+                        backgroundImage: type === 'container' || type === 'column',
+                        buttonSettings: type === 'button',
+                        iconSettings: type === 'button'
+                    },
                     ...(type === 'container' || type === 'column' ? { children: [] } : {})
                 };
                 return { ...node, children: [...(node.children || []), newNode] };
