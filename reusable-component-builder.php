@@ -15,7 +15,7 @@ define('RCB_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('RCB_PLUGIN_URL', plugin_dir_url(__FILE__));
 define('RCB_VERSION', '1.0.0');
 
-// Include Core Files dev test
+// Include Core Files
 require_once RCB_PLUGIN_DIR . 'cpt/component-template.php';
 require_once RCB_PLUGIN_DIR . 'core/renderer.php';
 
