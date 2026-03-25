@@ -48,7 +48,32 @@ const serializeBoxValue = (value) => {
     return value;
 };
 
-const AdvancedTypographyControl = ({ label, value, fontWeight, textTransform, lineHeight, letterSpacing, onChange }) => {
+const SYSTEM_FONTS = [
+    { label: 'Arial', value: 'Arial, Helvetica, sans-serif' },
+    { label: 'Helvetica', value: 'Helvetica, Arial, sans-serif' },
+    { label: 'Verdana', value: 'Verdana, Geneva, sans-serif' },
+    { label: 'Georgia', value: 'Georgia, serif' },
+    { label: 'Times New Roman', value: '"Times New Roman", Times, serif' },
+    { label: 'Tahoma', value: 'Tahoma, Geneva, sans-serif' },
+    { label: 'Trebuchet MS', value: '"Trebuchet MS", Helvetica, sans-serif' },
+    { label: 'Courier New', value: '"Courier New", Courier, monospace' },
+    { label: 'Impact', value: 'Impact, Charcoal, sans-serif' },
+    { label: 'Comic Sans MS', value: '"Comic Sans MS", cursive, sans-serif' }
+];
+
+const AdvancedTypographyControl = ({ label, value, fontWeight, textTransform, lineHeight, letterSpacing, fontFamily, onChange }) => {
+    const themeFonts = useSelect((select) => {
+        const settings = select('core/block-editor').getSettings();
+        return settings?.fontFamilies || [];
+    }, []);
+
+    const fontOptions = [
+        { label: __('Inherit', 'reusable-component-builder'), value: '' },
+        ...themeFonts.map(f => ({ label: f.name, value: f.fontFamily })),
+        ...SYSTEM_FONTS.filter(sf => !themeFonts.some(tf => tf.fontFamily === sf.value))
+    ];
+
+
     const valString = (value || '').toString();
     const parsedValue = parseFloat(valString) || 0;
     const unitMatch = valString.match(/[a-z%]+$/i);
@@ -57,6 +82,14 @@ const AdvancedTypographyControl = ({ label, value, fontWeight, textTransform, li
     return (
         <div className="rcb-advanced-typography" style={{ marginBottom: '15px' }}>
             <span style={{ fontSize: '11px', fontWeight: 600, textTransform: 'uppercase', display: 'block', marginBottom: '10px' }}>{label}</span>
+            <div style={{ marginBottom: '15px' }}>
+                <SelectControl
+                    label={__('Font Family', 'reusable-component-builder')}
+                    value={fontFamily || ''}
+                    options={fontOptions}
+                    onChange={(val) => onChange('fontFamily', val)}
+                />
+            </div>
             <div style={{ marginBottom: '15px' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
                     <span style={{ fontSize: '11px', color: '#666' }}>Size</span>
@@ -500,6 +533,11 @@ export default function Edit({ attributes, setAttributes, clientId }) {
                         btnStyles.fontSize = sizeMap[nodeStyles.textSizePreset];
                     }
 
+                    if (nodeStyles.fontFamily) {
+                        btnStyles.fontFamily = nodeStyles.fontFamily;
+                    }
+
+
                     // Alignment wrapper
                     const alignMap = { 'start': 'flex-start', 'center': 'center', 'end': 'flex-end' };
                     const wrapperStyles = { 
@@ -516,15 +554,15 @@ export default function Edit({ attributes, setAttributes, clientId }) {
                         <div key={i} style={wrapperStyles} className="rcb-button-wrapper">
                             <style>{`
                                 .rcb-button-wrapper .rcb-button.${node.id}:hover {
-                                    color: ${nodeStyles.hoverColor || 'inherit'} !important;
-                                    background-color: ${nodeStyles.hoverBgColor || 'transparent'} !important;
-                                    border-color: ${nodeStyles.hoverBorderColor || 'transparent'} !important;
-                                    text-decoration: ${nodeStyles.hoverUnderline ? 'underline' : 'none'} !important;
+                                    ${nodeStyles.hoverColor ? `color: ${nodeStyles.hoverColor} !important;` : ''}
+                                    ${nodeStyles.hoverBgColor ? `background-color: ${nodeStyles.hoverBgColor} !important;` : ''}
+                                    ${nodeStyles.hoverBorderColor ? `border-color: ${nodeStyles.hoverBorderColor} !important;` : ''}
+                                    ${nodeStyles.hoverUnderline ? 'text-decoration: underline !important;' : ''}
                                 }
                                 .rcb-button-wrapper .rcb-button.${node.id}:hover .rcb-button-icon {
-                                    color: ${nodeStyles.iconHoverColor || 'inherit'} !important;
-                                    background-color: ${nodeStyles.iconHoverBgColor || 'transparent'} !important;
-                                    border-color: ${nodeStyles.iconHoverBorderColor || 'transparent'} !important;
+                                    ${nodeStyles.iconHoverColor ? `color: ${nodeStyles.iconHoverColor} !important;` : ''}
+                                    ${nodeStyles.iconHoverBgColor ? `background-color: ${nodeStyles.iconHoverBgColor} !important;` : ''}
+                                    ${nodeStyles.iconHoverBorderColor ? `border-color: ${nodeStyles.iconHoverBorderColor} !important;` : ''}
                                 }
                             `}</style>
                             <a 
@@ -895,6 +933,7 @@ export default function Edit({ attributes, setAttributes, clientId }) {
                                     textTransform={(styles[fieldNode.field] && styles[fieldNode.field].textTransform) || ''}
                                     lineHeight={(styles[fieldNode.field] && styles[fieldNode.field].lineHeight) || ''}
                                     letterSpacing={(styles[fieldNode.field] && styles[fieldNode.field].letterSpacing) || ''}
+                                    fontFamily={(styles[fieldNode.field] && styles[fieldNode.field].fontFamily) || ''}
                                     onChange={(prop, val) => updateStyle(fieldNode.field, prop, val)}
                                 />
                             )}
@@ -1126,6 +1165,16 @@ export default function Edit({ attributes, setAttributes, clientId }) {
                                         <ToggleGroupControlOption value="2XL" label="2XL" />
                                         <ToggleGroupControlOption value="None" label="None" />
                                     </ToggleGroupControl>
+                                    <SelectControl
+                                        label={__('Font Family', 'reusable-component-builder')}
+                                        value={styles[fieldNode.field]?.fontFamily || ''}
+                                        options={[
+                                            { label: __('Inherit', 'reusable-component-builder'), value: '' },
+                                            ...(wp.data.select('core/block-editor').getSettings()?.fontFamilies || []).map(f => ({ label: f.name, value: f.fontFamily })),
+                                            ...SYSTEM_FONTS.filter(sf => !(wp.data.select('core/block-editor').getSettings()?.fontFamilies || []).some(tf => tf.fontFamily === sf.value))
+                                        ]}
+                                        onChange={(val) => updateStyle(fieldNode.field, 'fontFamily', val)}
+                                    />
 
                                     <SelectControl
                                         label={__('Text Transform', 'reusable-component-builder')}
