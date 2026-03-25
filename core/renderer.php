@@ -372,6 +372,10 @@ function rcb_render_visual_nodes_with_visibility( $nodes, $content_data, $styles
 
 				if ( $url ) {
 					$html .= sprintf( '<img src="%s" class="rcb-image %s" alt="%s" %s />', esc_url( $url ), esc_attr( $id ), esc_attr( $alt ), $style_attr );
+				} elseif ( ! empty( $dynamic_source ) ) {
+					// Don't show generic placeholders for missing dynamic images on frontend
+					// unless it's a static image placeholder (which would have no dynamic_source)
+					break; 
 				} elseif ( current_user_can( 'edit_posts' ) ) {
 					$html .= sprintf( '<div class="rcb-image-placeholder %s" %s style="background:#ddd;min-height:100px;display:flex;align-items:center;justify-content:center;">Image Placeholder: %s</div>', esc_attr( $id ), $style_attr, esc_html( $field ) );
 				}

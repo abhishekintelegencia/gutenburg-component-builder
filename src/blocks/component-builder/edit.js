@@ -233,7 +233,7 @@ export default function Edit({ attributes, setAttributes, clientId }) {
     useEffect(() => {
         if (mode === 'query') {
             const route = postType === 'events' ? 'events' : (postType === 'page' ? 'pages' : 'posts');
-            let path = `/wp/v2/${route}?per_page=${postsPerPage}`;
+            let path = `/wp/v2/${route}?per_page=${postsPerPage}&_embed=true`;
             if (taxonomy && termId) {
                 // To fetch filtered posts, we need to know the term's taxonomy query var, we'll rough it in preview
                 path += `&${taxonomy}=${termId}`;
@@ -378,7 +378,32 @@ export default function Edit({ attributes, setAttributes, clientId }) {
             let nodeContent = content[node.field] || placeholderMap[node.type] || '';
             let url = content[`${node.field}_url`];
 
-            if (mode !== 'query' && node.dynamicSource) {
+            if (mode === 'query' && post && node.dynamicSource) {
+                // For dynamic query items, we start fresh and don't leak static content
+                const source = node.dynamicSource;
+                nodeContent = ''; 
+                url = ''; 
+
+                if (source === 'post_title') {
+                    nodeContent = post.title?.rendered || 'Post Title';
+                } else if (source === 'post_excerpt') {
+                    nodeContent = post.excerpt?.rendered?.replace(/(<([^>]+)>)/gi, "") || 'Post Excerpt';
+                } else if (source === 'post_date') {
+                    nodeContent = new Date(post.date).toLocaleDateString() || 'Post Date';
+                } else if (source === 'post_author') {
+                    nodeContent = 'Post Author';
+                } else if (source === 'featured_image') {
+                    const featuredMedia = post._embedded?.['wp:featuredmedia']?.[0];
+                    url = featuredMedia?.source_url || '';
+                } else if (source === 'permalink') {
+                    nodeContent = nodeContent || __('Read More', 'reusable-component-builder');
+                    url = post.link || '#';
+                } else if (source === 'term') {
+                    nodeContent = `Term: ${node.dynamicField || 'name'}`;
+                } else if (source === 'custom_meta') {
+                    nodeContent = `Meta: ${node.dynamicField || 'value'}`;
+                }
+            } else if (mode !== 'query' && node.dynamicSource) {
                 const source = node.dynamicSource;
                 if (source === 'post_title') {
                     nodeContent = currentPostTitle || 'Post Title';
@@ -418,26 +443,6 @@ export default function Edit({ attributes, setAttributes, clientId }) {
                 } else {
                     nodeContent = `[Dynamic: ${source}]`;
                 }
-            } else if (mode === 'query' && post) {
-                const source = node.dynamicSource;
-                if (source === 'post_title') {
-                    nodeContent = post.title?.rendered || 'Post Title';
-                } else if (source === 'post_excerpt') {
-                    nodeContent = post.excerpt?.rendered?.replace(/(<([^>]+)>)/gi, "") || 'Post Excerpt';
-                } else if (source === 'post_date') {
-                    nodeContent = new Date(post.date).toLocaleDateString() || 'Post Date';
-                } else if (source === 'post_author') {
-                    nodeContent = 'Post Author';
-                } else if (source === 'featured_image') {
-                    url = post.featured_media ? 'https://via.placeholder.com/600x400?text=Featured+Image' : 'https://via.placeholder.com/600x400?text=No+Image';
-                } else if (source === 'permalink') {
-                    nodeContent = nodeContent || __('Read More', 'reusable-component-builder');
-                    url = post.link || '#';
-                } else if (source === 'term') {
-                    nodeContent = `Term: ${node.dynamicField || 'name'}`;
-                } else if (source === 'custom_meta') {
-                    nodeContent = `Meta: ${node.dynamicField || 'value'}`;
-                }
             }
 
             switch (node.type) {
@@ -466,6 +471,9 @@ export default function Edit({ attributes, setAttributes, clientId }) {
                 case 'image':
                     if (url) {
                         return <img key={i} src={url} className={`rcb-image ${node.id}`} alt={nodeContent} style={{...nodeStyles, display: 'block'}} />;
+                    }
+                    if (node.dynamicSource) {
+                        return null; // Don't show placeholders for missing dynamic images
                     }
                     return <div key={i} className={`rcb-image-placeholder ${node.id}`} style={{...nodeStyles, background: '#ccc', minHeight: '100px', display: 'flex', alignItems: 'center', justifyContent: 'center'}}>Image Placeholder: {node.field}</div>;
                 case 'button':
