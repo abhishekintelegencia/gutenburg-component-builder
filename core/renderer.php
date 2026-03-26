@@ -246,8 +246,23 @@ function rcb_render_visual_nodes_with_visibility( $nodes, $content_data, $styles
 		if ( ! empty( $allowed['customStylesBox'] ) ) {
 			if ( isset( $raw_styles['customCssPairs'] ) && is_array( $raw_styles['customCssPairs'] ) ) {
 				foreach ( $raw_styles['customCssPairs'] as $pair ) {
-					if ( ! empty( $pair['key'] ) ) {
+					if ( ! empty( $pair['key'] ) && ! empty( $pair['value'] ) ) {
 						$final_styles[ $pair['key'] ] = $pair['value'];
+					}
+				}
+			}
+
+			// Handle raw CSS string
+			if ( isset( $raw_styles['customStylesRaw'] ) && ! empty( $raw_styles['customStylesRaw'] ) ) {
+				$raw_rules = explode( ';', $raw_styles['customStylesRaw'] );
+				foreach ( $raw_rules as $rule ) {
+					$parts = explode( ':', $rule, 2 );
+					if ( count( $parts ) === 2 ) {
+						$key = trim( $parts[0] );
+						$val = trim( $parts[1] );
+						if ( ! empty( $key ) && ! empty( $val ) ) {
+							$final_styles[ $key ] = $val;
+						}
 					}
 				}
 			}
@@ -266,14 +281,18 @@ function rcb_render_visual_nodes_with_visibility( $nodes, $content_data, $styles
 
 		// Handle Advanced Button Settings
 		if ( $type === 'button' && ! empty( $allowed['buttonSettings'] ) ) {
-			// Padding X/Y
-			$padding_x = isset( $raw_styles['paddingX'] ) ? floatval( $raw_styles['paddingX'] ) : 1;
-			$padding_y = isset( $raw_styles['paddingY'] ) ? floatval( $raw_styles['paddingY'] ) : 0.5;
-			$final_styles['padding'] = "{$padding_y}rem {$padding_x}rem";
+			// Padding X/Y only if standard padding is not set
+			if ( ! isset( $final_styles['padding'] ) && ( isset( $raw_styles['paddingX'] ) || isset( $raw_styles['paddingY'] ) ) ) {
+				$padding_x = isset( $raw_styles['paddingX'] ) ? floatval( $raw_styles['paddingX'] ) : 1;
+				$padding_y = isset( $raw_styles['paddingY'] ) ? floatval( $raw_styles['paddingY'] ) : 0.5;
+				$final_styles['padding'] = "{$padding_y}rem {$padding_x}rem";
+			}
 
 			// Border Radius/Width Rem
-			if ( isset( $raw_styles['borderRadiusRem'] ) ) $final_styles['border-radius'] = floatval( $raw_styles['borderRadiusRem'] ) . 'rem';
-			if ( isset( $raw_styles['borderWidthRem'] ) ) {
+			if ( ! isset( $final_styles['borderRadius'] ) && isset( $raw_styles['borderRadiusRem'] ) ) {
+				$final_styles['border-radius'] = floatval( $raw_styles['borderRadiusRem'] ) . 'rem';
+			}
+			if ( ! isset( $final_styles['border'] ) && isset( $raw_styles['borderWidthRem'] ) ) {
 				$final_styles['border-width'] = floatval( $raw_styles['borderWidthRem'] ) . 'rem';
 				if ( ! isset( $final_styles['border-style'] ) ) $final_styles['border-style'] = 'solid';
 				if ( isset( $raw_styles['borderColor'] ) ) $final_styles['border-color'] = $raw_styles['borderColor'];
@@ -281,17 +300,17 @@ function rcb_render_visual_nodes_with_visibility( $nodes, $content_data, $styles
 
 			// Text Size Presets
 			$size_map = array( 'S' => '12px', 'M' => '14px', 'L' => '16px', 'XL' => '20px', '1XL' => '24px', '2XL' => '32px' );
-			if ( isset( $raw_styles['textSizePreset'] ) && isset( $size_map[ $raw_styles['textSizePreset'] ] ) ) {
+			if ( ! isset( $final_styles['fontSize'] ) && isset( $raw_styles['textSizePreset'] ) && isset( $size_map[ $raw_styles['textSizePreset'] ] ) ) {
 				$final_styles['font-size'] = $size_map[ $raw_styles['textSizePreset'] ];
 			}
 
-			// Add direct typography mapping for buttons
-			if ( isset( $raw_styles['fontFamily'] ) ) $final_styles['fontFamily'] = $raw_styles['fontFamily'];
-			if ( isset( $raw_styles['fontWeight'] ) ) $final_styles['fontWeight'] = $raw_styles['fontWeight'];
-			if ( isset( $raw_styles['textTransform'] ) ) $final_styles['textTransform'] = $raw_styles['textTransform'];
-			if ( isset( $raw_styles['lineHeight'] ) ) $final_styles['lineHeight'] = $raw_styles['lineHeight'];
-			if ( isset( $raw_styles['letterSpacing'] ) ) $final_styles['letterSpacing'] = $raw_styles['letterSpacing'];
-			if ( isset( $raw_styles['fontSize'] ) ) $final_styles['fontSize'] = $raw_styles['fontSize'];
+			// Add direct typography mapping for buttons if not already mapped
+			if ( ! isset( $final_styles['fontFamily'] ) && isset( $raw_styles['fontFamily'] ) ) $final_styles['fontFamily'] = $raw_styles['fontFamily'];
+			if ( ! isset( $final_styles['fontWeight'] ) && isset( $raw_styles['fontWeight'] ) ) $final_styles['fontWeight'] = $raw_styles['fontWeight'];
+			if ( ! isset( $final_styles['textTransform'] ) && isset( $raw_styles['textTransform'] ) ) $final_styles['textTransform'] = $raw_styles['textTransform'];
+			if ( ! isset( $final_styles['lineHeight'] ) && isset( $raw_styles['lineHeight'] ) ) $final_styles['lineHeight'] = $raw_styles['lineHeight'];
+			if ( ! isset( $final_styles['letterSpacing'] ) && isset( $raw_styles['letterSpacing'] ) ) $final_styles['letterSpacing'] = $raw_styles['letterSpacing'];
+			if ( ! isset( $final_styles['fontSize'] ) && isset( $raw_styles['fontSize'] ) ) $final_styles['fontSize'] = $raw_styles['fontSize'];
 
 			// Hover States
 			$hover_css = '';
@@ -330,10 +349,58 @@ function rcb_render_visual_nodes_with_visibility( $nodes, $content_data, $styles
 		}
 
 		if ( $type === 'container' ) {
-			if ( $node_columns > 1 ) {
-				$final_styles['display'] = 'grid';
-				$final_styles['grid-template-columns'] = "repeat({$node_columns}, 1fr)";
-				$final_styles['gap'] = '20px';
+			$display_mode = isset( $raw_styles['displayMode'] ) ? $raw_styles['displayMode'] : 'grid';
+			
+			// Handle Content Max Width
+			if ( isset( $raw_styles['contentMaxWidth'] ) && ! empty( $raw_styles['contentMaxWidth'] ) ) {
+				$final_styles['max-width'] = $raw_styles['contentMaxWidth'];
+				$final_styles['margin-left'] = 'auto';
+				$final_styles['margin-right'] = 'auto';
+				$final_styles['width'] = '100%';
+			}
+
+			if ( $node_columns > 1 || $display_mode === 'flex' || isset( $raw_styles['displayMode'] ) ) {
+				if ( $display_mode === 'flex' ) {
+					$final_styles['display'] = 'flex';
+					$final_styles['flex-direction'] = isset( $raw_styles['flexDirection'] ) ? $raw_styles['flexDirection'] : 'row';
+					$final_styles['flex-wrap'] = isset( $raw_styles['flexWrap'] ) ? $raw_styles['flexWrap'] : 'wrap';
+					$final_styles['justify-content'] = isset( $raw_styles['justifyContent'] ) ? $raw_styles['justifyContent'] : 'flex-start';
+					$final_styles['align-items'] = isset( $raw_styles['alignItems'] ) ? $raw_styles['alignItems'] : 'stretch';
+					if ( isset( $raw_styles['flexGap'] ) && $raw_styles['flexGap'] !== '' ) {
+						$final_styles['gap'] = $raw_styles['flexGap'];
+					}
+				} else {
+					$final_styles['display'] = 'grid';
+					$template_cols = isset( $raw_styles['gridTemplateColumns'] ) ? $raw_styles['gridTemplateColumns'] : '';
+					if ( $template_cols === 'custom' ) {
+						$template_cols = isset( $raw_styles['customGridTemplate'] ) ? $raw_styles['customGridTemplate'] : '';
+					}
+					if ( empty( $template_cols ) ) {
+						$template_cols = "repeat(" . ( $node_columns > 0 ? $node_columns : 1 ) . ", 1fr)";
+					}
+					$final_styles['grid-template-columns'] = $template_cols;
+					
+					// Handle Grid Gaps
+					if ( isset( $raw_styles['gridGap'] ) && $raw_styles['gridGap'] !== '' ) {
+						$final_styles['column-gap'] = $raw_styles['gridGap'];
+						$final_styles['row-gap'] = isset( $raw_styles['rowGap'] ) ? $raw_styles['rowGap'] : $raw_styles['gridGap'];
+					} elseif ( isset( $raw_styles['rowGap'] ) && $raw_styles['rowGap'] !== '' ) {
+						$final_styles['row-gap'] = $raw_styles['rowGap'];
+					} elseif ( ! isset( $final_styles['gap'] ) && $node_columns > 1 ) {
+						$final_styles['gap'] = '20px';
+					}
+				}
+			}
+		}
+
+		if ( $type === 'column' ) {
+			if ( isset( $raw_styles['customColumnWidth'] ) && $raw_styles['customColumnWidth'] !== '' ) {
+				$unit = isset( $raw_styles['customColumnWidthUnit'] ) ? $raw_styles['customColumnWidthUnit'] : '%';
+				$final_styles['width'] = $raw_styles['customColumnWidth'] . $unit;
+				$final_styles['flex'] = "0 0 {$final_styles['width']}"; // For flex containers compatibility
+			}
+			if ( isset( $raw_styles['alignSelf'] ) && $raw_styles['alignSelf'] !== '' ) {
+				$final_styles['align-self'] = $raw_styles['alignSelf'];
 			}
 		}
 

@@ -22,6 +22,7 @@ const CATEGORIZED_STYLE_OPTIONS = [
         options: [
             { id: 'spacing', label: 'Spacing (Padding, Margin)' },
             { id: 'dimensions', label: 'Dimensions (Width/Height)' },
+            { id: 'layoutSettings', label: 'Layout (Grid/Flex Settings)' },
         ],
     },
     {
@@ -142,7 +143,7 @@ const NodeEditor = ({ node, updateNode, removeNode, duplicateNode, addChild, mov
                             <div className="rcb-column-selector" style={{marginBottom: '20px'}}>
                                 <label style={{display: 'block', marginBottom: '10px', fontWeight: 'bold'}}>Column Structure</label>
                                 <div style={{display: 'flex', gap: '10px'}}>
-                                    {[1, 2, 3].map(cols => {
+                                    {[1, 2, 3, 4, 5, 6].map(cols => {
                                         const genId = (t) => `${t}_${Math.random().toString(36).substr(2, 6)}`;
                                         return (
                                             <Button
@@ -248,20 +249,51 @@ const NodeEditor = ({ node, updateNode, removeNode, duplicateNode, addChild, mov
 
                 return (
                     <>
+                        {/* Add Top Button */}
+                        {(node.type === 'container' || node.type === 'column') && node.children && node.children.length > 0 && (
+                            <div className="rcb-add-inside rcb-add-top" style={{ marginBottom: '10px' }}>
+                                <AddElementButton onAdd={(type) => addChild(node.id, type, 'top')} label="Add Above" />
+                            </div>
+                        )}
                         {isGrid ? (
-                            // Grid view: only the N column nodes side-by-side
-                            <div
-                                className="rcb-column-grid"
-                                style={{
-                                    display: 'grid',
-                                    gridTemplateColumns: `repeat(${node.columns}, 1fr)`,
-                                    gap: '12px',
-                                    border: '1px dashed #bbb',
-                                    padding: '10px',
-                                    marginTop: '10px',
-                                    borderRadius: '4px',
-                                }}
-                            >
+                            // Grid view: other nodes first, then grid
+                            <>
+                                {otherNodes.length > 0 && (
+                                    <div className="rcb-node-children" style={{ marginBottom: '15px' }}>
+                                        {otherNodes.map((child, index) => (
+                                            <NodeEditor
+                                                key={child.id}
+                                                node={child}
+                                                parentType="container"
+                                                templateType={templateType}
+                                                updateNode={(updated) => {
+                                                    const next = node.children.map(c => c.id === child.id ? updated : c);
+                                                    updateNode({ ...node, children: next });
+                                                }}
+                                                removeNode={() => {
+                                                    updateNode({ ...node, children: node.children.filter(c => c.id !== child.id) });
+                                                }}
+                                                duplicateNode={null}
+                                                addChild={addChild}
+                                                moveNodeUp={null}
+                                                moveNodeDown={null}
+                                                styleRegistry={styleRegistry}
+                                            />
+                                        ))}
+                                    </div>
+                                )}
+                                <div
+                                    className="rcb-column-grid"
+                                    style={{
+                                        display: 'grid',
+                                        gridTemplateColumns: `repeat(${node.columns}, 1fr)`,
+                                        gap: '12px',
+                                        border: '1px dashed #bbb',
+                                        padding: '10px',
+                                        marginTop: '10px',
+                                        borderRadius: '4px',
+                                    }}
+                                >
                                 {colNodes.map((child, index) => (
                                     <NodeEditor
                                         key={child.id}
@@ -294,6 +326,7 @@ const NodeEditor = ({ node, updateNode, removeNode, duplicateNode, addChild, mov
                                     />
                                 ))}
                             </div>
+                            </>
                         ) : (
                             // Normal stacked view (single column or no column nodes)
                             <div className="rcb-node-children">
@@ -342,10 +375,10 @@ const NodeEditor = ({ node, updateNode, removeNode, duplicateNode, addChild, mov
                 );
             })()}
             {(node.type === 'container' || node.type === 'column') && (
-                <div className="rcb-add-inside">
+                <div className="rcb-add-inside" style={{ marginTop: '10px' }}>
                     <AddElementButton
-                        onAdd={(type) => addChild(node.id, type)}
-                        label="+ Add Block inside"
+                        onAdd={(type) => addChild(node.id, type, 'bottom')}
+                        label="+ Add Element Below"
                         insideColumn={node.type === 'column'}
                     />
                 </div>
@@ -366,15 +399,22 @@ const AddElementButton = ({ onAdd, label = "Add Element", insideColumn = false }
         { label: 'InnerBlocks (Gutenberg Slot)', value: 'innerblocks' },
     ];
 
-    // Only show Container option at top-level containers, not inside columns
-    const options = insideColumn
-        ? allOptions.filter(o => o.value !== 'container')
-        : allOptions;
+    // Allow any element including containers inside columns for advanced nested layouts
+    const options = allOptions;
 
     return (
         <div className="rcb-inline-add">
             {type === '' ? (
-                 <Button variant="tertiary" onClick={() => setType('heading')}>{label}</Button>
+                 <div style={{display:'flex', justifyContent:'center', margin: '5px 0'}}>
+                     <Button 
+                        className={label === '+ Add Root Block' ? 'rcb-add-root-btn' : 'rcb-add-icon-btn'} 
+                        icon={label === '+ Add Root Block' ? undefined : 'plus'} 
+                        onClick={() => setType('heading')} 
+                        title={label}
+                     >
+                        {label === '+ Add Root Block' ? label : ''}
+                     </Button>
+                 </div>
             ) : (
                 <div style={{display: 'flex', gap: '10px', alignItems: 'center'}}>
                         <SelectControl
@@ -437,11 +477,12 @@ const App = () => {
             type,
             field: generateId(type),
             allowedSettings: { 
-                color: type !== 'button', 
-                typography: type !== 'button', 
-                spacing: type !== 'button', 
-                borders: type !== 'button', 
-                alignment: type !== 'button',
+                color: true, 
+                typography: true, 
+                spacing: true, 
+                borders: true, 
+                alignment: true,
+                layoutSettings: type === 'container' || type === 'column',
                 opacity: true, 
                 boxShadow: true, 
                 customStylesBox: true, 
@@ -455,7 +496,7 @@ const App = () => {
         setStructure([...structure, newNode]);
     };
 
-    const addChildToNode = (nodes, parentId, type) => {
+    const addChildToNode = (nodes, parentId, type, position = 'bottom') => {
         return nodes.map((node) => {
             if (node.id === parentId && (node.type === 'container' || node.type === 'column')) {
                 const subId = generateId(type);
@@ -464,11 +505,12 @@ const App = () => {
                     type,
                     field: generateId(type),
                     allowedSettings: { 
-                        color: type !== 'button', 
-                        typography: type !== 'button', 
-                        spacing: type !== 'button', 
-                        borders: type !== 'button', 
-                        alignment: type !== 'button',
+                        color: true, 
+                        typography: true, 
+                        spacing: true, 
+                        borders: true, 
+                        alignment: true,
+                        layoutSettings: type === 'container' || type === 'column',
                         opacity: true, 
                         boxShadow: true, 
                         customStylesBox: true, 
@@ -479,16 +521,17 @@ const App = () => {
                     },
                     ...(type === 'container' || type === 'column' ? { children: [] } : {})
                 };
-                return { ...node, children: [...(node.children || []), newNode] };
+                const newChildren = position === 'top' ? [newNode, ...(node.children || [])] : [...(node.children || []), newNode];
+                return { ...node, children: newChildren };
             } else if ((node.type === 'container' || node.type === 'column') && node.children) {
-                return { ...node, children: addChildToNode(node.children, parentId, type) };
+                return { ...node, children: addChildToNode(node.children, parentId, type, position) };
             }
             return node;
         });
     };
 
-    const handleAddChild = (parentId, type) => {
-        setStructure(addChildToNode(structure, parentId, type));
+    const handleAddChild = (parentId, type, position = 'bottom') => {
+        setStructure(addChildToNode(structure, parentId, type, position));
     };
 
     // Extract dynamic fields for sidebar
