@@ -1,6 +1,27 @@
 /* Basic block styles to ensure visibility */
 .rcb-editor-preview-container {
     width: 100%;
+    margin: 20px auto;
+    transition: width 0.3s ease;
+    border: 1px solid #e0e0e0;
+    background: #fff;
+    box-shadow: 0 5px 15px rgba(0,0,0,0.05);
+    border-radius: 4px;
+    overflow: hidden;
+
+    &.rcb-preview-desktop {
+        width: 100%;
+    }
+
+    &.rcb-preview-tablet {
+        width: 1024px;
+        max-width: 100%;
+    }
+
+    &.rcb-preview-mobile {
+        width: 480px;
+        max-width: 100%;
+    }
 }
 
 .rcb-editor-main {

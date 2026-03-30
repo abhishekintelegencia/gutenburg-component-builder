@@ -13,7 +13,7 @@ function rcb_build_inline_style( $styles ) {
 
 	$style_string = '';
 	foreach ( $styles as $key => $value ) {
-		if ( $value === '' || $value === null ) continue;
+		if ( $value === '' || $value === null || is_array( $value ) ) continue;
 		$css_prop = strtolower( preg_replace( '/(?<!^)[A-Z]/', '-$0', $key ) );
 		
 		// Add !important to font-weight and font-family to override theme defaults
@@ -23,6 +23,92 @@ function rcb_build_inline_style( $styles ) {
 	}
 
 	return $style_string ? 'style="' . $style_string . '"' : '';
+}
+
+/**
+ * Resolves a potentially responsive value into a single value based on device.
+ */
+function rcb_get_responsive_value( $val, $device = 'desktop' ) {
+	if ( is_array( $val ) ) {
+		return isset( $val[ $device ] ) ? $val[ $device ] : ( isset( $val['desktop'] ) ? $val['desktop'] : '' );
+	}
+	return $val;
+}
+
+/**
+ * Generates a CSS block with media queries for responsive properties.
+ */
+function rcb_generate_responsive_css( $selector, $styles ) {
+	$desktop = '';
+	$tablet  = '';
+	$mobile  = '';
+
+	$mapping = array(
+		'displayMode'         => 'display',
+		'flexGap'             => 'gap',
+		'gridGap'             => 'column-gap',
+		'rowGap'              => 'row-gap',
+		'contentMaxWidth'     => 'max-width',
+		'gridTemplateColumns' => 'grid-template-columns',
+		'backgroundColor'     => 'background-color',
+		'fontSize'            => 'font-size',
+		'fontWeight'          => 'font-weight',
+		'lineHeight'          => 'line-height',
+		'letterSpacing'       => 'letter-spacing',
+		'textTransform'       => 'text-transform',
+		'backgroundImage'     => 'background-image',
+		'minHeight'           => 'min-height',
+		'alignItems'          => 'align-items',
+		'justifyContent'      => 'justify-content',
+		'flexDirection'       => 'flex-direction',
+		'flexWrap'            => 'flex-wrap',
+		'alignSelf'           => 'align-self',
+	);
+
+	$skip = array( 'customCssPairs', 'customStylesRaw', 'field', 'type', 'id', 'columns', 'allowedSettings', 'dynamicSource', 'dynamicField' );
+
+	foreach ( $styles as $key => $val ) {
+		if ( in_array( $key, $skip ) || $val === '' || $val === null ) continue;
+		
+		$prop = isset( $mapping[ $key ] ) ? $mapping[ $key ] : strtolower( preg_replace( '/(?<!^)[A-Z]/', '-$0', $key ) );
+		
+		// ALWAYS add !important to responsive overrides because inline styles (desktop values) have higher specificity
+		$suffix = ' !important';
+
+		if ( is_array( $val ) ) {
+			if ( isset( $val['desktop'] ) && $val['desktop'] !== '' ) {
+				$desktop .= "{$prop}:" . $val['desktop'] . "{$suffix};";
+				if ( $prop === 'flex-direction' && strpos( $val['desktop'], 'column' ) !== false ) {
+					$desktop .= " } {$selector} > .rcb-column { flex: 1 1 auto !important; } {$selector} { ";
+				}
+			}
+			if ( isset( $val['tablet'] ) && $val['tablet'] !== '' ) {
+				$tablet  .= "{$prop}:" . $val['tablet'] . "{$suffix};";
+				if ( $prop === 'flex-direction' && strpos( $val['tablet'], 'column' ) !== false ) {
+					$tablet .= " } {$selector} > .rcb-column { flex: 1 1 auto !important; } {$selector} { ";
+				}
+			}
+			if ( isset( $val['mobile'] ) && $val['mobile'] !== '' ) {
+				$mobile  .= "{$prop}:" . $val['mobile'] . "{$suffix};";
+				if ( $prop === 'flex-direction' && strpos( $val['mobile'], 'column' ) !== false ) {
+					$mobile .= " } {$selector} > .rcb-column { flex: 1 1 auto !important; } {$selector} { ";
+				}
+			}
+		} else {
+			// Even if not an array, include it in the desktop block to ensure base styles are consistent
+			$desktop .= "{$prop}:" . $val . "{$suffix};";
+			if ( $prop === 'flex-direction' && strpos( $val, 'column' ) !== false ) {
+				$desktop .= " } {$selector} > .rcb-column { flex: 1 1 auto !important; } {$selector} { ";
+			}
+		}
+	}
+
+	$out = "";
+	if ( $desktop ) $out .= "{$selector} { {$desktop} }\n";
+	if ( $tablet )  $out .= "@media (max-width: 1024px) { {$selector} { {$tablet} } }\n";
+	if ( $mobile )  $out .= "@media (max-width: 767px) { {$selector} { {$mobile} } }\n";
+	
+	return $out;
 }
 
 /**
@@ -106,6 +192,7 @@ function rcb_render_component_builder_block( $attributes, $content ) {
 
 	$root_style_attr = rcb_build_inline_style( $final_root_styles );
 
+	$style_registry = '';
 	$final_output = '';
 
 	if ( $mode === 'query' ) {
@@ -117,8 +204,6 @@ function rcb_render_component_builder_block( $attributes, $content ) {
 
 		$paged = 1;
 		if ( $pagination ) {
-			// On singular pages, custom loops usually shouldn't sync with the main page's 'paged' value
-			// unless we are specifically on an archive. This prevents "No posts found" if the URL has /page/X/
 			if ( ! is_singular() ) {
 				$paged = ( get_query_var( 'paged' ) ) ? get_query_var( 'paged' ) : 1;
 			}
@@ -157,7 +242,8 @@ function rcb_render_component_builder_block( $attributes, $content ) {
 				global $post;
 
 				$final_output .= sprintf( '<div class="rcb-instance rcb-instance-%s rcb-loop-item" %s>', esc_attr( $unique_id ), $root_style_attr );
-				$final_output .= rcb_render_visual_nodes_with_visibility( $nodes, $content_data, $styles_data, $mode, $post, $visibility, $content, $style_registry );
+				// Pass $unique_id to the recursive renderer
+				$final_output .= rcb_render_visual_nodes_with_visibility( $nodes, $content_data, $styles_data, $mode, $post, $visibility, $content, $style_registry, $unique_id );
 				$final_output .= '</div>';
 			}
 
@@ -180,14 +266,15 @@ function rcb_render_component_builder_block( $attributes, $content ) {
 		}
 	} else {
 		global $post;
-		$style_registry = '';
-		$inner_html = rcb_render_visual_nodes_with_visibility( $nodes, $content_data, $styles_data, $mode, $post, $visibility, $content, $style_registry );
+		$inner_html = rcb_render_visual_nodes_with_visibility( $nodes, $content_data, $styles_data, $mode, $post, $visibility, $content, $style_registry, $unique_id );
 		
-		$final_output .= ( ! empty( $style_registry ) ) ? '<style>' . $style_registry . '</style>' : '';
 		$final_output .= sprintf( '<div class="rcb-instance rcb-instance-%s" %s>', esc_attr( $unique_id ), $root_style_attr );
 		$final_output .= $inner_html;
 		$final_output .= '</div>';
 	}
+
+	// Prepend all collected styles (scoped to this instance if possible)
+	$final_output = ( ! empty( $style_registry ) ? '<style>' . $style_registry . '</style>' : '' ) . $final_output;
 
 	return $final_output;
 }
@@ -195,7 +282,7 @@ function rcb_render_component_builder_block( $attributes, $content ) {
 /**
  * Render nodes with visibility toggles and style registry support.
  */
-function rcb_render_visual_nodes_with_visibility( $nodes, $content_data, $styles_data, $mode, $post = null, $visibility = array(), $inner_blocks_content = '', &$style_registry = '' ) {
+function rcb_render_visual_nodes_with_visibility( $nodes, $content_data, $styles_data, $mode, $post = null, $visibility = array(), $inner_blocks_content = '', &$style_registry = '', $instance_id = '' ) {
 	$html = '';
 
 	foreach ( $nodes as $node ) {
@@ -210,9 +297,24 @@ function rcb_render_visual_nodes_with_visibility( $nodes, $content_data, $styles
 		
 		$raw_styles    = isset( $styles_data[ $field ] ) ? $styles_data[ $field ] : array();
 		$final_styles  = array();
+		$has_responsive = false;
+
+		// Detect if any property is responsive (an array)
+		foreach ( $raw_styles as $val ) {
+			if ( is_array( $val ) ) {
+				$has_responsive = true;
+				break;
+			}
+		}
+
+		if ( $has_responsive ) {
+			// Scope responsive CSS to the specific instance if provided
+			$selector = ( ! empty( $instance_id ) ) ? ".rcb-instance-{$instance_id} .{$id}" : ".{$id}";
+			$style_registry .= rcb_generate_responsive_css( $selector, $raw_styles );
+		}
 
 		// Standard styles - Map if they exist in raw_styles, regardless of allowedSettings
-		// This ensures robustness if allowedSettings ever gets out of sync or missing
+		// Only map non-array values to inline styles
 		if ( isset( $raw_styles['color'] ) ) $final_styles['color'] = $raw_styles['color'];
 		if ( isset( $raw_styles['backgroundColor'] ) ) $final_styles['backgroundColor'] = $raw_styles['backgroundColor'];
 		
@@ -349,11 +451,12 @@ function rcb_render_visual_nodes_with_visibility( $nodes, $content_data, $styles
 		}
 
 		if ( $type === 'container' ) {
-			$display_mode = isset( $raw_styles['displayMode'] ) ? $raw_styles['displayMode'] : 'grid';
+			$display_mode = rcb_get_responsive_value( isset( $raw_styles['displayMode'] ) ? $raw_styles['displayMode'] : 'grid', 'desktop' );
 			
 			// Handle Content Max Width
-			if ( isset( $raw_styles['contentMaxWidth'] ) && ! empty( $raw_styles['contentMaxWidth'] ) ) {
-				$final_styles['max-width'] = $raw_styles['contentMaxWidth'];
+			$max_width = rcb_get_responsive_value( isset( $raw_styles['contentMaxWidth'] ) ? $raw_styles['contentMaxWidth'] : '', 'desktop' );
+			if ( ! empty( $max_width ) ) {
+				$final_styles['max-width'] = $max_width;
 				$final_styles['margin-left'] = 'auto';
 				$final_styles['margin-right'] = 'auto';
 				$final_styles['width'] = '100%';
@@ -362,18 +465,21 @@ function rcb_render_visual_nodes_with_visibility( $nodes, $content_data, $styles
 			if ( $node_columns > 1 || $display_mode === 'flex' || isset( $raw_styles['displayMode'] ) ) {
 				if ( $display_mode === 'flex' ) {
 					$final_styles['display'] = 'flex';
-					$final_styles['flex-direction'] = isset( $raw_styles['flexDirection'] ) ? $raw_styles['flexDirection'] : 'row';
-					$final_styles['flex-wrap'] = isset( $raw_styles['flexWrap'] ) ? $raw_styles['flexWrap'] : 'wrap';
-					$final_styles['justify-content'] = isset( $raw_styles['justifyContent'] ) ? $raw_styles['justifyContent'] : 'flex-start';
-					$final_styles['align-items'] = isset( $raw_styles['alignItems'] ) ? $raw_styles['alignItems'] : 'stretch';
-					if ( isset( $raw_styles['flexGap'] ) && $raw_styles['flexGap'] !== '' ) {
-						$final_styles['gap'] = $raw_styles['flexGap'];
+					$flex_dir = rcb_get_responsive_value( isset( $raw_styles['flexDirection'] ) ? $raw_styles['flexDirection'] : 'row', 'desktop' );
+					$final_styles['flex-direction'] = $flex_dir;
+					$final_styles['flex-wrap'] = rcb_get_responsive_value( isset( $raw_styles['flexWrap'] ) ? $raw_styles['flexWrap'] : 'wrap', 'desktop' );
+					$final_styles['justify-content'] = rcb_get_responsive_value( isset( $raw_styles['justifyContent'] ) ? $raw_styles['justifyContent'] : 'flex-start', 'desktop' );
+					$final_styles['align-items'] = rcb_get_responsive_value( isset( $raw_styles['alignItems'] ) ? $raw_styles['alignItems'] : 'stretch', 'desktop' );
+					
+					$f_gap = rcb_get_responsive_value( isset( $raw_styles['flexGap'] ) ? $raw_styles['flexGap'] : '', 'desktop' );
+					if ( $f_gap !== '' ) {
+						$final_styles['gap'] = $f_gap;
 					}
 				} else {
 					$final_styles['display'] = 'grid';
-					$template_cols = isset( $raw_styles['gridTemplateColumns'] ) ? $raw_styles['gridTemplateColumns'] : '';
+					$template_cols = rcb_get_responsive_value( isset( $raw_styles['gridTemplateColumns'] ) ? $raw_styles['gridTemplateColumns'] : '', 'desktop' );
 					if ( $template_cols === 'custom' ) {
-						$template_cols = isset( $raw_styles['customGridTemplate'] ) ? $raw_styles['customGridTemplate'] : '';
+						$template_cols = rcb_get_responsive_value( isset( $raw_styles['customGridTemplate'] ) ? $raw_styles['customGridTemplate'] : '', 'desktop' );
 					}
 					if ( empty( $template_cols ) ) {
 						$template_cols = "repeat(" . ( $node_columns > 0 ? $node_columns : 1 ) . ", 1fr)";
@@ -381,11 +487,14 @@ function rcb_render_visual_nodes_with_visibility( $nodes, $content_data, $styles
 					$final_styles['grid-template-columns'] = $template_cols;
 					
 					// Handle Grid Gaps
-					if ( isset( $raw_styles['gridGap'] ) && $raw_styles['gridGap'] !== '' ) {
-						$final_styles['column-gap'] = $raw_styles['gridGap'];
-						$final_styles['row-gap'] = isset( $raw_styles['rowGap'] ) ? $raw_styles['rowGap'] : $raw_styles['gridGap'];
-					} elseif ( isset( $raw_styles['rowGap'] ) && $raw_styles['rowGap'] !== '' ) {
-						$final_styles['row-gap'] = $raw_styles['rowGap'];
+					$g_gap = rcb_get_responsive_value( isset( $raw_styles['gridGap'] ) ? $raw_styles['gridGap'] : '', 'desktop' );
+					$r_gap = rcb_get_responsive_value( isset( $raw_styles['rowGap'] ) ? $raw_styles['rowGap'] : '', 'desktop' );
+
+					if ( $g_gap !== '' ) {
+						$final_styles['column-gap'] = $g_gap;
+						$final_styles['row-gap'] = ( $r_gap !== '' ) ? $r_gap : $g_gap;
+					} elseif ( $r_gap !== '' ) {
+						$final_styles['row-gap'] = $r_gap;
 					} elseif ( ! isset( $final_styles['gap'] ) && $node_columns > 1 ) {
 						$final_styles['gap'] = '20px';
 					}
@@ -394,13 +503,18 @@ function rcb_render_visual_nodes_with_visibility( $nodes, $content_data, $styles
 		}
 
 		if ( $type === 'column' ) {
-			if ( isset( $raw_styles['customColumnWidth'] ) && $raw_styles['customColumnWidth'] !== '' ) {
-				$unit = isset( $raw_styles['customColumnWidthUnit'] ) ? $raw_styles['customColumnWidthUnit'] : '%';
-				$final_styles['width'] = $raw_styles['customColumnWidth'] . $unit;
+			$col_w = rcb_get_responsive_value( isset( $raw_styles['customColumnWidth'] ) ? $raw_styles['customColumnWidth'] : '', 'desktop' );
+			if ( $col_w !== '' ) {
+				$unit = rcb_get_responsive_value( isset( $raw_styles['customColumnWidthUnit'] ) ? $raw_styles['customColumnWidthUnit'] : '%', 'desktop' );
+				$final_styles['width'] = $col_w . $unit;
 				$final_styles['flex'] = "0 0 {$final_styles['width']}"; // For flex containers compatibility
+			} else {
+				$final_styles['flex'] = "1 1 0%"; // Default row distribution
 			}
-			if ( isset( $raw_styles['alignSelf'] ) && $raw_styles['alignSelf'] !== '' ) {
-				$final_styles['align-self'] = $raw_styles['alignSelf'];
+			
+			$a_self = rcb_get_responsive_value( isset( $raw_styles['alignSelf'] ) ? $raw_styles['alignSelf'] : '', 'desktop' );
+			if ( $a_self !== '' ) {
+				$final_styles['align-self'] = $a_self;
 			}
 		}
 
@@ -414,7 +528,7 @@ function rcb_render_visual_nodes_with_visibility( $nodes, $content_data, $styles
 			case 'container':
 				$children_html = '';
 				if ( ! empty( $node['children'] ) ) {
-					$children_html = rcb_render_visual_nodes_with_visibility( $node['children'], $content_data, $styles_data, $mode, $post, $visibility, $inner_blocks_content, $style_registry );
+					$children_html = rcb_render_visual_nodes_with_visibility( $node['children'], $content_data, $styles_data, $mode, $post, $visibility, $inner_blocks_content, $style_registry, $instance_id );
 				}
 				$html .= sprintf( '<div class="rcb-container %s" %s>%s</div>', esc_attr( $id ), $style_attr, $children_html );
 				break;
@@ -422,7 +536,7 @@ function rcb_render_visual_nodes_with_visibility( $nodes, $content_data, $styles
 			case 'column':
 				$children_html = '';
 				if ( ! empty( $node['children'] ) ) {
-					$children_html = rcb_render_visual_nodes_with_visibility( $node['children'], $content_data, $styles_data, $mode, $post, $visibility, $inner_blocks_content, $style_registry );
+					$children_html = rcb_render_visual_nodes_with_visibility( $node['children'], $content_data, $styles_data, $mode, $post, $visibility, $inner_blocks_content, $style_registry, $instance_id );
 				}
 				$html .= sprintf( '<div class="rcb-column %s" %s>%s</div>', esc_attr( $id ), $style_attr, $children_html );
 				break;
