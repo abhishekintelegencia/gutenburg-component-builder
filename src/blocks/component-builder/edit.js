@@ -1,6 +1,6 @@
 import { __ } from '@wordpress/i18n';
-import { useBlockProps, InspectorControls, MediaUpload, MediaUploadCheck, PanelColorSettings, InnerBlocks } from '@wordpress/block-editor';
-import { PanelBody, SelectControl, TextControl, TextareaControl, Button, ToggleControl, RangeControl, RadioControl, BaseControl, Dashicon, __experimentalBoxControl as BoxControl, __experimentalToggleGroupControl as ToggleGroupControl, __experimentalToggleGroupControlOption as ToggleGroupControlOption } from '@wordpress/components';
+import { useBlockProps, InspectorControls, BlockControls, MediaUpload, MediaUploadCheck, PanelColorSettings, InnerBlocks } from '@wordpress/block-editor';
+import { PanelBody, SelectControl, TextControl, TextareaControl, Button, ToggleControl, RangeControl, RadioControl, BaseControl, Dashicon, TabPanel, __experimentalBoxControl as BoxControl, __experimentalToggleGroupControl as ToggleGroupControl, __experimentalToggleGroupControlOption as ToggleGroupControlOption, ToolbarGroup, ToolbarButton } from '@wordpress/components';
 import { useEffect, useState } from '@wordpress/element';
 import { useSelect } from '@wordpress/data';
 import apiFetch from '@wordpress/api-fetch';
@@ -48,6 +48,43 @@ const serializeBoxValue = (value) => {
     return value;
 };
 
+const ResponsiveControl = ({ label, deviceMode, setDeviceMode, children }) => {
+    return (
+        <div className="rcb-responsive-control" style={{ marginBottom: '15px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                {label && <span style={{ fontSize: '11px', fontWeight: 600, textTransform: 'uppercase', color: '#1e1e1e' }}>{label}</span>}
+                <div className="rcb-device-toggles" style={{ display: 'flex', gap: '2px' }}>
+                    <Button 
+                        size="small" 
+                        icon="desktop" 
+                        isPressed={deviceMode === 'desktop'} 
+                        onClick={() => setDeviceMode('desktop')}
+                        variant={deviceMode === 'desktop' ? 'primary' : 'tertiary'}
+                        style={{ minWidth: '24px', height: '24px', padding: '0' }}
+                    />
+                    <Button 
+                        size="small" 
+                        icon="tablet" 
+                        isPressed={deviceMode === 'tablet'} 
+                        onClick={() => setDeviceMode('tablet')}
+                        variant={deviceMode === 'tablet' ? 'primary' : 'tertiary'}
+                        style={{ minWidth: '24px', height: '24px', padding: '0' }}
+                    />
+                    <Button 
+                        size="small" 
+                        icon="smartphone" 
+                        isPressed={deviceMode === 'mobile'} 
+                        onClick={() => setDeviceMode('mobile')}
+                        variant={deviceMode === 'mobile' ? 'primary' : 'tertiary'}
+                        style={{ minWidth: '24px', height: '24px', padding: '0' }}
+                    />
+                </div>
+            </div>
+            {children}
+        </div>
+    );
+};
+
 const SYSTEM_FONTS = [
     { label: 'Arial', value: 'Arial, Helvetica, sans-serif' },
     { label: 'Helvetica', value: 'Helvetica, Arial, sans-serif' },
@@ -61,7 +98,7 @@ const SYSTEM_FONTS = [
     { label: 'Comic Sans MS', value: '"Comic Sans MS", cursive, sans-serif' }
 ];
 
-const AdvancedTypographyControl = ({ label, value, fontWeight, textTransform, lineHeight, letterSpacing, fontFamily, onChange }) => {
+const AdvancedTypographyControl = ({ label, value, fontWeight, textTransform, lineHeight, letterSpacing, fontFamily, onChange, deviceMode, setDeviceMode }) => {
     const themeFonts = useSelect((select) => {
         const settings = select('core/block-editor').getSettings();
         return settings?.fontFamilies || [];
@@ -73,134 +110,142 @@ const AdvancedTypographyControl = ({ label, value, fontWeight, textTransform, li
         ...SYSTEM_FONTS.filter(sf => !themeFonts.some(tf => tf.fontFamily === sf.value))
     ];
 
+    const getVal = (v) => (typeof v === 'object' && v !== null) ? v[deviceMode] || v.desktop || '' : (v || '');
+    
+    // Process Font Size
+    const sizeStr = getVal(value).toString();
+    const parsedSize = parseFloat(sizeStr) || 0;
+    const sizeUnit = sizeStr.match(/[a-z%]+$/i)?.[0] || 'px';
 
-    const valString = (value || '').toString();
-    const parsedValue = parseFloat(valString) || 0;
-    const unitMatch = valString.match(/[a-z%]+$/i);
-    const unit = unitMatch ? unitMatch[0] : 'px';
+    // Process Line Height
+    const lhStr = getVal(lineHeight).toString();
+    const parsedLH = parseFloat(lhStr) || 1.5;
+
+    // Process Letter Spacing
+    const lsStr = getVal(letterSpacing).toString();
+    const parsedLS = parseFloat(lsStr) || 0;
+
+    const labelStyle = { fontSize: '10px', fontWeight: 700, textTransform: 'uppercase', marginBottom: '8px', color: '#1e1e1e' };
     
     return (
-        <div className="rcb-advanced-typography" style={{ marginBottom: '15px' }}>
-            <span style={{ fontSize: '11px', fontWeight: 600, textTransform: 'uppercase', display: 'block', marginBottom: '10px' }}>{label}</span>
-            <div style={{ marginBottom: '15px' }}>
+        <div className="rcb-advanced-typography" style={{ marginBottom: '24px' }}>
+            {label && <div style={{ fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', marginBottom: '16px', color: '#1e1e1e', letterSpacing: '0.5px' }}>{label}</div>}
+            
+            <div style={{ marginBottom: '16px' }}>
+                <div style={labelStyle}>FONT FAMILY</div>
                 <SelectControl
-                    label={__('Font Family', 'reusable-component-builder')}
                     value={fontFamily || ''}
                     options={fontOptions}
-                    onChange={(val) => onChange('fontFamily', val)}
+                    onChange={(val) => onChange('fontFamily', val, false)}
+                    __nextHasNoMarginBottom={true}
                 />
             </div>
-            <div style={{ marginBottom: '15px' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-                    <span style={{ fontSize: '11px', color: '#666' }}>Size</span>
+
+            <ResponsiveControl label="Font Size" deviceMode={deviceMode} setDeviceMode={setDeviceMode}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <div style={{ flex: 1 }}>
+                        <RangeControl
+                            value={parsedSize}
+                            onChange={(val) => onChange('fontSize', `${val}${sizeUnit}`, true)}
+                            min={8}
+                            max={100}
+                            withInputField={false}
+                            __nextHasNoMarginBottom={true}
+                        />
+                    </div>
+                    <TextControl
+                        type="number"
+                        value={parsedSize || ''}
+                        onChange={(val) => onChange('fontSize', val ? `${val}${sizeUnit}` : '', true)}
+                        style={{ width: '55px' }}
+                        __nextHasNoMarginBottom={true}
+                    />
                     <SelectControl
-                        value={unit}
-                        options={[
-                            { label: 'PX', value: 'px' }, { label: 'EM', value: 'em' }, { label: 'REM', value: 'rem' }
-                        ]}
-                        onChange={(newUnit) => onChange('fontSize', parsedValue ? `${parsedValue}${newUnit}` : '')}
-                        style={{ minWidth: '70px', height: '30px', padding: '0 8px', fontSize: '12px' }}
+                        value={sizeUnit}
+                        options={[{ label: 'PX', value: 'px' }, { label: 'EM', value: 'em' }, { label: 'REM', value: 'rem' }]}
+                        onChange={(newUnit) => onChange('fontSize', parsedSize ? `${parsedSize}${newUnit}` : '', true)}
+                        style={{ width: '70px' }}
+                        __nextHasNoMarginBottom={true}
                     />
                 </div>
-                <RangeControl
-                    value={parsedValue}
-                    onChange={(newVal) => onChange('fontSize', newVal !== undefined ? `${newVal}${unit}` : '')}
-                    min={0}
-                    max={unit === 'px' ? 100 : 10}
-                    step={unit === 'px' ? 1 : 0.1}
-                    allowReset={true}
-                />
-            </div>
-            <div style={{ display: 'flex', gap: '10px', marginBottom: '15px' }}>
+            </ResponsiveControl>
+
+            <div style={{ display: 'flex', gap: '20px', marginBottom: '16px' }}>
                 <div style={{ flex: 1 }}>
+                    <div style={labelStyle}>Weight</div>
                     <SelectControl
-                        label="Weight"
                         value={fontWeight || ''}
                         options={[
-                            { label: 'Default', value: '' }, { label: 'Normal', value: 'normal' }, { label: 'Bold', value: 'bold' },
-                            { label: '300', value: '300' }, { label: '400', value: '400' }, { label: '500', value: '500' },
-                            { label: '600', value: '600' }, { label: '700', value: '700' }, { label: '800', value: '800' }
+                            { label: __('Default', 'reusable-component-builder'), value: '' },
+                            { label: '100', value: '100' }, { label: '200', value: '200' }, { label: '300', value: '300' },
+                            { label: '400', value: '400' }, { label: '500', value: '500' }, { label: '600', value: '600' },
+                            { label: '700', value: '700' }, { label: '800', value: '800' }, { label: '900', value: '900' }
                         ]}
-                        onChange={(val) => onChange('fontWeight', val)}
+                        onChange={(val) => onChange('fontWeight', val, false)}
+                        __nextHasNoMarginBottom={true}
                     />
                 </div>
                 <div style={{ flex: 1 }}>
+                    <div style={labelStyle}>Transform</div>
                     <SelectControl
-                        label="Transform"
                         value={textTransform || ''}
                         options={[
-                            { label: 'Default', value: '' }, { label: 'Uppercase', value: 'uppercase' },
-                            { label: 'Lowercase', value: 'lowercase' }, { label: 'Capitalize', value: 'capitalize' }
+                            { label: __('None', 'reusable-component-builder'), value: '' },
+                            { label: __('Uppercase', 'reusable-component-builder'), value: 'uppercase' },
+                            { label: __('Lowercase', 'reusable-component-builder'), value: 'lowercase' },
+                            { label: __('Capitalize', 'reusable-component-builder'), value: 'capitalize' }
                         ]}
-                        onChange={(val) => onChange('textTransform', val)}
+                        onChange={(val) => onChange('textTransform', val, false)}
+                        __nextHasNoMarginBottom={true}
                     />
                 </div>
             </div>
 
-            {/* Line Height Control (Two-Row) */}
-            <div className="rcb-typo-control-wrapper">
-                <div className="rcb-typo-header">
-                    <label className="rcb-typo-label">{__('Line Height', 'reusable-component-builder')}</label>
-                    <Button 
-                        className="rcb-typo-reset-btn" 
-                        variant="link" 
-                        onClick={() => onChange('lineHeight', '')}
-                    >
-                        {__('Reset', 'reusable-component-builder')}
-                    </Button>
-                </div>
-                <div className="rcb-typo-control-row">
-                    <div className="rcb-typo-icon"><Dashicon icon="editor-lineheight" /></div>
-                    <div className="rcb-typo-input">
-                        <TextControl
-                            value={lineHeight || ''}
-                            placeholder="1.5"
-                            onChange={(val) => onChange('lineHeight', val)}
-                        />
-                    </div>
-                    <div className="rcb-typo-slider">
+            <ResponsiveControl label="Line Height" deviceMode={deviceMode} setDeviceMode={setDeviceMode}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <div style={{ flex: 1 }}>
                         <RangeControl
-                            value={parseFloat(lineHeight) || 1.5}
-                            onChange={(val) => onChange('lineHeight', val)}
+                            value={parsedLH}
+                            onChange={(val) => onChange('lineHeight', val, true)}
                             min={0.5}
                             max={3}
                             step={0.1}
+                            withInputField={false}
+                            __nextHasNoMarginBottom={true}
                         />
                     </div>
+                    <TextControl
+                        type="number"
+                        value={parsedLH}
+                        onChange={(val) => onChange('lineHeight', val, true)}
+                        style={{ width: '65px' }}
+                        __nextHasNoMarginBottom={true}
+                    />
                 </div>
-            </div>
+            </ResponsiveControl>
 
-            {/* Letter Spacing Control (Two-Row) */}
-            <div className="rcb-typo-control-wrapper">
-                <div className="rcb-typo-header">
-                    <label className="rcb-typo-label">{__('Letter Spacing', 'reusable-component-builder')}</label>
-                    <Button 
-                        className="rcb-typo-reset-btn" 
-                        variant="link" 
-                        onClick={() => onChange('letterSpacing', '')}
-                    >
-                        {__('Reset', 'reusable-component-builder')}
-                    </Button>
-                </div>
-                <div className="rcb-typo-control-row">
-                    <div className="rcb-typo-icon"><Dashicon icon="editor-spellcheck" /></div>
-                    <div className="rcb-typo-input">
-                        <TextControl
-                            value={parseInt(letterSpacing) || 0}
-                            onChange={(val) => onChange('letterSpacing', `${val}px`)}
-                        />
-                    </div>
-                    <div className="rcb-typo-slider">
+            <ResponsiveControl label="Letter Spacing" deviceMode={deviceMode} setDeviceMode={setDeviceMode}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <div style={{ flex: 1 }}>
                         <RangeControl
-                            value={parseInt(letterSpacing) || 0}
-                            onChange={(val) => onChange('letterSpacing', `${val}px`)}
+                            value={parsedLS}
+                            onChange={(val) => onChange('letterSpacing', `${val}px`, true)}
                             min={-5}
                             max={20}
                             step={1}
+                            withInputField={false}
+                            __nextHasNoMarginBottom={true}
                         />
                     </div>
+                    <TextControl
+                        type="number"
+                        value={parsedLS}
+                        onChange={(val) => onChange('letterSpacing', `${val}px`, true)}
+                        style={{ width: '65px' }}
+                        __nextHasNoMarginBottom={true}
+                    />
                 </div>
-            </div>
+            </ResponsiveControl>
         </div>
     );
 };
@@ -237,10 +282,12 @@ export default function Edit({ attributes, setAttributes, clientId }) {
     const [globalCustomStyles, setGlobalCustomStyles] = useState([]);
     const [globalAllowedSettings, setGlobalAllowedSettings] = useState({});
     const [previewPosts, setPreviewPosts] = useState([]);
+    const [selectedStyleElement, setSelectedStyleElement] = useState('');
     
     // Taxonomy API loading state
     const [taxonomies, setTaxonomies] = useState([]);
     const [terms, setTerms] = useState([]);
+    const [deviceMode, setDeviceMode] = useState('desktop'); // desktop, tablet, mobile
 
     // Optional loop visibility settings
     const vVars = visibilityVars || { showTitle: true, showExcerpt: true, showImage: true, showButton: true };
@@ -320,40 +367,106 @@ export default function Edit({ attributes, setAttributes, clientId }) {
 
     const configurableFields = getAllFields(structureNodes);
 
+    useEffect(() => {
+        if (configurableFields.length > 0 && (!selectedStyleElement || !configurableFields.find(f => f.field === selectedStyleElement))) {
+            setSelectedStyleElement(configurableFields[0].field);
+        }
+    }, [configurableFields, selectedStyleElement]);
+
+    const getCleanFieldLabel = (node, index, allNodes) => {
+        let name = node.type.charAt(0).toUpperCase() + node.type.slice(1);
+        
+        if (allNodes) {
+             let typeCount = 0;
+             let totalOfType = 0;
+             for (let i = 0; i < allNodes.length; i++) {
+                 if (allNodes[i].type === node.type) {
+                     totalOfType++;
+                     if (i <= index) typeCount++;
+                 }
+             }
+             if (totalOfType > 1) {
+                 name += ` ${typeCount}`;
+             }
+        }
+        
+        if (node.dynamicSource) {
+            name += ` (${node.dynamicSource.replace(/_/g, ' ')})`;
+        }
+        return name;
+    };
+
     const updateContent = (key, value) => {
         setAttributes({ content: { ...content, [key]: value } });
     };
 
-    const updateStyle = (key, prop, value) => {
-        const currentStyle = styles[key] || {};
-        if (value === undefined || value === '') {
-            const newStyles = { ...styles };
-            const newFieldStyles = { ...currentStyle };
-            delete newFieldStyles[prop];
-            newStyles[key] = newFieldStyles;
-            setAttributes({ styles: newStyles });
+    const updateStyle = (key, prop, value, isResponsive = false) => {
+        const currentStyle = { ...(styles[key] || {}) };
+        
+        if (isResponsive) {
+            const currentPropVal = currentStyle[prop];
+            const responsiveObj = (typeof currentPropVal === 'object' && currentPropVal !== null) ? { ...currentPropVal } : { desktop: currentPropVal || '' };
+            responsiveObj[deviceMode] = value;
+            currentStyle[prop] = responsiveObj;
         } else {
-            setAttributes({
-                styles: {
-                    ...styles,
-                    [key]: { ...currentStyle, [prop]: value }
-                }
-            });
+            currentStyle[prop] = value;
         }
+
+        setAttributes({
+            styles: {
+                ...styles,
+                [key]: currentStyle
+            }
+        });
+    };
+
+    const getResponsiveValue = (val) => {
+        if (typeof val === 'object' && val !== null) {
+            return val[deviceMode] || val.desktop || '';
+        }
+        return val;
     };
 
     // Render nodes (Visual Structure)
-    const renderPreviewNodes = (nodes, post = null) => {
+    const renderPreviewNodes = (nodes, post = null, parentContext = {}) => {
         return nodes.map((node, i) => {
             const rawStyles = { ...(styles[node.field] || {}) };
-            const { customCssPairs, ...validReactStyles } = rawStyles;
-            const nodeStyles = { ...validReactStyles };
+            const nodeStyles = {};
             
-            if (customCssPairs && Array.isArray(customCssPairs)) {
-                customCssPairs.forEach(pair => {
-                    if (pair.key && pair.value) {
-                        const camelKey = pair.key.replace(/-([a-z])/g, (_, c) => c.toUpperCase());
-                        nodeStyles[camelKey] = pair.value;
+            // Resolve all properties (including responsive ones)
+        Object.keys(rawStyles).forEach(prop => {
+            if (prop !== 'customCssPairs' && prop !== 'customStylesRaw') {
+                const val = getResponsiveValue(rawStyles[prop]);
+                
+                // Map internal names to valid CSS/React properties
+                if (prop === 'displayMode') {
+                    nodeStyles.display = val;
+                } else if (prop === 'contentMaxWidth') {
+                    if (val) {
+                        nodeStyles.maxWidth = val;
+                        nodeStyles.marginLeft = 'auto';
+                        nodeStyles.marginRight = 'auto';
+                        nodeStyles.width = '100%';
+                    }
+                } else if (prop === 'flexGap' || prop === 'gridGap') {
+                    nodeStyles.gap = val;
+                } else if (prop === 'rowGap') {
+                    nodeStyles.rowGap = val;
+                } else {
+                    nodeStyles[prop] = val;
+                }
+            }
+        });
+
+            // Parse raw CSS string if present
+            if (rawStyles.customStylesRaw) {
+                const rules = rawStyles.customStylesRaw.split(';').filter(Boolean);
+                rules.forEach(rule => {
+                    const [key, ...valueParts] = rule.split(':');
+                    if (key && valueParts.length) {
+                        const styleKey = key.trim().replace(/-([a-z])/g, (_, c) => c.toUpperCase());
+                        const styleValue = valueParts.join(':').trim();
+                        nodeStyles[styleKey] = styleValue;
                     }
                 });
             }
@@ -374,18 +487,7 @@ export default function Edit({ attributes, setAttributes, clientId }) {
                 nodeStyles.backgroundRepeat = nodeStyles.backgroundRepeat || 'no-repeat';
             }
 
-            // Columns layout for container — use grid on container itself
-            if (node.type === 'container' && node.columns > 1) {
-                nodeStyles.display = 'grid';
-                nodeStyles.gridTemplateColumns = `repeat(${node.columns}, 1fr)`;
-                nodeStyles.gap = '20px';
-                // In grid mode, render only column children inside the grid
-                return (
-                    <div key={i} className={`rcb-container ${node.id}`} style={nodeStyles}>
-                        {renderPreviewNodes((node.children || []).filter(c => c.type === 'column'), post)}
-                    </div>
-                );
-            }
+
 
             // Apply custom style variables from block attributes
             if (node.customStyles && node.customStyles.length > 0) {
@@ -480,14 +582,58 @@ export default function Edit({ attributes, setAttributes, clientId }) {
 
             switch (node.type) {
                 case 'container':
+                    const containerStyles = { ...nodeStyles };
+                    
+                    // Handle Content Max Width centering
+                    if (containerStyles.maxWidth) {
+                        containerStyles.marginLeft = 'auto';
+                        containerStyles.marginRight = 'auto';
+                        containerStyles.width = '100%';
+                    }
+
+                    if (node.columns > 1 || containerStyles.display === 'grid' || containerStyles.display === 'flex') {
+                        if (containerStyles.display === 'flex') {
+                            containerStyles.flexDirection = containerStyles.flexDirection || 'row';
+                            containerStyles.flexWrap = containerStyles.flexWrap || 'wrap';
+                            containerStyles.justifyContent = containerStyles.justifyContent || 'flex-start';
+                            containerStyles.alignItems = containerStyles.alignItems || 'stretch';
+                            // containerStyles.gap is already set from flexGap/gridGap mapping
+                        } else {
+                            containerStyles.display = 'grid';
+                            containerStyles.gridTemplateColumns = (containerStyles.gridTemplateColumns === 'custom' ? containerStyles.customGridTemplate : containerStyles.gridTemplateColumns) || `repeat(${node.columns || 1}, 1fr)`;
+                            
+                            // Support columnGap/rowGap mappings or fallback
+                            if (containerStyles.gap || containerStyles.rowGap) {
+                                containerStyles.columnGap = containerStyles.gap || '20px';
+                                containerStyles.rowGap = containerStyles.rowGap || containerStyles.gap || '20px';
+                            } else if (node.columns > 1) {
+                                containerStyles.gap = '20px';
+                            }
+                        }
+                    }
+                    const isVerticalFlex = containerStyles.display === 'flex' && containerStyles.flexDirection && containerStyles.flexDirection.includes('column');
                     return (
-                        <div key={i} className={`rcb-container ${node.id}`} style={nodeStyles}>
-                            {node.children && renderPreviewNodes(node.children, post)}
+                        <div key={i} className={`rcb-container ${node.id}`} style={containerStyles}>
+                            {node.children && renderPreviewNodes(node.children, post, { isVerticalFlex })}
                         </div>
                     );
                 case 'column':
+                    const colStyles = { ...nodeStyles };
+                    if (colStyles.customColumnWidth) {
+                        const unit = colStyles.customColumnWidthUnit || '%';
+                        colStyles.width = `${colStyles.customColumnWidth}${unit}`;
+                        colStyles.flex = `0 0 ${colStyles.width}`;
+                    } else if (parentContext.isVerticalFlex) {
+                        // In vertical flex (column), flex: 1 makes flex-basis 0% for height!
+                        // This causes empty columns (e.g. background images) to collapse to 0 height.
+                        colStyles.flex = '1 1 auto';
+                        colStyles.width = '100%';
+                    } else {
+                        // Prevent collapse in horizontal flex row
+                        colStyles.flex = '1 1 0%';
+                    }
                     return (
-                        <div key={i} className={`rcb-column ${node.id}`} style={nodeStyles}>
+                        <div key={i} className={`rcb-column ${node.id}`} style={colStyles}>
                             {node.children && renderPreviewNodes(node.children, post)}
                         </div>
                     );
@@ -512,37 +658,38 @@ export default function Edit({ attributes, setAttributes, clientId }) {
                 case 'button':
                     const btnStyles = { ...nodeStyles };
                     
-                    // Handle Padding X/Y
-                    if (nodeStyles.paddingX !== undefined || nodeStyles.paddingY !== undefined) {
+                    // Handle Padding X/Y only if standard padding is unset
+                    if (!nodeStyles.padding && (nodeStyles.paddingX !== undefined || nodeStyles.paddingY !== undefined)) {
                         const px = nodeStyles.paddingX !== undefined ? `${nodeStyles.paddingX}rem` : '1rem';
                         const py = nodeStyles.paddingY !== undefined ? `${nodeStyles.paddingY}rem` : '0.5rem';
                         btnStyles.padding = `${py} ${px}`;
                     }
 
-                    // Handle Border Radius/Width Rem
-                    if (nodeStyles.borderRadiusRem !== undefined) btnStyles.borderRadius = `${nodeStyles.borderRadiusRem}rem`;
-                    if (nodeStyles.borderWidthRem !== undefined) {
+                    // Handle Border Radius/Width Rem only if standard border is unset
+                    if (!nodeStyles.borderRadius && nodeStyles.borderRadiusRem !== undefined) {
+                        btnStyles.borderRadius = `${nodeStyles.borderRadiusRem}rem`;
+                    }
+                    if (!nodeStyles.borderWidth && nodeStyles.borderWidthRem !== undefined) {
                         btnStyles.borderWidth = `${nodeStyles.borderWidthRem}rem`;
                         btnStyles.borderStyle = btnStyles.borderStyle || 'solid';
                         if (nodeStyles.borderColor) btnStyles.borderColor = nodeStyles.borderColor;
                     }
 
-                    // Handle Text Size Presets
+                    // Handle Text Size Presets only if standard fontSize is unset
                     const sizeMap = { 'S': '12px', 'M': '14px', 'L': '16px', 'XL': '20px', '1XL': '24px', '2XL': '32px' };
-                    if (nodeStyles.textSizePreset && sizeMap[nodeStyles.textSizePreset]) {
+                    if (!nodeStyles.fontSize && nodeStyles.textSizePreset && sizeMap[nodeStyles.textSizePreset]) {
                         btnStyles.fontSize = sizeMap[nodeStyles.textSizePreset];
                     }
 
-                    if (nodeStyles.fontFamily) {
+                    if (!nodeStyles.fontFamily && nodeStyles.fontFamily) {
                         btnStyles.fontFamily = nodeStyles.fontFamily;
                     }
 
-
                     // Alignment wrapper
-                    const alignMap = { 'start': 'flex-start', 'center': 'center', 'end': 'flex-end' };
+                    const alignMap = { 'start': 'flex-start', 'center': 'center', 'end': 'flex-end', 'default': 'flex-start', 'left': 'flex-start', 'right': 'flex-end' };
                     const wrapperStyles = { 
                         display: 'flex', 
-                        justifyContent: alignMap[nodeStyles.buttonAlign || 'start'],
+                        justifyContent: alignMap[nodeStyles.textAlign || nodeStyles.buttonAlign || 'start'] || 'flex-start',
                         width: '100%'
                     };
 
@@ -647,7 +794,29 @@ export default function Edit({ attributes, setAttributes, clientId }) {
                 }).join('\n')}
             </style>
             
-            <InspectorControls>
+                        <BlockControls group="block">
+                <ToolbarGroup>
+                    <ToolbarButton
+                        icon="edit"
+                        label="Component Settings"
+                        onClick={() => console.log('Edit Settings clicked')}
+                    />
+                </ToolbarGroup>
+            </BlockControls>
+            
+                        <InspectorControls>
+                <TabPanel
+                    className="rcb-inspector-tabs"
+                    activeClass="is-active"
+                    tabs={[
+                        { name: 'general', title: __('General', 'reusable-component-builder'), className: 'rcb-tab-general' },
+                        { name: 'styles', title: __('Styles', 'reusable-component-builder'), className: 'rcb-tab-styles' }
+                    ]}
+                >
+                    {(tab) => (
+                        <div className="rcb-tab-panel-content" style={{ marginTop: '16px' }}>
+                            {tab.name === 'general' && (
+                                <>
 
                 {mode === 'query' && templateId > 0 && (
                     <PanelBody title={__('Loop Options')} initialOpen={true}>
@@ -803,32 +972,48 @@ export default function Edit({ attributes, setAttributes, clientId }) {
                         })})()}
                     </PanelBody>
                 )}
+                            </>
+                        )}
 
-                {/* STYLE MAPPING */}
-                {templateId > 0 && configurableFields.map((fieldNode) => {
-                    // backgroundImage as a style control only makes sense for non-image nodes (image nodes use content upload)
-                    const defaultBgImage = fieldNode.type !== 'image';
-                    const allowed = fieldNode.allowedSettings || { color: true, typography: true, spacing: true, borders: true, dimensions: fieldNode.type === 'image', backgroundImage: defaultBgImage };
-                    
-                    // Force button-specific settings
-                    if (fieldNode.type === 'button') {
-                        allowed.buttonSettings = true;
-                        allowed.iconSettings = true;
-                        // For buttons, we might want to hide generic panels if not explicitly enabled
-                    }
-                    
-                    // Runtime override: image-type nodes should never show bg-image style control
-                    if (fieldNode.type === 'image') {
-                        allowed.backgroundImage = false;
-                    }
-                    
-                    // Check if any standard keys are enabled
-                    if (!allowed.buttonSettings && !allowed.iconSettings && !allowed.color && !allowed.typography && !allowed.spacing && !allowed.borders && !allowed.alignment && !allowed.dimensions && !allowed.backgroundImage && !allowed.opacity && !allowed.boxShadow && !allowed.customStylesBox && !allowed.zIndex && !allowed.overflow && !allowed.visibility && !allowed.cursor && !allowed.transition && !allowed.filter && !allowed.backdropFilter && !allowed.transform) {
-                        return null; // No settings enabled for this node
-                    }
+                            {tab.name === 'styles' && templateId > 0 && (
+                                <div className="rcb-styles-tab">
+                                    <div style={{ padding: '0 16px 16px', borderBottom: '1px solid #e0e0e0', marginBottom: '16px' }}>
+                                        <SelectControl
+                                            label={__('Select Element to Style', 'reusable-component-builder')}
+                                            value={selectedStyleElement}
+                                            options={configurableFields.map((f, i) => ({ label: getCleanFieldLabel(f, i, configurableFields), value: f.field }))}
+                                            onChange={(val) => setSelectedStyleElement(val)}
+                                        />
+                                    </div>
+                                    {selectedStyleElement && configurableFields.filter(f => f.field === selectedStyleElement).map((fieldNode) => {
+                                        // backgroundImage as a style control only makes sense for non-image nodes (image nodes use content upload)
+                                        const defaultBgImage = fieldNode.type !== 'image';
+                                        const allowed = fieldNode.allowedSettings || { color: true, typography: true, spacing: true, borders: true, dimensions: fieldNode.type === 'image', backgroundImage: defaultBgImage };
+                                        
+                                        // Force button-specific settings
+                                        if (fieldNode.type === 'button') {
+                                            allowed.buttonSettings = true;
+                                            allowed.iconSettings = true;
+                                            // Force generic settings for legacy buttons that had them disabled
+                                            allowed.color = true;
+                                            allowed.typography = true;
+                                            allowed.spacing = true;
+                                            allowed.borders = true;
+                                            allowed.alignment = true;
+                                        }
+                                        
+                                        // Runtime override: image-type nodes should never show bg-image style control
+                                        if (fieldNode.type === 'image') {
+                                            allowed.backgroundImage = false;
+                                        }
+                                        
+                                        // Check if any standard keys are enabled
+                                        if (!allowed.buttonSettings && !allowed.iconSettings && !allowed.color && !allowed.typography && !allowed.spacing && !allowed.borders && !allowed.alignment && !allowed.dimensions && !allowed.backgroundImage && !allowed.opacity && !allowed.boxShadow && !allowed.customStylesBox && !allowed.zIndex && !allowed.overflow && !allowed.visibility && !allowed.cursor && !allowed.transition && !allowed.filter && !allowed.backdropFilter && !allowed.transform) {
+                                            return null; // No settings enabled for this node
+                                        }
 
                     return (
-                        <PanelBody key={`style-${fieldNode.id}`} title={`${fieldNode.type.toUpperCase()} Styles (${fieldNode.field})`} initialOpen={false}>
+                        <div key={`style-${fieldNode.id}`} className="rcb-styles-wrapper" style={{ padding: '0 16px' }}>
                             
                             {/* Background Image capability for Containers */}
                             {allowed.backgroundImage && (
@@ -907,7 +1092,7 @@ export default function Edit({ attributes, setAttributes, clientId }) {
                                 </BaseControl>
                             )}
 
-                            {allowed.color && !allowed.buttonSettings && (
+                            {allowed.color && (
                                 <PanelColorSettings
                                     title={__('Colors', 'reusable-component-builder')}
                                     initialOpen={false}
@@ -925,7 +1110,7 @@ export default function Edit({ attributes, setAttributes, clientId }) {
                                     ]}
                                 />
                             )}
-                            {allowed.typography && !allowed.buttonSettings && (
+                            {allowed.typography && (
                                 <AdvancedTypographyControl
                                     label={__('Typography', 'reusable-component-builder')}
                                     value={(styles[fieldNode.field] && styles[fieldNode.field].fontSize) || ''}
@@ -934,28 +1119,30 @@ export default function Edit({ attributes, setAttributes, clientId }) {
                                     lineHeight={(styles[fieldNode.field] && styles[fieldNode.field].lineHeight) || ''}
                                     letterSpacing={(styles[fieldNode.field] && styles[fieldNode.field].letterSpacing) || ''}
                                     fontFamily={(styles[fieldNode.field] && styles[fieldNode.field].fontFamily) || ''}
-                                    onChange={(prop, val) => updateStyle(fieldNode.field, prop, val)}
+                                    onChange={(prop, val, isResp) => updateStyle(fieldNode.field, prop, val, isResp)}
+                                    deviceMode={deviceMode}
+                                    setDeviceMode={setDeviceMode}
                                 />
                             )}
-                            {allowed.spacing && !allowed.buttonSettings && (
+                            {allowed.spacing && (
                                 <>
-                                    <div className="rcb-box-control-wrapper" style={{ marginBottom: '15px' }}>
+                                    <ResponsiveControl label={__('Padding', 'reusable-component-builder')} deviceMode={deviceMode} setDeviceMode={setDeviceMode}>
                                         <BoxControl
-                                            label={__('Padding', 'reusable-component-builder')}
-                                            values={parseBoxValue((styles[fieldNode.field] && styles[fieldNode.field].padding) || '')}
-                                            onChange={(val) => updateStyle(fieldNode.field, 'padding', serializeBoxValue(val))}
+                                            values={parseBoxValue(getResponsiveValue((styles[fieldNode.field] && styles[fieldNode.field].padding) || ''))}
+                                            onChange={(val) => updateStyle(fieldNode.field, 'padding', serializeBoxValue(val), true)}
+                                            __nextHasNoMarginBottom={true}
                                         />
-                                    </div>
-                                    <div className="rcb-box-control-wrapper" style={{ marginBottom: '15px' }}>
+                                    </ResponsiveControl>
+                                    <ResponsiveControl label={__('Margin', 'reusable-component-builder')} deviceMode={deviceMode} setDeviceMode={setDeviceMode}>
                                         <BoxControl
-                                            label={__('Margin', 'reusable-component-builder')}
-                                            values={parseBoxValue((styles[fieldNode.field] && styles[fieldNode.field].margin) || '')}
-                                            onChange={(val) => updateStyle(fieldNode.field, 'margin', serializeBoxValue(val))}
+                                            values={parseBoxValue(getResponsiveValue((styles[fieldNode.field] && styles[fieldNode.field].margin) || ''))}
+                                            onChange={(val) => updateStyle(fieldNode.field, 'margin', serializeBoxValue(val), true)}
+                                            __nextHasNoMarginBottom={true}
                                         />
-                                    </div>
+                                    </ResponsiveControl>
                                 </>
                             )}
-                            {allowed.alignment && !allowed.buttonSettings && (
+                            {allowed.alignment && (
                                 <ToggleGroupControl
                                     label={__('Text Alignment', 'reusable-component-builder')}
                                     value={(styles[fieldNode.field] && styles[fieldNode.field].textAlign) || 'default'}
@@ -970,19 +1157,217 @@ export default function Edit({ attributes, setAttributes, clientId }) {
                             )}
                             {allowed.dimensions && (
                                 <>
-                                    <TextControl
-                                        label={__('Width (e.g. 100%, 300px)', 'reusable-component-builder')}
-                                        value={(styles[fieldNode.field] && styles[fieldNode.field].width) || ''}
-                                        onChange={(val) => updateStyle(fieldNode.field, 'width', val)}
-                                    />
-                                    <TextControl
-                                        label={__('Height (e.g. auto, 200px)', 'reusable-component-builder')}
-                                        value={(styles[fieldNode.field] && styles[fieldNode.field].height) || ''}
-                                        onChange={(val) => updateStyle(fieldNode.field, 'height', val)}
-                                    />
+                                    <ResponsiveControl label={__('Width (e.g. 100%, 300px)', 'reusable-component-builder')} deviceMode={deviceMode} setDeviceMode={setDeviceMode}>
+                                        <TextControl
+                                            value={getResponsiveValue(styles[fieldNode.field]?.[ 'width' ]) || ''}
+                                            onChange={(val) => updateStyle(fieldNode.field, 'width', val, true)}
+                                            __nextHasNoMarginBottom={true}
+                                        />
+                                    </ResponsiveControl>
+                                    <ResponsiveControl label={__('Height (e.g. auto, 200px)', 'reusable-component-builder')} deviceMode={deviceMode} setDeviceMode={setDeviceMode}>
+                                        <TextControl
+                                            value={getResponsiveValue(styles[fieldNode.field]?.[ 'height' ]) || ''}
+                                            onChange={(val) => updateStyle(fieldNode.field, 'height', val, true)}
+                                            __nextHasNoMarginBottom={true}
+                                        />
+                                    </ResponsiveControl>
+                                    <ResponsiveControl label={__('Min Height (e.g. 300px, 50vh)', 'reusable-component-builder')} deviceMode={deviceMode} setDeviceMode={setDeviceMode}>
+                                        <TextControl
+                                            value={getResponsiveValue(styles[fieldNode.field]?.[ 'minHeight' ]) || ''}
+                                            onChange={(val) => updateStyle(fieldNode.field, 'minHeight', val, true)}
+                                            __nextHasNoMarginBottom={true}
+                                        />
+                                    </ResponsiveControl>
                                 </>
                             )}
-                            {allowed.borders && !allowed.buttonSettings && (
+                            
+                            {allowed.layoutSettings && (
+                                <div className="rcb-advanced-layout-panel" style={{ marginTop: '20px', paddingTop: '20px', borderTop: '1px solid #ddd' }}>
+                                    
+                                    {fieldNode.type === 'container' && (
+                                        <>
+                                            <ResponsiveControl label={__('Display Mode', 'reusable-component-builder')} deviceMode={deviceMode} setDeviceMode={setDeviceMode}>
+                                                <ToggleGroupControl
+                                                    value={getResponsiveValue(styles[fieldNode.field]?.[ 'displayMode' ]) || 'grid'}
+                                                    onChange={(val) => updateStyle(fieldNode.field, 'displayMode', val, true)}
+                                                    isBlock
+                                                    className="rcb-layout-icon-grid"
+                                                    __nextHasNoMarginBottom={true}
+                                                >
+                                                    <ToggleGroupControlOption value="grid" label={<Dashicon icon="grid-view" title="Grid" />} />
+                                                    <ToggleGroupControlOption value="flex" label={<Dashicon icon="move" title="Flexbox" />} />
+                                                </ToggleGroupControl>
+                                            </ResponsiveControl>
+
+                                            <ResponsiveControl label={__('Content Max Width (px)', 'reusable-component-builder')} deviceMode={deviceMode} setDeviceMode={setDeviceMode}>
+                                                <RangeControl
+                                                    value={parseInt(getResponsiveValue(styles[fieldNode.field]?.[ 'contentMaxWidth' ])) || 1200}
+                                                    onChange={(val) => updateStyle(fieldNode.field, 'contentMaxWidth', val ? `${val}px` : '1200px', true)}
+                                                    min={400}
+                                                    max={2000}
+                                                    allowReset
+                                                    __nextHasNoMarginBottom={true}
+                                                />
+                                            </ResponsiveControl>
+
+                                            {(getResponsiveValue(styles[fieldNode.field]?.[ 'displayMode' ]) || 'grid') === 'grid' && (
+                                                <>
+                                                    <SelectControl
+                                                        label={__('Grid Template (Columns)', 'reusable-component-builder')}
+                                                        value={getResponsiveValue(styles[fieldNode.field]?.[ 'gridTemplateColumns' ]) || ''}
+                                                        options={[
+                                                            { label: __('Equal Columns', 'reusable-component-builder'), value: '' },
+                                                            { label: __('50 / 50', 'reusable-component-builder'), value: '1fr 1fr' },
+                                                            { label: __('30 / 70', 'reusable-component-builder'), value: '3fr 7fr' },
+                                                            { label: __('70 / 30', 'reusable-component-builder'), value: '7fr 3fr' },
+                                                            { label: __('33 / 33 / 33', 'reusable-component-builder'), value: '1fr 1fr 1fr' },
+                                                            { label: __('25 / 50 / 25', 'reusable-component-builder'), value: '1fr 2fr 1fr' },
+                                                            { label: __('Custom...', 'reusable-component-builder'), value: 'custom' },
+                                                        ]}
+                                                        onChange={(val) => updateStyle(fieldNode.field, 'gridTemplateColumns', val, true)}
+                                                    />
+                                                    {(getResponsiveValue(styles[fieldNode.field]?.[ 'gridTemplateColumns' ]) === 'custom') && (
+                                                        <TextControl
+                                                            label={__('Custom Grid String', 'reusable-component-builder')}
+                                                            value={getResponsiveValue(styles[fieldNode.field]?.[ 'customGridTemplate' ]) || ''}
+                                                            onChange={(val) => updateStyle(fieldNode.field, 'customGridTemplate', val, true)}
+                                                        />
+                                                    )}
+                                                    
+                                                    <ResponsiveControl label={__('Column Gap (px)', 'reusable-component-builder')} deviceMode={deviceMode} setDeviceMode={setDeviceMode}>
+                                                        <RangeControl
+                                                            value={parseInt(getResponsiveValue(styles[fieldNode.field]?.[ 'gridGap' ])) || 20}
+                                                            onChange={(val) => updateStyle(fieldNode.field, 'gridGap', `${val}px`, true)}
+                                                            min={0}
+                                                            max={100}
+                                                            __nextHasNoMarginBottom={true}
+                                                        />
+                                                    </ResponsiveControl>
+                                                    
+                                                    <ResponsiveControl label={__('Row Gap (px)', 'reusable-component-builder')} deviceMode={deviceMode} setDeviceMode={setDeviceMode}>
+                                                        <RangeControl
+                                                            value={parseInt(getResponsiveValue(styles[fieldNode.field]?.[ 'rowGap' ])) || 20}
+                                                            onChange={(val) => updateStyle(fieldNode.field, 'rowGap', `${val}px`, true)}
+                                                            min={0}
+                                                            max={100}
+                                                            __nextHasNoMarginBottom={true}
+                                                        />
+                                                    </ResponsiveControl>
+                                                </>
+                                            )}
+
+                                            {(getResponsiveValue(styles[fieldNode.field]?.[ 'displayMode' ]) || 'grid') === 'flex' && (
+                                                <>
+                                                    <ResponsiveControl label={__('Direction', 'reusable-component-builder')} deviceMode={deviceMode} setDeviceMode={setDeviceMode}>
+                                                        <ToggleGroupControl
+                                                            value={getResponsiveValue(styles[fieldNode.field]?.[ 'flexDirection' ]) || 'row'}
+                                                            onChange={(val) => updateStyle(fieldNode.field, 'flexDirection', val, true)}
+                                                            isBlock
+                                                            className="rcb-layout-icon-grid"
+                                                            __nextHasNoMarginBottom={true}
+                                                        >
+                                                            <ToggleGroupControlOption value="row" label={<Dashicon icon="arrow-right-alt" title="Row" />} />
+                                                            <ToggleGroupControlOption value="column" label={<Dashicon icon="arrow-down-alt" title="Column" />} />
+                                                            <ToggleGroupControlOption value="row-reverse" label={<Dashicon icon="arrow-left-alt" title="Row Reverse" />} />
+                                                            <ToggleGroupControlOption value="column-reverse" label={<Dashicon icon="arrow-up-alt" title="Column Reverse" />} />
+                                                        </ToggleGroupControl>
+                                                    </ResponsiveControl>
+
+                                                    <ResponsiveControl label={__('Horizontal Align', 'reusable-component-builder')} deviceMode={deviceMode} setDeviceMode={setDeviceMode}>
+                                                        <ToggleGroupControl
+                                                            value={getResponsiveValue(styles[fieldNode.field]?.[ 'justifyContent' ]) || 'flex-start'}
+                                                            onChange={(val) => updateStyle(fieldNode.field, 'justifyContent', val, true)}
+                                                            isBlock
+                                                            className="rcb-layout-icon-grid"
+                                                            __nextHasNoMarginBottom={true}
+                                                        >
+                                                            <ToggleGroupControlOption value="flex-start" label={<Dashicon icon="editor-alignleft" />} />
+                                                            <ToggleGroupControlOption value="center" label={<Dashicon icon="editor-aligncenter" />} />
+                                                            <ToggleGroupControlOption value="flex-end" label={<Dashicon icon="editor-alignright" />} />
+                                                            <ToggleGroupControlOption value="space-between" label={<Dashicon icon="distribute-horizontal" />} />
+                                                        </ToggleGroupControl>
+                                                    </ResponsiveControl>
+
+                                                    <ResponsiveControl label={__('Vertical Align', 'reusable-component-builder')} deviceMode={deviceMode} setDeviceMode={setDeviceMode}>
+                                                        <ToggleGroupControl
+                                                            value={getResponsiveValue(styles[fieldNode.field]?.[ 'alignItems' ]) || 'stretch'}
+                                                            onChange={(val) => updateStyle(fieldNode.field, 'alignItems', val, true)}
+                                                            isBlock
+                                                            className="rcb-layout-icon-grid"
+                                                            __nextHasNoMarginBottom={true}
+                                                        >
+                                                            <ToggleGroupControlOption value="flex-start" label={<Dashicon icon="align-top" />} />
+                                                            <ToggleGroupControlOption value="center" label={<Dashicon icon="align-none" />} />
+                                                            <ToggleGroupControlOption value="flex-end" label={<Dashicon icon="align-bottom" />} />
+                                                            <ToggleGroupControlOption value="stretch" label={<Dashicon icon="editor-justify" />} />
+                                                        </ToggleGroupControl>
+                                                    </ResponsiveControl>
+                                                    
+                                                    <ResponsiveControl label={__('Flex Gap (px)', 'reusable-component-builder')} deviceMode={deviceMode} setDeviceMode={setDeviceMode}>
+                                                        <RangeControl
+                                                            value={parseInt(getResponsiveValue(styles[fieldNode.field]?.[ 'flexGap' ])) || 0}
+                                                            onChange={(val) => updateStyle(fieldNode.field, 'flexGap', val ? `${val}px` : '0px', true)}
+                                                            min={0}
+                                                            max={100}
+                                                            __nextHasNoMarginBottom={true}
+                                                        />
+                                                    </ResponsiveControl>
+                                                </>
+                                            )}
+                                        </>
+                                    )}
+
+                                    {fieldNode.type === 'column' && (
+                                        <>
+                                            <ResponsiveControl label={__('Custom Column Width', 'reusable-component-builder')} deviceMode={deviceMode} setDeviceMode={setDeviceMode}>
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                                    <div style={{ flex: 1 }}>
+                                                        <RangeControl
+                                                            value={parseInt(getResponsiveValue(styles[fieldNode.field]?.[ 'customColumnWidth' ])) || 0}
+                                                            onChange={(val) => updateStyle(fieldNode.field, 'customColumnWidth', val, true)}
+                                                            min={0}
+                                                            max={100}
+                                                            withInputField={false}
+                                                            __nextHasNoMarginBottom={true}
+                                                        />
+                                                    </div>
+                                                    <TextControl
+                                                        type="number"
+                                                        value={parseInt(getResponsiveValue(styles[fieldNode.field]?.[ 'customColumnWidth' ])) || ''}
+                                                        onChange={(val) => updateStyle(fieldNode.field, 'customColumnWidth', val, true)}
+                                                        style={{ width: '60px' }}
+                                                        __nextHasNoMarginBottom={true}
+                                                    />
+                                                    <SelectControl
+                                                        value={getResponsiveValue(styles[fieldNode.field]?.[ 'customColumnWidthUnit' ]) || '%'}
+                                                        options={[{ label: '%', value: '%' }, { label: 'PX', value: 'px' }, { label: 'VW', value: 'vw' }, { label: 'FR', value: 'fr' }]}
+                                                        onChange={(val) => updateStyle(fieldNode.field, 'customColumnWidthUnit', val, true)}
+                                                        style={{ width: '70px' }}
+                                                        __nextHasNoMarginBottom={true}
+                                                    />
+                                                </div>
+                                            </ResponsiveControl>
+                                            
+                                            <ResponsiveControl label={__('Align Self (Vertical)', 'reusable-component-builder')} deviceMode={deviceMode} setDeviceMode={setDeviceMode}>
+                                                <ToggleGroupControl
+                                                    value={getResponsiveValue(styles[fieldNode.field]?.[ 'alignSelf' ]) || ''}
+                                                    onChange={(val) => updateStyle(fieldNode.field, 'alignSelf', val, true)}
+                                                    isBlock
+                                                    className="rcb-layout-icon-grid"
+                                                    __nextHasNoMarginBottom={true}
+                                                >
+                                                    <ToggleGroupControlOption value="" label={<Dashicon icon="no" title="Auto" />} />
+                                                    <ToggleGroupControlOption value="flex-start" label={<Dashicon icon="align-top" />} />
+                                                    <ToggleGroupControlOption value="center" label={<Dashicon icon="align-none" />} />
+                                                    <ToggleGroupControlOption value="flex-end" label={<Dashicon icon="align-bottom" />} />
+                                                    <ToggleGroupControlOption value="stretch" label={<Dashicon icon="editor-justify" />} />
+                                                </ToggleGroupControl>
+                                            </ResponsiveControl>
+                                        </>
+                                    )}
+                                </div>
+                            )}
+                            {allowed.borders && (
                                 <>
                                     <RangeControl
                                         label={__('Border Radius (px)', 'reusable-component-builder')}
@@ -1118,163 +1503,33 @@ export default function Edit({ attributes, setAttributes, clientId }) {
                                         value={content[fieldNode.field] || ''}
                                         onChange={(val) => updateContent(fieldNode.field, val)}
                                     />
-                                    <SelectControl
-                                        label={__('BUTTON FONTWEIGHT', 'reusable-component-builder')}
-                                        value={styles[fieldNode.field]?.fontWeight || '400'}
-                                        options={[
-                                            { label: 'Thin', value: '100' },
-                                            { label: 'Extra-Light', value: '200' },
-                                            { label: 'Light', value: '300' },
-                                            { label: 'Regular', value: '400' },
-                                            { label: 'Medium', value: '500' },
-                                            { label: 'Semi-Bold', value: '600' },
-                                            { label: 'Bold', value: '700' },
-                                            { label: 'Extra-Bold', value: '800' },
-                                            { label: 'Black', value: '900' },
-                                        ]}
-                                        onChange={(val) => updateStyle(fieldNode.field, 'fontWeight', val)}
-                                    />
                                     <PanelColorSettings
-                                        title={__('Button Color', 'reusable-component-builder')}
-                                        initialOpen={false}
-                                        colorSettings={[
-                                            {
-                                                value: styles[fieldNode.field]?.color || '',
-                                                onChange: (val) => updateStyle(fieldNode.field, 'color', val),
-                                                label: __('Button Text Color', 'reusable-component-builder'),
-                                            },
-                                            {
-                                                value: styles[fieldNode.field]?.backgroundColor || '',
-                                                onChange: (val) => updateStyle(fieldNode.field, 'backgroundColor', val),
-                                                label: __('Background Color', 'reusable-component-builder'),
-                                            },
-                                        ]}
-                                    />
-                                    <ToggleGroupControl
-                                        label={__('Text Size', 'reusable-component-builder')}
-                                        value={styles[fieldNode.field]?.textSizePreset || 'None'}
-                                        isBlock
-                                        onChange={(val) => updateStyle(fieldNode.field, 'textSizePreset', val)}
-                                        style={{ marginBottom: '20px' }}
-                                    >
-                                        <ToggleGroupControlOption value="S" label="S" />
-                                        <ToggleGroupControlOption value="M" label="M" />
-                                        <ToggleGroupControlOption value="L" label="L" />
-                                        <ToggleGroupControlOption value="XL" label="XL" />
-                                        <ToggleGroupControlOption value="1XL" label="1XL" />
-                                        <ToggleGroupControlOption value="2XL" label="2XL" />
-                                        <ToggleGroupControlOption value="None" label="None" />
-                                    </ToggleGroupControl>
-                                    <SelectControl
-                                        label={__('Font Family', 'reusable-component-builder')}
-                                        value={styles[fieldNode.field]?.fontFamily || ''}
-                                        options={[
-                                            { label: __('Inherit', 'reusable-component-builder'), value: '' },
-                                            ...(wp.data.select('core/block-editor').getSettings()?.fontFamilies || []).map(f => ({ label: f.name, value: f.fontFamily })),
-                                            ...SYSTEM_FONTS.filter(sf => !(wp.data.select('core/block-editor').getSettings()?.fontFamilies || []).some(tf => tf.fontFamily === sf.value))
-                                        ]}
-                                        onChange={(val) => updateStyle(fieldNode.field, 'fontFamily', val)}
-                                    />
-
-                                    <SelectControl
-                                        label={__('Text Transform', 'reusable-component-builder')}
-                                        value={styles[fieldNode.field]?.textTransform || ''}
-                                        options={[
-                                            { label: 'None', value: '' },
-                                            { label: 'Uppercase', value: 'uppercase' },
-                                            { label: 'Lowercase', value: 'lowercase' },
-                                            { label: 'Capitalize', value: 'capitalize' }
-                                        ]}
-                                        onChange={(val) => updateStyle(fieldNode.field, 'textTransform', val)}
-                                    />
-                                    <RangeControl
-                                        label={__('Line Height', 'reusable-component-builder')}
-                                        value={parseFloat(styles[fieldNode.field]?.lineHeight) || 1.2}
-                                        onChange={(val) => updateStyle(fieldNode.field, 'lineHeight', val)}
-                                        min={0.5}
-                                        max={4}
-                                        step={0.1}
-                                        allowReset
-                                    />
-                                    <RangeControl
-                                        label={__('Letter Spacing', 'reusable-component-builder')}
-                                        value={parseFloat(styles[fieldNode.field]?.letterSpacing) || 0}
-                                        onChange={(val) => updateStyle(fieldNode.field, 'letterSpacing', val)}
-                                        min={-5}
-                                        max={20}
-                                        step={1}
-                                        allowReset
-                                    />
-                                    
-                                    <PanelColorSettings
-                                        title={__('Border', 'reusable-component-builder')}
-                                        initialOpen={false}
-                                        colorSettings={[
-                                            {
-                                                value: styles[fieldNode.field]?.borderColor || '',
-                                                onChange: (val) => updateStyle(fieldNode.field, 'borderColor', val),
-                                                label: __('Border Color', 'reusable-component-builder'),
-                                            },
-                                        ]}
-                                    />
-                                    <RangeControl
-                                        label={__('PADDING-X (REM)', 'reusable-component-builder')}
-                                        value={parseFloat(styles[fieldNode.field]?.paddingX) ?? 1}
-                                        onChange={(val) => updateStyle(fieldNode.field, 'paddingX', val)}
-                                        min={0}
-                                        max={5}
-                                        step={0.1}
-                                    />
-                                    <RangeControl
-                                        label={__('PADDING-Y (REM)', 'reusable-component-builder')}
-                                        value={parseFloat(styles[fieldNode.field]?.paddingY) ?? 0.5}
-                                        onChange={(val) => updateStyle(fieldNode.field, 'paddingY', val)}
-                                        min={0}
-                                        max={5}
-                                        step={0.1}
-                                    />
-                                    <RangeControl
-                                        label={__('BORDER RADIUS (REM)', 'reusable-component-builder')}
-                                        value={parseFloat(styles[fieldNode.field]?.borderRadiusRem) ?? 0}
-                                        onChange={(val) => updateStyle(fieldNode.field, 'borderRadiusRem', val)}
-                                        min={0}
-                                        max={5}
-                                        step={0.1}
-                                    />
-                                    <RangeControl
-                                        label={__('BORDER WIDTH (REM)', 'reusable-component-builder')}
-                                        value={parseFloat(styles[fieldNode.field]?.borderWidthRem) ?? 0.1}
-                                        onChange={(val) => updateStyle(fieldNode.field, 'borderWidthRem', val)}
-                                        min={0}
-                                        max={1}
-                                        step={0.05}
-                                    />
-
-                                    <PanelColorSettings
-                                        title={__('Button Hover', 'reusable-component-builder')}
+                                        title={__('Hover Settings', 'reusable-component-builder')}
                                         initialOpen={false}
                                         colorSettings={[
                                             {
                                                 value: styles[fieldNode.field]?.hoverBgColor || '',
                                                 onChange: (val) => updateStyle(fieldNode.field, 'hoverBgColor', val),
-                                                label: __('Background Color', 'reusable-component-builder'),
+                                                label: __('Hover Background', 'reusable-component-builder'),
                                             },
                                             {
                                                 value: styles[fieldNode.field]?.hoverColor || '',
                                                 onChange: (val) => updateStyle(fieldNode.field, 'hoverColor', val),
-                                                label: __('Text Color', 'reusable-component-builder'),
+                                                label: __('Hover Text Color', 'reusable-component-builder'),
                                             },
                                             {
                                                 value: styles[fieldNode.field]?.hoverBorderColor || '',
                                                 onChange: (val) => updateStyle(fieldNode.field, 'hoverBorderColor', val),
-                                                label: __('Border Color', 'reusable-component-builder'),
+                                                label: __('Hover Border', 'reusable-component-builder'),
                                             },
                                         ]}
                                     />
+
                                     <ToggleControl
                                         label={__('Show Underline', 'reusable-component-builder')}
                                         checked={styles[fieldNode.field]?.hoverUnderline || false}
                                         onChange={(val) => updateStyle(fieldNode.field, 'hoverUnderline', val)}
+                                        style={{ marginTop: '15px' }}
                                     />
 
                                     <ToggleGroupControl
@@ -1388,50 +1643,27 @@ export default function Edit({ attributes, setAttributes, clientId }) {
                             )}
 
                             {allowed.customStylesBox && (
-                                <div style={{ marginTop: '15px', padding: '10px', border: '1px solid #ddd', borderRadius: '4px', background: '#fafafa' }}>
-                                    <strong style={{ display: 'block', marginBottom: '10px', fontSize: '12px' }}>{__('Custom Styles', 'reusable-component-builder')}</strong>
-                                    {(styles[fieldNode.field]?.customCssPairs || []).map((pair, idx) => (
-                                        <div key={idx} style={{ display: 'flex', gap: '5px', marginBottom: '5px', alignItems: 'center' }}>
-                                            <TextControl
-                                                value={pair.key}
-                                                placeholder="z-index"
-                                                onChange={(val) => {
-                                                    const newPairs = [...(styles[fieldNode.field].customCssPairs || [])];
-                                                    newPairs[idx] = { ...newPairs[idx], key: val };
-                                                    updateStyle(fieldNode.field, 'customCssPairs', newPairs);
-                                                }}
-                                                style={{ flex: 1, marginBottom: 0 }}
-                                            />
-                                            <TextControl
-                                                value={pair.value}
-                                                placeholder="99"
-                                                onChange={(val) => {
-                                                    const newPairs = [...(styles[fieldNode.field].customCssPairs || [])];
-                                                    newPairs[idx] = { ...newPairs[idx], value: val };
-                                                    updateStyle(fieldNode.field, 'customCssPairs', newPairs);
-                                                }}
-                                                style={{ flex: 1, marginBottom: 0 }}
-                                            />
-                                            <Button isDestructive isSmall variant="tertiary" icon="trash" onClick={() => {
-                                                const newPairs = (styles[fieldNode.field].customCssPairs || []).filter((_, i) => i !== idx);
-                                                updateStyle(fieldNode.field, 'customCssPairs', newPairs.length ? newPairs : undefined);
-                                            }} />
-                                        </div>
-                                    ))}
-                                    <Button variant="secondary" isSmall onClick={() => {
-                                        const newPairs = [...(styles[fieldNode.field]?.customCssPairs || []), { key: '', value: '' }];
-                                        updateStyle(fieldNode.field, 'customCssPairs', newPairs);
-                                    }}>
-                                        + Add Custom Style
-                                    </Button>
+                                <div style={{ marginTop: '15px' }}>
+                                    <TextareaControl
+                                        label={__('Custom CSS Styles', 'reusable-component-builder')}
+                                        help={__('Enter raw CSS (e.g. z-index: 99; color: red;)', 'reusable-component-builder')}
+                                        value={styles[fieldNode.field]?.customStylesRaw || ''}
+                                        onChange={(val) => updateStyle(fieldNode.field, 'customStylesRaw', val)}
+                                        rows={4}
+                                    />
                                 </div>
                             )}
-                        </PanelBody>
+                        </div>
                     );
                 })}
+                                    </div>
+                                )}{/* end tab name === styles */}
+                        </div>
+                    )}
+                </TabPanel>
             </InspectorControls>
 
-            <div className={`rcb-editor-preview-container ${layout === 'grid' && mode === 'query' ? 'rcb-layout-grid' : ''}`} style={layout === 'grid' && mode === 'query' ? {display: 'grid', gridTemplateColumns: `repeat(${columns}, 1fr)`, gap: '20px'} : {}}>
+            <div className={`rcb-editor-preview-container rcb-preview-${deviceMode} ${layout === 'grid' && mode === 'query' ? 'rcb-layout-grid' : ''}`} style={layout === 'grid' && mode === 'query' ? {display: 'grid', gridTemplateColumns: `repeat(${columns}, 1fr)`, gap: '20px'} : {}}>
                 {!templateId ? (
                     <div style={{padding: '30px', border: '1px dashed #ccc', textAlign: 'center', background: '#f5f5f5'}}>
                         {__('Error: No template variation assigned to this block!', 'reusable-component-builder')}
