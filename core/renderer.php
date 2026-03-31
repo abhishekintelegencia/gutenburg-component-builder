@@ -63,6 +63,7 @@ function rcb_generate_responsive_css( $selector, $styles ) {
 		'flexDirection'       => 'flex-direction',
 		'flexWrap'            => 'flex-wrap',
 		'alignSelf'           => 'align-self',
+		'borderColor'         => 'border-color',
 	);
 
 	$skip = array( 'customCssPairs', 'customStylesRaw', 'field', 'type', 'id', 'columns', 'allowedSettings', 'dynamicSource', 'dynamicField' );
@@ -471,6 +472,7 @@ function rcb_render_visual_nodes_with_visibility( $nodes, $content_data, $styles
 
 		if ( isset( $raw_styles['borderRadius'] ) ) $final_styles['borderRadius'] = $raw_styles['borderRadius'];
 		if ( isset( $raw_styles['border'] ) ) $final_styles['border'] = $raw_styles['border'];
+		if ( isset( $raw_styles['borderColor'] ) ) $final_styles['borderColor'] = $raw_styles['borderColor'];
 
 		if ( isset( $raw_styles['textAlign'] ) ) $final_styles['textAlign'] = $raw_styles['textAlign'];
 		

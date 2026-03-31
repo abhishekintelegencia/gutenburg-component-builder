@@ -1321,6 +1321,17 @@ export default function Edit({ attributes, setAttributes, clientId }) {
                                         max={100}
                                         allowReset={true}
                                     />
+                                    <PanelColorSettings
+                                        title={__('Border Color', 'reusable-component-builder')}
+                                        initialOpen={false}
+                                        colorSettings={[
+                                            {
+                                                value: styles[fieldNode.field]?.borderColor || '',
+                                                onChange: (val) => updateStyle(fieldNode.field, 'borderColor', val),
+                                                label: __('Color', 'reusable-component-builder'),
+                                            },
+                                        ]}
+                                    />
                                     <SelectControl
                                         label={__('Border Outline', 'reusable-component-builder')}
                                         value={(styles[fieldNode.field] && styles[fieldNode.field].border) || ''}
