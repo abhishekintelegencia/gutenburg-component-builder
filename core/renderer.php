@@ -231,19 +231,160 @@ function rcb_render_component_builder_block( $attributes, $content ) {
 		$query = new WP_Query( $args );
 
 		if ( $query->have_posts() ) {
-			$wrapper_style = '';
-			if ( $layout === 'grid' ) {
+
+			// -----------------------------------------------------------------------
+			// Smart Container Detection:
+			// If the first root node is a Container, use its styles intelligently:
+			//   - Layout styles (display, grid, gap, flex) → outer rcb-loop-wrapper
+			//   - Appearance styles (bg, padding, border) → each rcb-loop-item
+			//   - Children of the Container → template rendered inside each loop item
+			// This prevents the Container from being duplicated/isolated per post.
+			// -----------------------------------------------------------------------
+			$first_node            = ! empty( $nodes ) ? $nodes[0] : null;
+			$root_is_container     = ( $first_node && isset( $first_node['type'] ) && $first_node['type'] === 'container' );
+			$loop_nodes            = $nodes; // default: render all nodes inside each item
+			$item_extra_style_attr = ''; // appearance styles from root container → each loop item
+
+			if ( $root_is_container ) {
+				$c_field      = isset( $first_node['field'] ) ? $first_node['field'] : '';
+				$c_raw_styles = isset( $styles_data[ $c_field ] ) ? $styles_data[ $c_field ] : array();
+				$c_id         = isset( $first_node['id'] ) ? $first_node['id'] : '';
+
+				// --- Layout styles → wrapper ----------------------------------------
+				$wrapper_layout_styles = array();
+
+				$display_mode = isset( $c_raw_styles['displayMode'] ) ? rcb_get_responsive_value( $c_raw_styles['displayMode'], 'desktop' ) : 'grid';
+
+				if ( $display_mode === 'flex' ) {
+					$wrapper_layout_styles['display']          = 'flex';
+					$wrapper_layout_styles['flex-direction']   = rcb_get_responsive_value( isset( $c_raw_styles['flexDirection'] ) ? $c_raw_styles['flexDirection'] : 'row', 'desktop' );
+					$wrapper_layout_styles['flex-wrap']        = rcb_get_responsive_value( isset( $c_raw_styles['flexWrap'] ) ? $c_raw_styles['flexWrap'] : 'wrap', 'desktop' );
+					$wrapper_layout_styles['justify-content']  = rcb_get_responsive_value( isset( $c_raw_styles['justifyContent'] ) ? $c_raw_styles['justifyContent'] : 'flex-start', 'desktop' );
+					$wrapper_layout_styles['align-items']      = rcb_get_responsive_value( isset( $c_raw_styles['alignItems'] ) ? $c_raw_styles['alignItems'] : 'stretch', 'desktop' );
+					$f_gap = rcb_get_responsive_value( isset( $c_raw_styles['flexGap'] ) ? $c_raw_styles['flexGap'] : '', 'desktop' );
+					if ( $f_gap !== '' ) $wrapper_layout_styles['gap'] = $f_gap;
+				} else {
+					// Grid (default)
+					$wrapper_layout_styles['display'] = 'grid';
+					$template_cols = rcb_get_responsive_value( isset( $c_raw_styles['gridTemplateColumns'] ) ? $c_raw_styles['gridTemplateColumns'] : '', 'desktop' );
+					if ( $template_cols === 'custom' ) {
+						$template_cols = rcb_get_responsive_value( isset( $c_raw_styles['customGridTemplate'] ) ? $c_raw_styles['customGridTemplate'] : '', 'desktop' );
+					}
+					$node_columns_c = isset( $first_node['columns'] ) ? intval( $first_node['columns'] ) : $columns;
+					if ( empty( $template_cols ) ) {
+						$template_cols = 'repeat(' . ( $node_columns_c > 0 ? $node_columns_c : $columns ) . ', 1fr)';
+					}
+					$wrapper_layout_styles['grid-template-columns'] = $template_cols;
+
+					$g_gap = rcb_get_responsive_value( isset( $c_raw_styles['gridGap'] ) ? $c_raw_styles['gridGap'] : '', 'desktop' );
+					$r_gap = rcb_get_responsive_value( isset( $c_raw_styles['rowGap'] ) ? $c_raw_styles['rowGap'] : '', 'desktop' );
+					if ( $g_gap !== '' ) {
+						$wrapper_layout_styles['column-gap'] = $g_gap;
+						$wrapper_layout_styles['row-gap']    = ( $r_gap !== '' ) ? $r_gap : $g_gap;
+					} elseif ( $r_gap !== '' ) {
+						$wrapper_layout_styles['row-gap'] = $r_gap;
+					} else {
+						$wrapper_layout_styles['gap'] = '20px'; // sensible default
+					}
+				}
+
+				// Content max-width for the wrapper
+				$max_width = rcb_get_responsive_value( isset( $c_raw_styles['contentMaxWidth'] ) ? $c_raw_styles['contentMaxWidth'] : '', 'desktop' );
+				if ( ! empty( $max_width ) ) {
+					$wrapper_layout_styles['max-width']    = $max_width;
+					$wrapper_layout_styles['margin-left']  = 'auto';
+					$wrapper_layout_styles['margin-right'] = 'auto';
+					$wrapper_layout_styles['width']        = '100%';
+				}
+
+
+
+				// Collect responsive CSS — wrapper selector gets LAYOUT only (responsive breakpoints handled via rcb_generate_responsive_css)
+				$layout_only_styles = array();
+				$layout_props = array( 'displayMode', 'gridTemplateColumns', 'customGridTemplate', 'gridGap', 'rowGap', 'flexDirection', 'flexWrap', 'justifyContent', 'alignItems', 'flexGap', 'contentMaxWidth' );
+				foreach ( $layout_props as $lp ) {
+					if ( array_key_exists( $lp, $c_raw_styles ) ) {
+						$layout_only_styles[ $lp ] = $c_raw_styles[ $lp ];
+					}
+				}
+				$wrapper_selector = ".rcb-loop-wrapper.rcb-instance-{$unique_id}";
+				$style_registry  .= rcb_generate_responsive_css( $wrapper_selector, $layout_only_styles );
+
+				// --- Appearance styles → OUTER WRAPPER (applied ONCE, not per loop item) ---
+				// Bg color, padding, border etc. belong on the container wrapper, not repeated per card.
+				// Background color → WRAPPER (appears once for the whole grid)
+				if ( isset( $c_raw_styles['backgroundColor'] ) ) {
+					$bg_color = rcb_get_responsive_value( $c_raw_styles['backgroundColor'], 'desktop' );
+					if ( $bg_color !== '' && $bg_color !== null ) {
+						$wrapper_layout_styles['background-color'] = $bg_color;
+					}
+				}
+
+				// Background image → WRAPPER
+				$c_allowed = isset( $first_node['allowedSettings'] ) ? (array) $first_node['allowedSettings'] : array();
+				if ( ! empty( $c_allowed['backgroundImage'] ) ) {
+					$bg_url_key = $c_field . '_bg_url';
+					if ( ! empty( $content_data[ $bg_url_key ] ) ) {
+						$bg_img_url = esc_url( $content_data[ $bg_url_key ] );
+						$wrapper_layout_styles['background-image']    = "url('{$bg_img_url}')";
+						$wrapper_layout_styles['background-size']     = isset( $c_raw_styles['backgroundSize'] )     ? $c_raw_styles['backgroundSize']     : 'cover';
+						$wrapper_layout_styles['background-position'] = isset( $c_raw_styles['backgroundPosition'] ) ? $c_raw_styles['backgroundPosition'] : 'center';
+						$wrapper_layout_styles['background-repeat']   = isset( $c_raw_styles['backgroundRepeat'] )   ? $c_raw_styles['backgroundRepeat']   : 'no-repeat';
+					}
+				}
+
+				// All other appearance styles → each LOOP ITEM (border, padding, radius, etc. style individual cards)
+				$item_styles     = array();
+				$item_style_keys = array( 'color', 'padding', 'margin', 'borderRadius', 'border', 'minHeight', 'overflow', 'boxShadow' );
+				foreach ( $item_style_keys as $k ) {
+					if ( isset( $c_raw_styles[ $k ] ) ) {
+						$resolved = rcb_get_responsive_value( $c_raw_styles[ $k ], 'desktop' );
+						if ( $resolved !== '' && $resolved !== null ) {
+							$item_styles[ $k ] = $resolved;
+						}
+					}
+				}
+				$item_extra_style_attr = rcb_build_inline_style( $item_styles );
+
+				// Build wrapper inline style AFTER all styles collected (layout + bg)
+				$wrapper_style_str = '';
+				foreach ( $wrapper_layout_styles as $prop => $val ) {
+					$wrapper_style_str .= esc_attr( $prop ) . ':' . esc_attr( $val ) . ';';
+				}
+				$wrapper_style = $wrapper_style_str ? 'style="' . $wrapper_style_str . '"' : '';
+
+				// Loop nodes = Container's children (skip Container itself)
+				$loop_nodes = ! empty( $first_node['children'] ) ? $first_node['children'] : array();
+
+				// Add the container's CSS class to loop items so scoped CSS still applies
+				$loop_item_class = 'rcb-container ' . esc_attr( $c_id );
+			} else {
+				// No root container — fall back to default behaviour
 				$wrapper_style = sprintf( 'style="display:grid;grid-template-columns:repeat(%d,1fr);gap:20px;"', $columns );
+				$loop_item_class = '';
 			}
-			$final_output .= sprintf( '<div class="rcb-loop-wrapper rcb-layout-%s" %s>', esc_attr( $layout ), $wrapper_style );
+
+			$final_output .= sprintf(
+				'<div class="rcb-loop-wrapper rcb-layout-%s rcb-instance-%s" %s>',
+				esc_attr( $layout ),
+				esc_attr( $unique_id ),
+				$wrapper_style
+			);
 
 			while ( $query->have_posts() ) {
 				$query->the_post();
 				global $post;
 
-				$final_output .= sprintf( '<div class="rcb-instance rcb-instance-%s rcb-loop-item" %s>', esc_attr( $unique_id ), $root_style_attr );
-				// Pass $unique_id to the recursive renderer
-				$final_output .= rcb_render_visual_nodes_with_visibility( $nodes, $content_data, $styles_data, $mode, $post, $visibility, $content, $style_registry, $unique_id );
+				// Use item appearance style directly — do NOT fall back to $root_style_attr (that's for static mode)
+				$combined_style_attr = $item_extra_style_attr;
+
+				$final_output .= sprintf(
+					'<div class="rcb-instance rcb-instance-%s rcb-loop-item%s" %s>',
+					esc_attr( $unique_id ),
+					$loop_item_class ? ' ' . $loop_item_class : '',
+					$combined_style_attr
+				);
+				$final_output .= rcb_render_visual_nodes_with_visibility( $loop_nodes, $content_data, $styles_data, $mode, $post, $visibility, $content, $style_registry, $unique_id );
 				$final_output .= '</div>';
 			}
 
