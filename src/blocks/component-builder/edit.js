@@ -106,7 +106,7 @@ const AdvancedTypographyControl = ({ label, value, fontWeight, textTransform, li
 
     const fontOptions = [
         { label: __('Inherit', 'reusable-component-builder'), value: '' },
-        ...themeFonts.map(f => ({ label: f.name, value: f.fontFamily })),
+        ...themeFonts.map(font => ({ label: font.name, value: font.fontFamily })),
         ...SYSTEM_FONTS.filter(sf => !themeFonts.some(tf => tf.fontFamily === sf.value))
     ];
 
@@ -250,6 +250,310 @@ const AdvancedTypographyControl = ({ label, value, fontWeight, textTransform, li
     );
 };
 
+/**
+ * Helper to recursively get all fields from structure
+ */
+const getAllFields = (nodes) => {
+    let fields = [];
+    nodes.forEach(node => {
+        if (node.field) {
+            fields.push(node);
+        }
+        if (node.children) fields = fields.concat(getAllFields(node.children));
+    });
+    return fields;
+};
+
+/**
+ * Helper to get a clean label for the styling sidebar
+ */
+const getCleanFieldLabel = (node, index, allNodes) => {
+    let label = node.type.charAt(0).toUpperCase() + node.type.slice(1);
+    
+    if (allNodes) {
+        let sameTypeCount = 0;
+        let sameTypeIndex = 0;
+        for (let j = 0; j < allNodes.length; j++) {
+            if (allNodes[j].type === node.type) {
+                sameTypeCount++;
+                if (j <= index) sameTypeIndex++;
+            }
+        }
+        if (sameTypeCount > 1) {
+            label += ` ${sameTypeIndex}`;
+        }
+    }
+
+    if (node.dynamicSource) {
+        label += ` (${node.dynamicSource.replace(/_/g, ' ')})`;
+    }
+    
+    return label;
+};
+
+/**
+ * Resolves a potentially responsive value into a single value based on device.
+ */
+const getResponsiveValue = (val, deviceMode) => {
+    if (typeof val === 'object' && val !== null) {
+        return val[deviceMode] || val.desktop || '';
+    }
+    return val;
+};
+
+/**
+ * Main recursive renderer for the editor preview
+ */
+const renderVisualStructure = (nodes, post, parentContext, context) => {
+    const { 
+        styles, content, mode, currentPostTitle, currentPostExcerpt, 
+        currentPostDate, currentPostAuthorName, currentPostMeta, 
+        currentPostACF, uniqueId, deviceMode 
+    } = context;
+
+    return nodes.map((node, i) => {
+        const rawStyles = { ...(styles[node.field] || {}) };
+        const nodeStyles = {};
+        
+        // Resolve all properties (including responsive ones)
+        Object.keys(rawStyles).forEach(prop => {
+            if (prop !== 'customCssPairs' && prop !== 'customStylesRaw') {
+                const val = getResponsiveValue(rawStyles[prop], deviceMode);
+                
+                // Map internal names to valid CSS/React properties
+                if (prop === 'displayMode') {
+                    nodeStyles.display = val;
+                } else if (prop === 'contentMaxWidth') {
+                    if (val) {
+                        nodeStyles.maxWidth = val;
+                        nodeStyles.marginLeft = 'auto';
+                        nodeStyles.marginRight = 'auto';
+                        nodeStyles.width = '100%';
+                    }
+                } else if (prop === 'flexGap' || prop === 'gridGap') {
+                    nodeStyles.gap = val;
+                } else if (prop === 'rowGap') {
+                    nodeStyles.rowGap = val;
+                } else {
+                    nodeStyles[prop] = val;
+                }
+            }
+        });
+
+        // Parse raw CSS string if present
+        if (rawStyles.customStylesRaw) {
+            const rules = rawStyles.customStylesRaw.split(';').filter(Boolean);
+            rules.forEach(rule => {
+                const [key, ...valueParts] = rule.split(':');
+                if (key && valueParts.length) {
+                    const styleKey = key.trim().replace(/-([a-z])/g, (_, c) => c.toUpperCase());
+                    const styleValue = valueParts.join(':').trim();
+                    nodeStyles[styleKey] = styleValue;
+                }
+            });
+        }
+
+        // Explicitly ensure typography values are correctly typed and fallback for preview
+        if (nodeStyles.fontWeight) {
+            nodeStyles.fontWeight = nodeStyles.fontWeight.toString();
+        }
+        
+        // Background image implementation for any node type
+        if (content[`${node.field}_bg_url`]) {
+            nodeStyles.backgroundImage = `url(${content[`${node.field}_bg_url`]})`;
+            nodeStyles.backgroundSize = nodeStyles.backgroundSize || 'cover';
+            nodeStyles.backgroundPosition = nodeStyles.backgroundPosition || 'center';
+            nodeStyles.backgroundRepeat = nodeStyles.backgroundRepeat || 'no-repeat';
+        }
+
+        // Apply custom style variables from block attributes
+        if (node.customStyles && node.customStyles.length > 0) {
+            node.customStyles.forEach(styleKey => {
+                const camelKey = styleKey.replace(/-([a-z])/g, (_, c) => c.toUpperCase());
+                const styleValue = styles[node.field]?.[camelKey] || styles[node.field]?.[styleKey];
+                if (styleValue) {
+                    nodeStyles[camelKey] = styleValue;
+                }
+            });
+        }
+
+        const placeholderMap = {
+            'heading': 'Enter heading...',
+            'text': 'Enter text content...',
+            'button': 'Button label',
+            'innerblocks': '',
+        };
+        let nodeContent = content[node.field] || placeholderMap[node.type] || '';
+        let url = content[`${node.field}_url`];
+
+        if (mode === 'query' && post && node.dynamicSource) {
+            const source = node.dynamicSource;
+            nodeContent = ''; 
+            url = ''; 
+            if (source === 'post_title') {
+                nodeContent = post.title?.rendered || 'Post Title';
+            } else if (source === 'post_excerpt') {
+                nodeContent = post.excerpt?.rendered?.replace(/(<([^>]+)>)/gi, "") || 'Post Excerpt';
+            } else if (source === 'post_date') {
+                nodeContent = new Date(post.date).toLocaleDateString() || 'Post Date';
+            } else if (source === 'post_author') {
+                nodeContent = 'Post Author';
+            } else if (source === 'featured_image') {
+                const featuredMedia = post._embedded?.['wp:featuredmedia']?.[0];
+                url = featuredMedia?.source_url || '';
+            } else if (source === 'permalink') {
+                nodeContent = nodeContent || __('Read More', 'reusable-component-builder');
+                url = post.link || '#';
+            } else if (source === 'term') {
+                nodeContent = `Term: ${node.dynamicField || 'name'}`;
+            } else if (source === 'custom_meta') {
+                const metaKey = node.dynamicField;
+                const metaVal = post.meta && post.meta[metaKey] !== undefined ? post.meta[metaKey] : null;
+                if (node.type === 'image') {
+                    url = metaVal || '';
+                } else if (node.type === 'button') {
+                    url = metaVal || post.link || '#';
+                    nodeContent = nodeContent || __('Read More', 'reusable-component-builder');
+                } else {
+                    nodeContent = metaVal !== null ? String(metaVal) : `[Meta: ${metaKey}]`;
+                }
+            }
+        } else if (mode !== 'query' && node.dynamicSource) {
+            const source = node.dynamicSource;
+            if (source === 'post_title') {
+                nodeContent = currentPostTitle || 'Post Title';
+            } else if (source === 'post_excerpt') {
+                nodeContent = currentPostExcerpt?.replace(/(<([^>]+)>)/gi, "") || 'Post Excerpt';
+            } else if (source === 'post_date') {
+                nodeContent = currentPostDate ? new Date(currentPostDate).toLocaleDateString() : 'Post Date';
+            } else if (source === 'post_author') {
+                nodeContent = currentPostAuthorName || 'Post Author';
+            } else if (source === 'featured_image') {
+                url = 'https://via.placeholder.com/600x400?text=Featured+Image';
+            } else if (source === 'permalink') {
+                nodeContent = content[node.field] || __('Read More', 'reusable-component-builder');
+                url = '#';
+            } else if (source === 'term') {
+                nodeContent = `[Term: ${node.dynamicField}]`;
+            } else if (source === 'custom_meta') {
+                const metaKey = node.dynamicField;
+                let metaVal = currentPostMeta[metaKey] || (currentPostACF && currentPostACF[metaKey]);
+                if (node.type === 'image') {
+                    url = metaVal || 'https://via.placeholder.com/600x400?text=Dynamic+Image';
+                } else if (node.type === 'button') {
+                    url = metaVal || '#';
+                    nodeContent = content[node.field] || __('Read More', 'reusable-component-builder');
+                } else {
+                    nodeContent = metaVal || `[Meta: ${metaKey}]`;
+                }
+            }
+        }
+
+        switch (node.type) {
+            case 'container':
+                const containerStyles = { ...nodeStyles };
+                if (node.columns > 1 || containerStyles.display === 'grid' || containerStyles.display === 'flex') {
+                    if (containerStyles.display === 'flex') {
+                        containerStyles.flexDirection = containerStyles.flexDirection || 'row';
+                        containerStyles.flexWrap = containerStyles.flexWrap || 'wrap';
+                        containerStyles.justifyContent = containerStyles.justifyContent || 'flex-start';
+                        containerStyles.alignItems = containerStyles.alignItems || 'stretch';
+                    } else {
+                        containerStyles.display = 'grid';
+                        containerStyles.gridTemplateColumns = (containerStyles.gridTemplateColumns === 'custom' ? containerStyles.customGridTemplate : containerStyles.gridTemplateColumns) || `repeat(${node.columns || 1}, 1fr)`;
+                        if (containerStyles.gap || containerStyles.rowGap) {
+                            containerStyles.columnGap = containerStyles.gap || '20px';
+                            containerStyles.rowGap = containerStyles.rowGap || containerStyles.gap || '20px';
+                        } else if (node.columns > 1) {
+                            containerStyles.gap = '20px';
+                        }
+                    }
+                }
+                const isVerticalFlex = containerStyles.display === 'flex' && containerStyles.flexDirection && containerStyles.flexDirection.includes('column');
+                return (
+                    <div key={i} className={`rcb-container ${node.id}`} style={containerStyles}>
+                        {node.children && renderVisualStructure(node.children, post, { isVerticalFlex }, context)}
+                    </div>
+                );
+            case 'column':
+                const colStyles = { ...nodeStyles };
+                if (colStyles.customColumnWidth) {
+                    const unit = colStyles.customColumnWidthUnit || '%';
+                    colStyles.width = `${colStyles.customColumnWidth}${unit}`;
+                    colStyles.flex = `0 0 ${colStyles.width}`;
+                } else if (parentContext.isVerticalFlex) {
+                    colStyles.flex = '1 1 auto';
+                    colStyles.width = '100%';
+                } else {
+                    colStyles.flex = '1 1 0%';
+                }
+                return (
+                    <div key={i} className={`rcb-column ${node.id}`} style={colStyles}>
+                        {node.children && renderVisualStructure(node.children, post, {}, context)}
+                    </div>
+                );
+            case 'innerblocks':
+                return (
+                    <div key={i} className={`rcb-inner-blocks-slot ${node.id}`} style={nodeStyles}>
+                        <InnerBlocks />
+                    </div>
+                );
+            case 'heading':
+                return <h2 key={i} className={`rcb-heading ${node.id}`} style={{...nodeStyles, whiteSpace: 'pre-wrap'}}>{nodeContent}</h2>;
+            case 'text':
+                return <div key={i} className={`rcb-text ${node.id}`} style={{...nodeStyles, whiteSpace: 'pre-wrap'}}>{nodeContent}</div>;
+            case 'image':
+                if (url) {
+                    return <img key={i} src={url} className={`rcb-image ${node.id}`} alt={nodeContent} style={{...nodeStyles, display: 'block'}} />;
+                }
+                return node.dynamicSource ? null : <div key={i} className={`rcb-image-placeholder ${node.id}`} style={{...nodeStyles, background: '#ccc', minHeight: '100px', display: 'flex', alignItems: 'center', justifyContent: 'center'}}>Image Placeholder: {node.field}</div>;
+            case 'button':
+                const btnStyles = { ...nodeStyles };
+                if (!nodeStyles.padding && (nodeStyles.paddingX !== undefined || nodeStyles.paddingY !== undefined)) {
+                    const px = nodeStyles.paddingX !== undefined ? `${nodeStyles.paddingX}rem` : '1rem';
+                    const py = nodeStyles.paddingY !== undefined ? `${nodeStyles.paddingY}rem` : '0.5rem';
+                    btnStyles.padding = `${py} ${px}`;
+                }
+                const alignMap = { 'start': 'flex-start', 'center': 'center', 'end': 'flex-end', 'default': 'flex-start', 'left': 'flex-start', 'right': 'flex-end' };
+                const wrapperStyles = { 
+                    display: 'flex', 
+                    justify: alignMap[nodeStyles.textAlign || nodeStyles.buttonAlign || 'start'] || 'flex-start',
+                    width: '100%'
+                };
+                const iconMode = content[`${node.field}_icon_mode`] || 'Default';
+                const iconSize = parseFloat(nodeStyles.iconSize) || 0.8;
+                
+                return (
+                    <div key={i} style={wrapperStyles} className="rcb-button-wrapper">
+                        <style>{`
+                            .rcb-button-wrapper .rcb-button.${node.id}:hover {
+                                ${nodeStyles.hoverColor ? `color: ${nodeStyles.hoverColor} !important;` : ''}
+                                ${nodeStyles.hoverBgColor ? `background-color: ${nodeStyles.hoverBgColor} !important;` : ''}
+                                ${nodeStyles.hoverBorderColor ? `border-color: ${nodeStyles.hoverBorderColor} !important;` : ''}
+                                ${nodeStyles.hoverUnderline ? 'text-decoration: underline !important;' : ''}
+                            }
+                        `}</style>
+                        <a 
+                            href={url || '#'} 
+                            className={`rcb-button ${node.id}`} 
+                            style={{ ...btnStyles, display: 'inline-flex', alignItems: 'center', gap: '8px', textDecoration: 'none', transition: 'all 0.3s ease-in-out' }} 
+                            onClick={e => e.preventDefault()}
+                        >
+                            {nodeContent}
+                            {iconMode !== 'Default' && (
+                                <span className="rcb-button-icon" style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', background: iconMode === 'Icon with Bg' ? (nodeStyles.iconBgColor || '#f0f0f0') : 'transparent', color: nodeStyles.iconColor || 'inherit', borderRadius: '50%', width: iconMode === 'Icon with Bg' ? `${iconSize * 1.875}em` : 'auto', height: iconMode === 'Icon with Bg' ? `${iconSize * 1.875}em` : 'auto', border: iconMode === 'Icon with Bg' ? `${nodeStyles.iconBorderWidth || 0.1}rem solid ${nodeStyles.iconBorderColor || 'transparent'}` : 'none', fontSize: `${iconSize}em`, lineHeight: 1, marginLeft: iconMode === 'Icon with Bg' ? '4px' : '0', transition: 'all 0.3s ease-in-out' }}>
+                                    <svg width="1em" height="1em" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ display: 'block' }}><path d="M5 12H19M19 12L13 6M19 12L13 18" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                                </span>
+                            )}
+                        </a>
+                    </div>
+                );
+            default:
+                return null;
+        }
+    });
+};
+
 export default function Edit({ attributes, setAttributes, clientId }) {
     const { templateId, content, styles, uniqueId, mode, postType, taxonomy, termId, layout, columns, postsPerPage, pagination, visibilityVars } = attributes;
     
@@ -288,6 +592,7 @@ export default function Edit({ attributes, setAttributes, clientId }) {
     const [taxonomies, setTaxonomies] = useState([]);
     const [terms, setTerms] = useState([]);
     const [deviceMode, setDeviceMode] = useState('desktop'); // desktop, tablet, mobile
+    const getResp = (val) => getResponsiveValue(val, deviceMode);
 
     // Optional loop visibility settings
     const vVars = visibilityVars || { showTitle: true, showExcerpt: true, showImage: true, showButton: true };
@@ -353,48 +658,13 @@ export default function Edit({ attributes, setAttributes, clientId }) {
         }
     }, [mode, taxonomy, taxonomies]);
 
-    const getAllFields = (nodes) => {
-        let fields = [];
-        nodes.forEach(node => {
-            // Include all nodes with a field (ID), so styling panels can be generated for them
-            if (node.field) {
-                fields.push(node);
-            }
-            if (node.children) fields = fields.concat(getAllFields(node.children));
-        });
-        return fields;
-    };
-
     const configurableFields = getAllFields(structureNodes);
 
     useEffect(() => {
-        if (configurableFields.length > 0 && (!selectedStyleElement || !configurableFields.find(f => f.field === selectedStyleElement))) {
+        if (configurableFields.length > 0 && (!selectedStyleElement || !configurableFields.find(node => node.field === selectedStyleElement))) {
             setSelectedStyleElement(configurableFields[0].field);
         }
     }, [configurableFields, selectedStyleElement]);
-
-    const getCleanFieldLabel = (node, index, allNodes) => {
-        let name = node.type.charAt(0).toUpperCase() + node.type.slice(1);
-        
-        if (allNodes) {
-             let typeCount = 0;
-             let totalOfType = 0;
-             for (let i = 0; i < allNodes.length; i++) {
-                 if (allNodes[i].type === node.type) {
-                     totalOfType++;
-                     if (i <= index) typeCount++;
-                 }
-             }
-             if (totalOfType > 1) {
-                 name += ` ${typeCount}`;
-             }
-        }
-        
-        if (node.dynamicSource) {
-            name += ` (${node.dynamicSource.replace(/_/g, ' ')})`;
-        }
-        return name;
-    };
 
     const updateContent = (key, value) => {
         setAttributes({ content: { ...content, [key]: value } });
@@ -420,344 +690,15 @@ export default function Edit({ attributes, setAttributes, clientId }) {
         });
     };
 
-    const getResponsiveValue = (val) => {
-        if (typeof val === 'object' && val !== null) {
-            return val[deviceMode] || val.desktop || '';
-        }
-        return val;
-    };
-
-    // Render nodes (Visual Structure)
+    // Main recursive renderer for the editor preview
     const renderPreviewNodes = (nodes, post = null, parentContext = {}) => {
-        return nodes.map((node, i) => {
-            const rawStyles = { ...(styles[node.field] || {}) };
-            const nodeStyles = {};
-            
-            // Resolve all properties (including responsive ones)
-        Object.keys(rawStyles).forEach(prop => {
-            if (prop !== 'customCssPairs' && prop !== 'customStylesRaw') {
-                const val = getResponsiveValue(rawStyles[prop]);
-                
-                // Map internal names to valid CSS/React properties
-                if (prop === 'displayMode') {
-                    nodeStyles.display = val;
-                } else if (prop === 'contentMaxWidth') {
-                    if (val) {
-                        nodeStyles.maxWidth = val;
-                        nodeStyles.marginLeft = 'auto';
-                        nodeStyles.marginRight = 'auto';
-                        nodeStyles.width = '100%';
-                    }
-                } else if (prop === 'flexGap' || prop === 'gridGap') {
-                    nodeStyles.gap = val;
-                } else if (prop === 'rowGap') {
-                    nodeStyles.rowGap = val;
-                } else {
-                    nodeStyles[prop] = val;
-                }
-            }
-        });
-
-            // Parse raw CSS string if present
-            if (rawStyles.customStylesRaw) {
-                const rules = rawStyles.customStylesRaw.split(';').filter(Boolean);
-                rules.forEach(rule => {
-                    const [key, ...valueParts] = rule.split(':');
-                    if (key && valueParts.length) {
-                        const styleKey = key.trim().replace(/-([a-z])/g, (_, c) => c.toUpperCase());
-                        const styleValue = valueParts.join(':').trim();
-                        nodeStyles[styleKey] = styleValue;
-                    }
-                });
-            }
-
-            // Explicitly ensure typography values are correctly typed and fallback for preview
-            if (nodeStyles.fontWeight) {
-                // Force string for numeric weights to ensure React handles them correctly
-                // Note: React styles do not support !important in objects, so we just set it here
-                // and we will also handle it in the frontend renderer.
-                nodeStyles.fontWeight = nodeStyles.fontWeight.toString();
-            }
-            
-            // Background image implementation for any node type
-            if (content[`${node.field}_bg_url`]) {
-                nodeStyles.backgroundImage = `url(${content[`${node.field}_bg_url`]})`;
-                nodeStyles.backgroundSize = nodeStyles.backgroundSize || 'cover';
-                nodeStyles.backgroundPosition = nodeStyles.backgroundPosition || 'center';
-                nodeStyles.backgroundRepeat = nodeStyles.backgroundRepeat || 'no-repeat';
-            }
-
-
-
-            // Apply custom style variables from block attributes
-            if (node.customStyles && node.customStyles.length > 0) {
-                node.customStyles.forEach(styleKey => {
-                    // Convert to camelCase — that's how we store now
-                    const camelKey = styleKey.replace(/-([a-z])/g, (_, c) => c.toUpperCase());
-                    // Look for camelCase first, fall back to kebab-case
-                    const styleValue = styles[node.field]?.[camelKey] || styles[node.field]?.[styleKey];
-                    if (styleValue) {
-                        nodeStyles[camelKey] = styleValue;
-                    }
-                });
-            }
-
-            // In static mode, content is user input. 
-            // In query mode, content is populated from dynamicSource!
-            const placeholderMap = {
-                'heading': 'Enter heading...',
-                'text': 'Enter text content...',
-                'button': 'Button label',
-                'innerblocks': '',
-            };
-            let nodeContent = content[node.field] || placeholderMap[node.type] || '';
-            let url = content[`${node.field}_url`];
-
-            if (mode === 'query' && post && node.dynamicSource) {
-                // For dynamic query items, we start fresh and don't leak static content
-                const source = node.dynamicSource;
-                nodeContent = ''; 
-                url = ''; 
-
-                if (source === 'post_title') {
-                    nodeContent = post.title?.rendered || 'Post Title';
-                } else if (source === 'post_excerpt') {
-                    nodeContent = post.excerpt?.rendered?.replace(/(<([^>]+)>)/gi, "") || 'Post Excerpt';
-                } else if (source === 'post_date') {
-                    nodeContent = new Date(post.date).toLocaleDateString() || 'Post Date';
-                } else if (source === 'post_author') {
-                    nodeContent = 'Post Author';
-                } else if (source === 'featured_image') {
-                    const featuredMedia = post._embedded?.['wp:featuredmedia']?.[0];
-                    url = featuredMedia?.source_url || '';
-                } else if (source === 'permalink') {
-                    nodeContent = nodeContent || __('Read More', 'reusable-component-builder');
-                    url = post.link || '#';
-                } else if (source === 'term') {
-                    nodeContent = `Term: ${node.dynamicField || 'name'}`;
-                } else if (source === 'custom_meta') {
-                    nodeContent = `Meta: ${node.dynamicField || 'value'}`;
-                }
-            } else if (mode !== 'query' && node.dynamicSource) {
-                const source = node.dynamicSource;
-                if (source === 'post_title') {
-                    nodeContent = currentPostTitle || 'Post Title';
-                } else if (source === 'post_excerpt') {
-                    nodeContent = currentPostExcerpt?.replace(/(<([^>]+)>)/gi, "") || 'Post Excerpt';
-                } else if (source === 'post_date') {
-                    nodeContent = currentPostDate ? new Date(currentPostDate).toLocaleDateString() : 'Post Date';
-                } else if (source === 'post_author') {
-                    nodeContent = currentPostAuthorName || 'Post Author';
-                } else if (source === 'featured_image') {
-                    url = 'https://via.placeholder.com/600x400?text=Featured+Image';
-                } else if (source === 'permalink') {
-                    nodeContent = content[node.field] || __('Read More', 'reusable-component-builder');
-                    url = '#';
-                } else if (source === 'term') {
-                    nodeContent = `[Term: ${node.dynamicField}]`;
-                } else if (source === 'custom_meta') {
-                    const metaKey = node.dynamicField;
-                    let metaVal = currentPostMeta[metaKey] || (currentPostACF && currentPostACF[metaKey]);
-                    
-                    // Fallback to checking the DOM for ACF classic metabox fields
-                    if (!metaVal && typeof document !== 'undefined') {
-                        const acfInput = document.querySelector(`.acf-field[data-name="${metaKey}"] input[type="text"], .acf-field[data-name="${metaKey}"] textarea, .acf-field[data-name="${metaKey}"] input[type="number"]`);
-                        if (acfInput && acfInput.value) {
-                            metaVal = acfInput.value;
-                        }
-                    }
-
-                    if (node.type === 'image') {
-                        url = metaVal || 'https://via.placeholder.com/600x400?text=Dynamic+Image';
-                    } else if (node.type === 'button') {
-                        url = metaVal || '#';
-                        nodeContent = content[node.field] || __('Read More', 'reusable-component-builder');
-                    } else {
-                        nodeContent = metaVal || `[Meta: ${metaKey}]`;
-                    }
-                } else {
-                    nodeContent = `[Dynamic: ${source}]`;
-                }
-            }
-
-            switch (node.type) {
-                case 'container':
-                    const containerStyles = { ...nodeStyles };
-                    
-                    // Handle Content Max Width centering
-                    if (containerStyles.maxWidth) {
-                        containerStyles.marginLeft = 'auto';
-                        containerStyles.marginRight = 'auto';
-                        containerStyles.width = '100%';
-                    }
-
-                    if (node.columns > 1 || containerStyles.display === 'grid' || containerStyles.display === 'flex') {
-                        if (containerStyles.display === 'flex') {
-                            containerStyles.flexDirection = containerStyles.flexDirection || 'row';
-                            containerStyles.flexWrap = containerStyles.flexWrap || 'wrap';
-                            containerStyles.justifyContent = containerStyles.justifyContent || 'flex-start';
-                            containerStyles.alignItems = containerStyles.alignItems || 'stretch';
-                            // containerStyles.gap is already set from flexGap/gridGap mapping
-                        } else {
-                            containerStyles.display = 'grid';
-                            containerStyles.gridTemplateColumns = (containerStyles.gridTemplateColumns === 'custom' ? containerStyles.customGridTemplate : containerStyles.gridTemplateColumns) || `repeat(${node.columns || 1}, 1fr)`;
-                            
-                            // Support columnGap/rowGap mappings or fallback
-                            if (containerStyles.gap || containerStyles.rowGap) {
-                                containerStyles.columnGap = containerStyles.gap || '20px';
-                                containerStyles.rowGap = containerStyles.rowGap || containerStyles.gap || '20px';
-                            } else if (node.columns > 1) {
-                                containerStyles.gap = '20px';
-                            }
-                        }
-                    }
-                    const isVerticalFlex = containerStyles.display === 'flex' && containerStyles.flexDirection && containerStyles.flexDirection.includes('column');
-                    return (
-                        <div key={i} className={`rcb-container ${node.id}`} style={containerStyles}>
-                            {node.children && renderPreviewNodes(node.children, post, { isVerticalFlex })}
-                        </div>
-                    );
-                case 'column':
-                    const colStyles = { ...nodeStyles };
-                    if (colStyles.customColumnWidth) {
-                        const unit = colStyles.customColumnWidthUnit || '%';
-                        colStyles.width = `${colStyles.customColumnWidth}${unit}`;
-                        colStyles.flex = `0 0 ${colStyles.width}`;
-                    } else if (parentContext.isVerticalFlex) {
-                        // In vertical flex (column), flex: 1 makes flex-basis 0% for height!
-                        // This causes empty columns (e.g. background images) to collapse to 0 height.
-                        colStyles.flex = '1 1 auto';
-                        colStyles.width = '100%';
-                    } else {
-                        // Prevent collapse in horizontal flex row
-                        colStyles.flex = '1 1 0%';
-                    }
-                    return (
-                        <div key={i} className={`rcb-column ${node.id}`} style={colStyles}>
-                            {node.children && renderPreviewNodes(node.children, post)}
-                        </div>
-                    );
-                case 'innerblocks':
-                    return (
-                        <div key={i} className={`rcb-inner-blocks-slot ${node.id}`} style={nodeStyles}>
-                            <InnerBlocks />
-                        </div>
-                    );
-                case 'heading':
-                    return <h2 key={i} className={`rcb-heading ${node.id}`} style={{...nodeStyles, whiteSpace: 'pre-wrap'}}>{nodeContent}</h2>;
-                case 'text':
-                    return <div key={i} className={`rcb-text ${node.id}`} style={{...nodeStyles, whiteSpace: 'pre-wrap'}}>{nodeContent}</div>;
-                case 'image':
-                    if (url) {
-                        return <img key={i} src={url} className={`rcb-image ${node.id}`} alt={nodeContent} style={{...nodeStyles, display: 'block'}} />;
-                    }
-                    if (node.dynamicSource) {
-                        return null; // Don't show placeholders for missing dynamic images
-                    }
-                    return <div key={i} className={`rcb-image-placeholder ${node.id}`} style={{...nodeStyles, background: '#ccc', minHeight: '100px', display: 'flex', alignItems: 'center', justifyContent: 'center'}}>Image Placeholder: {node.field}</div>;
-                case 'button':
-                    const btnStyles = { ...nodeStyles };
-                    
-                    // Handle Padding X/Y only if standard padding is unset
-                    if (!nodeStyles.padding && (nodeStyles.paddingX !== undefined || nodeStyles.paddingY !== undefined)) {
-                        const px = nodeStyles.paddingX !== undefined ? `${nodeStyles.paddingX}rem` : '1rem';
-                        const py = nodeStyles.paddingY !== undefined ? `${nodeStyles.paddingY}rem` : '0.5rem';
-                        btnStyles.padding = `${py} ${px}`;
-                    }
-
-                    // Handle Border Radius/Width Rem only if standard border is unset
-                    if (!nodeStyles.borderRadius && nodeStyles.borderRadiusRem !== undefined) {
-                        btnStyles.borderRadius = `${nodeStyles.borderRadiusRem}rem`;
-                    }
-                    if (!nodeStyles.borderWidth && nodeStyles.borderWidthRem !== undefined) {
-                        btnStyles.borderWidth = `${nodeStyles.borderWidthRem}rem`;
-                        btnStyles.borderStyle = btnStyles.borderStyle || 'solid';
-                        if (nodeStyles.borderColor) btnStyles.borderColor = nodeStyles.borderColor;
-                    }
-
-                    // Handle Text Size Presets only if standard fontSize is unset
-                    const sizeMap = { 'S': '12px', 'M': '14px', 'L': '16px', 'XL': '20px', '1XL': '24px', '2XL': '32px' };
-                    if (!nodeStyles.fontSize && nodeStyles.textSizePreset && sizeMap[nodeStyles.textSizePreset]) {
-                        btnStyles.fontSize = sizeMap[nodeStyles.textSizePreset];
-                    }
-
-                    if (!nodeStyles.fontFamily && nodeStyles.fontFamily) {
-                        btnStyles.fontFamily = nodeStyles.fontFamily;
-                    }
-
-                    // Alignment wrapper
-                    const alignMap = { 'start': 'flex-start', 'center': 'center', 'end': 'flex-end', 'default': 'flex-start', 'left': 'flex-start', 'right': 'flex-end' };
-                    const wrapperStyles = { 
-                        display: 'flex', 
-                        justifyContent: alignMap[nodeStyles.textAlign || nodeStyles.buttonAlign || 'start'] || 'flex-start',
-                        width: '100%'
-                    };
-
-                    const iconMode = content[`${node.field}_icon_mode`] || 'Default';
-                    const iconSize = parseFloat(nodeStyles.iconSize) || 0.8;
-                    const url = content[`${node.field}_url`] || '';
-                    
-                    return (
-                        <div key={i} style={wrapperStyles} className="rcb-button-wrapper">
-                            <style>{`
-                                .rcb-button-wrapper .rcb-button.${node.id}:hover {
-                                    ${nodeStyles.hoverColor ? `color: ${nodeStyles.hoverColor} !important;` : ''}
-                                    ${nodeStyles.hoverBgColor ? `background-color: ${nodeStyles.hoverBgColor} !important;` : ''}
-                                    ${nodeStyles.hoverBorderColor ? `border-color: ${nodeStyles.hoverBorderColor} !important;` : ''}
-                                    ${nodeStyles.hoverUnderline ? 'text-decoration: underline !important;' : ''}
-                                }
-                                .rcb-button-wrapper .rcb-button.${node.id}:hover .rcb-button-icon {
-                                    ${nodeStyles.iconHoverColor ? `color: ${nodeStyles.iconHoverColor} !important;` : ''}
-                                    ${nodeStyles.iconHoverBgColor ? `background-color: ${nodeStyles.iconHoverBgColor} !important;` : ''}
-                                    ${nodeStyles.iconHoverBorderColor ? `border-color: ${nodeStyles.iconHoverBorderColor} !important;` : ''}
-                                }
-                            `}</style>
-                            <a 
-                                href={url || '#'} 
-                                className={`rcb-button ${node.id}`} 
-                                style={{
-                                    ...btnStyles, 
-                                    display: 'inline-flex', 
-                                    alignItems: 'center', 
-                                    gap: '8px',
-                                    textDecoration: 'none',
-                                    transition: 'all 0.3s ease-in-out'
-                                }} 
-                                onClick={e => e.preventDefault()}
-                            >
-                                {nodeContent}
-                                {iconMode !== 'Default' && (
-                                    <span 
-                                        className="rcb-button-icon"
-                                        style={{ 
-                                            display: 'inline-flex',
-                                            alignItems: 'center',
-                                            justifyContent: 'center',
-                                            background: iconMode === 'Icon with Bg' ? (nodeStyles.iconBgColor || '#f0f0f0') : 'transparent',
-                                            color: nodeStyles.iconColor || 'inherit',
-                                            borderRadius: '50%',
-                                            width: iconMode === 'Icon with Bg' ? `${iconSize * 1.875}em` : 'auto',
-                                            height: iconMode === 'Icon with Bg' ? `${iconSize * 1.875}em` : 'auto',
-                                            border: iconMode === 'Icon with Bg' ? `${nodeStyles.iconBorderWidth || 0.1}rem solid ${nodeStyles.iconBorderColor || 'transparent'}` : 'none',
-                                            fontSize: `${iconSize}em`,
-                                            lineHeight: 1,
-                                            marginLeft: iconMode === 'Icon with Bg' ? '4px' : '0',
-                                            transition: 'all 0.3s ease-in-out'
-                                        }}
-                                    >
-                                        <svg width="1em" height="1em" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ display: 'block' }}>
-                                            <path d="M5 12H19M19 12L13 6M19 12L13 18" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                                        </svg>
-                                    </span>
-                                )}
-                            </a>
-                        </div>
-                    );
-                default:
-                    return null;
-            }
+        return renderVisualStructure(nodes, post, parentContext, {
+            styles, content, mode, currentPostTitle, currentPostExcerpt, 
+            currentPostDate, currentPostAuthorName, currentPostMeta, 
+            currentPostACF, uniqueId, deviceMode
         });
     };
+;
 
     const blockProps = useBlockProps({
         style: (() => {
@@ -888,7 +829,7 @@ export default function Edit({ attributes, setAttributes, clientId }) {
                 {templateId > 0 && mode === 'static' && (
                     <PanelBody title={`${templateName} Content`} initialOpen={true}>
                         {(() => {
-                            const fieldsToRender = configurableFields.filter(f => f.type !== 'container' && f.type !== 'column' && !f.dynamicSource);
+                            const fieldsToRender = configurableFields.filter(node => node.type !== 'container' && node.type !== 'column' && !node.dynamicSource);
                             
                             if (fieldsToRender.length === 0) {
                                 return (
@@ -981,16 +922,16 @@ export default function Edit({ attributes, setAttributes, clientId }) {
                                         <SelectControl
                                             label={__('Select Element to Style', 'reusable-component-builder')}
                                             value={selectedStyleElement}
-                                            options={configurableFields.map((f, i) => ({ label: getCleanFieldLabel(f, i, configurableFields), value: f.field }))}
+                                            options={configurableFields.map((node, i) => ({ label: getCleanFieldLabel(node, i, configurableFields), value: node.field }))}
                                             onChange={(val) => setSelectedStyleElement(val)}
                                         />
                                     </div>
-                                    {selectedStyleElement && configurableFields.filter(f => f.field === selectedStyleElement).map((fieldNode) => {
+                                    {selectedStyleElement && configurableFields.filter(node => node.field === selectedStyleElement).map((fieldNode) => {
                                         // backgroundImage as a style control only makes sense for non-image nodes (image nodes use content upload)
                                         const defaultBgImage = fieldNode.type !== 'image';
                                         const allowed = fieldNode.allowedSettings || { color: true, typography: true, spacing: true, borders: true, dimensions: fieldNode.type === 'image', backgroundImage: defaultBgImage };
                                         
-                                        // Force button-specific settings
+                                        // Force button-specific settings only for buttons, and disable for others
                                         if (fieldNode.type === 'button') {
                                             allowed.buttonSettings = true;
                                             allowed.iconSettings = true;
@@ -1000,6 +941,9 @@ export default function Edit({ attributes, setAttributes, clientId }) {
                                             allowed.spacing = true;
                                             allowed.borders = true;
                                             allowed.alignment = true;
+                                        } else {
+                                            allowed.buttonSettings = false;
+                                            allowed.iconSettings = false;
                                         }
                                         
                                         // Runtime override: image-type nodes should never show bg-image style control
@@ -1663,30 +1607,116 @@ export default function Edit({ attributes, setAttributes, clientId }) {
                 </TabPanel>
             </InspectorControls>
 
-            <div className={`rcb-editor-preview-container rcb-preview-${deviceMode} ${layout === 'grid' && mode === 'query' ? 'rcb-layout-grid' : ''}`} style={layout === 'grid' && mode === 'query' ? {display: 'grid', gridTemplateColumns: `repeat(${columns}, 1fr)`, gap: '20px'} : {}}>
-                {!templateId ? (
-                    <div style={{padding: '30px', border: '1px dashed #ccc', textAlign: 'center', background: '#f5f5f5'}}>
-                        {__('Error: No template variation assigned to this block!', 'reusable-component-builder')}
-                    </div>
-                ) : (
-                    mode === 'query' ? (
-                        previewPosts.length > 0 ? previewPosts.map((post, idx) => {
-                            // Reset per post loop preview
+            {(() => {
+                // --- Smart Container Detection (mirrors PHP renderer logic) ---
+                // When mode=query and first root node is a Container:
+                //   - Use Container's layout styles for the outer wrapper
+                //   - Use Container's appearance styles on each loop item
+                //   - Render only Container's children inside each loop item
+                const firstNode = structureNodes && structureNodes[0];
+                const rootIsContainer = firstNode && firstNode.type === 'container' && mode === 'query';
 
+                let wrapperStyle = {};
+                let loopItemExtraStyle = {};
+                let loopNodes = structureNodes;
+                let loopItemExtraClass = '';
 
-                            return (
-                                <div key={`post-${idx}`} className={`rcb-instance rcb-instance-${uniqueId}`}>
-                                    {renderPreviewNodes(structureNodes, post)}
+                if (rootIsContainer) {
+                    const cRaw = (styles && styles[firstNode.field]) || {};
+                    const getR = (v) => getResponsiveValue(v, deviceMode);
+                    const displayMode = getR(cRaw.displayMode) || 'grid';
+
+                    if (displayMode === 'flex') {
+                        wrapperStyle = {
+                            display: 'flex',
+                            flexDirection: getR(cRaw.flexDirection) || 'row',
+                            flexWrap: getR(cRaw.flexWrap) || 'wrap',
+                            justifyContent: getR(cRaw.justifyContent) || 'flex-start',
+                            alignItems: getR(cRaw.alignItems) || 'stretch',
+                            gap: getR(cRaw.flexGap) || undefined,
+                        };
+                    } else {
+                        const nodeColsC = firstNode.columns || columns || 3;
+                        let tCols = getR(cRaw.gridTemplateColumns);
+                        if (tCols === 'custom') tCols = getR(cRaw.customGridTemplate);
+                        if (!tCols) tCols = `repeat(${nodeColsC}, 1fr)`;
+                        const gGap = getR(cRaw.gridGap);
+                        const rGap = getR(cRaw.rowGap);
+                        wrapperStyle = {
+                            display: 'grid',
+                            gridTemplateColumns: tCols,
+                            columnGap: gGap || '20px',
+                            rowGap: rGap || gGap || '20px',
+                        };
+                    }
+
+                    const maxW = getR(cRaw.contentMaxWidth);
+                    if (maxW) {
+                        wrapperStyle.maxWidth = maxW;
+                        wrapperStyle.marginLeft = 'auto';
+                        wrapperStyle.marginRight = 'auto';
+                        wrapperStyle.width = '100%';
+                    }
+
+                    // backgroundColor → OUTER WRAPPER (appears once, covers the entire grid + gaps)
+                    const bgColor = getR(cRaw.backgroundColor);
+                    if (bgColor) wrapperStyle.backgroundColor = bgColor;
+
+                    // Background image → OUTER WRAPPER
+                    const bgUrlKey = `${firstNode.field}_bg_url`;
+                    if (content && content[bgUrlKey]) {
+                        wrapperStyle.backgroundImage    = `url(${content[bgUrlKey]})`;
+                        wrapperStyle.backgroundSize     = cRaw.backgroundSize     || 'cover';
+                        wrapperStyle.backgroundPosition = cRaw.backgroundPosition || 'center';
+                        wrapperStyle.backgroundRepeat   = cRaw.backgroundRepeat   || 'no-repeat';
+                    }
+
+                    // All other appearance styles → each LOOP ITEM (border, padding, radius on individual cards)
+                    const itemAppearanceKeys = ['color','padding','margin','borderRadius','border','minHeight','overflow','boxShadow'];
+                    itemAppearanceKeys.forEach(k => {
+                        const v = getR(cRaw[k]);
+                        if (v !== undefined && v !== '' && v !== null) {
+                            loopItemExtraStyle[k] = v;
+                        }
+                    });
+
+                    loopNodes = firstNode.children || [];
+                    loopItemExtraClass = `rcb-container ${firstNode.id}`;
+                } else {
+                    wrapperStyle = layout === 'grid' && mode === 'query'
+                        ? { display: 'grid', gridTemplateColumns: `repeat(${columns}, 1fr)`, gap: '20px' }
+                        : {};
+                }
+
+                return (
+                    <div
+                        className={`rcb-editor-preview-container rcb-preview-${deviceMode}${mode === 'query' ? ' rcb-layout-' + layout : ''}`}
+                        style={wrapperStyle}
+                    >
+                        {!templateId ? (
+                            <div style={{padding: '30px', border: '1px dashed #ccc', textAlign: 'center', background: '#f5f5f5'}}>
+                                {__('Error: No template variation assigned to this block!', 'reusable-component-builder')}
+                            </div>
+                        ) : (
+                            mode === 'query' ? (
+                                previewPosts.length > 0 ? previewPosts.map((post, idx) => (
+                                    <div
+                                        key={`post-${idx}`}
+                                        className={`rcb-instance rcb-instance-${uniqueId}${loopItemExtraClass ? ' ' + loopItemExtraClass : ''}`}
+                                        style={loopItemExtraStyle}
+                                    >
+                                        {renderPreviewNodes(loopNodes, post)}
+                                    </div>
+                                )) : <div style={{padding: '20px', background: '#e0e0e0'}}>Loading posts...</div>
+                            ) : (
+                                <div className={`rcb-instance rcb-instance-${uniqueId}`}>
+                                    {renderPreviewNodes(structureNodes)}
                                 </div>
-                            );
-                        }) : <div style={{padding: '20px', background: '#e0e0e0'}}>Loading posts...</div>
-                    ) : (
-                        <div className={`rcb-instance rcb-instance-${uniqueId}`}>
-                            {renderPreviewNodes(structureNodes)}
-                        </div>
-                    )
-                )}
-            </div>
+                            )
+                        )}
+                    </div>
+                );
+            })()}
         </div>
     );
 }

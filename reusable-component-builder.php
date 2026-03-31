@@ -42,6 +42,28 @@ function rcb_register_template_rest_route()
 }
 add_action('rest_api_init', 'rcb_register_template_rest_route');
 
+/**
+ * Inject full post meta into REST API responses so the block editor preview can
+ * resolve custom_meta dynamic fields (mirrors what get_post_meta() does on the frontend).
+ */
+function rcb_inject_meta_into_rest( $response, $post, $request ) {
+	$data = $response->get_data();
+	$raw_meta = get_post_meta( $post->ID );
+	$flattened = array();
+	foreach ( $raw_meta as $key => $values ) {
+		// Skip private/internal keys
+		if ( strpos( $key, '_' ) === 0 ) continue;
+		$flattened[ $key ] = ( is_array( $values ) && count( $values ) === 1 ) ? $values[0] : $values;
+	}
+	$data['meta'] = $flattened;
+	$response->set_data( $data );
+	return $response;
+}
+add_filter( 'rest_prepare_post',   'rcb_inject_meta_into_rest', 10, 3 );
+add_filter( 'rest_prepare_page',   'rcb_inject_meta_into_rest', 10, 3 );
+add_filter( 'rest_prepare_events', 'rcb_inject_meta_into_rest', 10, 3 );
+
+
 function rcb_register_events_cpt()
 {
 	register_post_type('events', array(

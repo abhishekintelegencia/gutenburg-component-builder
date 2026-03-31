@@ -193,46 +193,48 @@ const NodeEditor = ({ node, updateNode, removeNode, duplicateNode, addChild, mov
                             </div>
                         )}
 
-                        <fieldset style={{border: '1px solid #ddd', padding: '15px', borderRadius: '4px'}}>
-                            <legend style={{padding: '0 10px', fontWeight: 'bold'}}>Allowed Style Controls (For Block Editor)</legend>
-                            
-                            <div style={{ display: 'flex', gap: '20px' }}>
-                                <div style={{ flex: '0 0 200px', borderRight: '1px solid #ddd', paddingRight: '10px' }}>
-                                    {CATEGORIZED_STYLE_OPTIONS.filter(cat => {
-                                        if (node.type === 'button') {
-                                            return cat.title !== 'Button Settings' && cat.title !== 'Icon Settings';
-                                        }
-                                        return true;
-                                    }).map((cat) => (
-                                        <div 
-                                            key={cat.title}
-                                            onClick={() => setActiveTab(cat.title)}
-                                            style={{
-                                                padding: '8px 10px', 
-                                                cursor: 'pointer', 
-                                                backgroundColor: activeTab === cat.title ? '#007cba' : 'transparent',
-                                                color: activeTab === cat.title ? '#fff' : '#3c434a',
-                                                borderRadius: '3px',
-                                                marginBottom: '5px',
-                                                fontWeight: activeTab === cat.title ? '600' : '400'
-                                            }}
-                                        >
-                                            {cat.title}
-                                        </div>
-                                    ))}
+                        {node.type !== 'button' && (
+                            <fieldset style={{border: '1px solid #ddd', padding: '15px', borderRadius: '4px'}}>
+                                <legend style={{padding: '0 10px', fontWeight: 'bold'}}>Allowed Style Controls (For Block Editor)</legend>
+                                
+                                <div style={{ display: 'flex', gap: '20px' }}>
+                                    <div style={{ flex: '0 0 200px', borderRight: '1px solid #ddd', paddingRight: '10px' }}>
+                                        {CATEGORIZED_STYLE_OPTIONS.filter(cat => {
+                                            if (cat.title === 'Button Settings' || cat.title === 'Icon Settings') {
+                                                return node.type === 'button';
+                                            }
+                                            return true;
+                                        }).map((cat) => (
+                                            <div 
+                                                key={cat.title}
+                                                onClick={() => setActiveTab(cat.title)}
+                                                style={{
+                                                    padding: '8px 10px', 
+                                                    cursor: 'pointer', 
+                                                    backgroundColor: activeTab === cat.title ? '#007cba' : 'transparent',
+                                                    color: activeTab === cat.title ? '#fff' : '#3c434a',
+                                                    borderRadius: '3px',
+                                                    marginBottom: '5px',
+                                                    fontWeight: activeTab === cat.title ? '600' : '400'
+                                                }}
+                                            >
+                                                {cat.title}
+                                            </div>
+                                        ))}
+                                    </div>
+                                    <div style={{ flex: '1', display: 'grid', gridTemplateColumns: '1fr', gap: '10px', alignContent: 'start' }}>
+                                        {CATEGORIZED_STYLE_OPTIONS.find(c => c.title === activeTab)?.options.map(opt => (
+                                            <CheckboxControl
+                                                key={opt.id}
+                                                label={opt.label}
+                                                checked={node.allowedSettings?.[opt.id] || false}
+                                                onChange={() => toggleSetting(opt.id)}
+                                            />
+                                        ))}
+                                    </div>
                                 </div>
-                                <div style={{ flex: '1', display: 'grid', gridTemplateColumns: '1fr', gap: '10px', alignContent: 'start' }}>
-                                    {CATEGORIZED_STYLE_OPTIONS.find(c => c.title === activeTab)?.options.map(opt => (
-                                        <CheckboxControl
-                                            key={opt.id}
-                                            label={opt.label}
-                                            checked={node.allowedSettings?.[opt.id] || false}
-                                            onChange={() => toggleSetting(opt.id)}
-                                        />
-                                    ))}
-                                </div>
-                            </div>
-                        </fieldset>
+                            </fieldset>
+                        )}
 
                         <div style={{marginTop: '20px', display: 'flex', justifyContent: 'flex-end'}}>
                              <Button isPrimary onClick={() => setIsEditing(false)}>Done</Button>
@@ -586,7 +588,7 @@ const App = () => {
                                 
                                 <div style={{ display: 'flex', gap: '20px' }}>
                                     <div style={{ flex: '0 0 200px', borderRight: '1px solid #ddd', paddingRight: '10px' }}>
-                                        {CATEGORIZED_STYLE_OPTIONS.map((cat) => (
+                                        {CATEGORIZED_STYLE_OPTIONS.filter(cat => cat.title !== 'Button Settings' && cat.title !== 'Icon Settings').map((cat) => (
                                             <div 
                                                 key={cat.title}
                                                 onClick={() => setGlobalActiveTab(cat.title)}
