@@ -555,7 +555,7 @@ const renderVisualStructure = (nodes, post, parentContext, context) => {
 };
 
 export default function Edit({ attributes, setAttributes, clientId }) {
-    const { templateId, content, styles, uniqueId, mode, postType, taxonomy, termId, layout, columns, postsPerPage, pagination, visibilityVars } = attributes;
+    const { templateId, content, styles, uniqueId, mode, postType, taxonomy, termId, layout, columns, postsPerPage, pagination, showPaginationText, paginationFontSize, paginationTextColor, paginationBgColor, paginationActiveTextColor, paginationActiveBgColor, visibilityVars } = attributes;
     
     // Fetch live data for static mode previews (e.g. ACF meta, title)
     const { currentPostTitle, currentPostExcerpt, currentPostDate, currentPostAuthorName, currentPostMeta, currentPostACF } = useSelect((select) => {
@@ -587,6 +587,8 @@ export default function Edit({ attributes, setAttributes, clientId }) {
     const [globalAllowedSettings, setGlobalAllowedSettings] = useState({});
     const [previewPosts, setPreviewPosts] = useState([]);
     const [selectedStyleElement, setSelectedStyleElement] = useState('');
+    const [paged, setPaged] = useState(1);
+    const [totalPages, setTotalPages] = useState(1);
     
     // Taxonomy API loading state
     const [taxonomies, setTaxonomies] = useState([]);
@@ -616,20 +618,32 @@ export default function Edit({ attributes, setAttributes, clientId }) {
     }, [templateId]);
 
     useEffect(() => {
+        setPaged(1);
+    }, [mode, postType, taxonomy, termId, postsPerPage, templateId]);
+
+    useEffect(() => {
         if (mode === 'query') {
             const route = postType === 'events' ? 'events' : (postType === 'page' ? 'pages' : 'posts');
-            let path = `/wp/v2/${route}?per_page=${postsPerPage}&_embed=true`;
+            let path = `/wp/v2/${route}?per_page=${postsPerPage}&_embed=true&page=${paged}`;
             if (taxonomy && termId) {
                 // To fetch filtered posts, we need to know the term's taxonomy query var, we'll rough it in preview
                 path += `&${taxonomy}=${termId}`;
             }
-            apiFetch({ path }).then(posts => {
+            apiFetch({ path, parse: false }).then(res => {
+                const total = res.headers.get('x-wp-totalpages');
+                setTotalPages(total ? parseInt(total, 10) : 1);
+                return res.json();
+            }).then(posts => {
                 setPreviewPosts(posts);
-            }).catch(() => setPreviewPosts([]));
+            }).catch(() => {
+                setPreviewPosts([]);
+                setTotalPages(1);
+            });
         } else {
             setPreviewPosts([]);
+            setTotalPages(1);
         }
-    }, [mode, postType, taxonomy, termId, postsPerPage, templateId]);
+    }, [mode, postType, taxonomy, termId, postsPerPage, templateId, paged]);
 
     // Fetch taxonomies for the post type
     useEffect(() => {
@@ -817,6 +831,75 @@ export default function Edit({ attributes, setAttributes, clientId }) {
                             checked={pagination}
                             onChange={(val) => setAttributes({ pagination: val })}
                         />
+                        {pagination && (
+                            <ToggleControl
+                                label={__('Show Prev/Next Text')}
+                                checked={showPaginationText !== false}
+                                onChange={(val) => setAttributes({ showPaginationText: val })}
+                            />
+                        )}
+                        {pagination && (
+                            <>
+                                <div style={{ marginBottom: '24px' }}>
+                                    <div style={{ fontSize: '11px', fontWeight: 600, textTransform: 'uppercase', marginBottom: '8px', color: '#1e1e1e' }}>
+                                        {__('Pagination Font Size', 'reusable-component-builder')}
+                                    </div>
+                                    <div style={{ display: 'flex', alignItems: 'flex-start', gap: '8px', marginBottom: '8px' }}>
+                                        <div style={{ flex: 1 }}>
+                                            <TextControl
+                                                type="number"
+                                                value={paginationFontSize ? parseFloat(paginationFontSize) : 1}
+                                                onChange={(val) => setAttributes({ paginationFontSize: val ? `${val}${paginationFontSize ? (paginationFontSize.match(/[a-zA-Z%]+/) || ['rem'])[0] : 'rem'}` : '1rem' })}
+                                                __nextHasNoMarginBottom={true}
+                                            />
+                                        </div>
+                                        <div style={{ width: '80px' }}>
+                                            <SelectControl
+                                                value={paginationFontSize ? (paginationFontSize.match(/[a-zA-Z%]+/) || ['rem'])[0] : 'rem'}
+                                                options={[{ label: 'PX', value: 'px' }, { label: 'EM', value: 'em' }, { label: 'REM', value: 'rem' }, { label: 'VW', value: 'vw' }]}
+                                                onChange={(newUnit) => setAttributes({ paginationFontSize: `${paginationFontSize ? parseFloat(paginationFontSize) : 1}${newUnit}` })}
+                                                __nextHasNoMarginBottom={true}
+                                            />
+                                        </div>
+                                    </div>
+                                    <RangeControl
+                                        value={paginationFontSize ? parseFloat(paginationFontSize) : 1}
+                                        onChange={(val) => setAttributes({ paginationFontSize: `${val}${paginationFontSize ? (paginationFontSize.match(/[a-zA-Z%]+/) || ['rem'])[0] : 'rem'}` })}
+                                        step={paginationFontSize && paginationFontSize.includes('px') ? 1 : 0.1}
+                                        min={paginationFontSize && paginationFontSize.includes('px') ? 10 : 0.5}
+                                        max={paginationFontSize && paginationFontSize.includes('px') ? 100 : 10}
+                                        withInputField={false}
+                                        __nextHasNoMarginBottom={true}
+                                    />
+                                </div>
+                                <PanelColorSettings
+                                    title={__('Pagination Color Settings', 'reusable-component-builder')}
+                                    initialOpen={false}
+                                    colorSettings={[
+                                        {
+                                            value: paginationTextColor || '',
+                                            onChange: (val) => setAttributes({ paginationTextColor: val }),
+                                            label: __('Text Color'),
+                                        },
+                                        {
+                                            value: paginationBgColor || '',
+                                            onChange: (val) => setAttributes({ paginationBgColor: val }),
+                                            label: __('Background Color'),
+                                        },
+                                        {
+                                            value: paginationActiveTextColor || '',
+                                            onChange: (val) => setAttributes({ paginationActiveTextColor: val }),
+                                            label: __('Active Text Color'),
+                                        },
+                                        {
+                                            value: paginationActiveBgColor || '',
+                                            onChange: (val) => setAttributes({ paginationActiveBgColor: val }),
+                                            label: __('Active Background Color'),
+                                        }
+                                    ]}
+                                />
+                            </>
+                        )}
                         
                         <div style={{marginTop: '20px', padding: '10px', background: '#f0f0f0', borderRadius: '4px'}}>
                             <strong>Dynamic Rendering Note:</strong>
@@ -1710,15 +1793,63 @@ export default function Edit({ attributes, setAttributes, clientId }) {
                             </div>
                         ) : (
                             mode === 'query' ? (
-                                previewPosts.length > 0 ? previewPosts.map((post, idx) => (
-                                    <div
-                                        key={`post-${idx}`}
-                                        className={`rcb-instance rcb-instance-${uniqueId}${loopItemExtraClass ? ' ' + loopItemExtraClass : ''}`}
-                                        style={loopItemExtraStyle}
-                                    >
-                                        {renderPreviewNodes(loopNodes, post)}
-                                    </div>
-                                )) : <div style={{padding: '20px', background: '#e0e0e0'}}>Loading posts...</div>
+                                previewPosts.length > 0 ? (
+                                    <>
+                                        {previewPosts.map((post, idx) => (
+                                            <div
+                                                key={`post-${idx}`}
+                                                className={`rcb-instance rcb-instance-${uniqueId}${loopItemExtraClass ? ' ' + loopItemExtraClass : ''}`}
+                                                style={loopItemExtraStyle}
+                                            >
+                                                {renderPreviewNodes(loopNodes, post)}
+                                            </div>
+                                        ))}
+                                        {pagination && totalPages > 1 && (() => {
+                                            const pages = [];
+                                            for (let i = 1; i <= totalPages; i++) {
+                                                pages.push(i);
+                                            }
+                                            const leftArrowSvg = <svg width="1em" height="1em" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" style={{display:'block'}}><path d="M19 12H5M5 12L11 6M5 12L11 18" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>;
+                                            const rightArrowSvg = <svg width="1em" height="1em" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" style={{display:'block'}}><path d="M5 12H19M19 12L13 6M19 12L13 18" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>;
+
+                                            return (
+                                                <div className="rcb-pagination" style={{
+                                                    display: 'flex', gap: '5px', width: '100%', justifyContent: 'space-between', gridColumn: '1 / -1', flexWrap: 'wrap', alignItems: 'center',
+                                                    marginTop: '20px', fontSize: paginationFontSize || '1rem'
+                                                }}>
+                                                    <span onClick={() => paged > 1 && setPaged(paged - 1)} style={{
+                                                        padding: '8px 16px', border: '1px solid #ccc', cursor: paged > 1 ? 'pointer' : 'not-allowed', textDecoration: 'none',
+                                                        backgroundColor: paginationBgColor || '#fff', color: paginationTextColor || '#333',
+                                                        display: 'inline-flex', alignItems: 'center', gap: '4px', opacity: paged > 1 ? 1 : 0.5
+                                                    }}>
+                                                        {leftArrowSvg} {showPaginationText !== false && 'Previous'}
+                                                    </span>
+                                                    
+                                                    <div style={{ display: 'flex', gap: '5px', justifyContent: 'center' }}>
+                                                        {pages.map(i => (
+                                                            <span key={`pg-${i}`} onClick={() => setPaged(i)} style={{
+                                                                padding: '8px 16px', border: '1px solid #ccc', cursor: 'pointer', textDecoration: 'none',
+                                                                backgroundColor: paged === i ? (paginationActiveBgColor || '#c82333') : (paginationBgColor || '#fff'),
+                                                                color: paged === i ? (paginationActiveTextColor || '#fff') : (paginationTextColor || '#333'),
+                                                                display: 'inline-flex', alignItems: 'center', justifyContent: 'center'
+                                                            }}>
+                                                                {i}
+                                                            </span>
+                                                        ))}
+                                                    </div>
+
+                                                    <span onClick={() => paged < totalPages && setPaged(paged + 1)} style={{
+                                                        padding: '8px 16px', border: '1px solid #ccc', cursor: paged < totalPages ? 'pointer' : 'not-allowed', textDecoration: 'none',
+                                                        backgroundColor: paginationBgColor || '#fff', color: paginationTextColor || '#333',
+                                                        display: 'inline-flex', alignItems: 'center', gap: '4px', opacity: paged < totalPages ? 1 : 0.5
+                                                    }}>
+                                                        {showPaginationText !== false && 'Next'} {rightArrowSvg}
+                                                    </span>
+                                                </div>
+                                            );
+                                        })()}
+                                    </>
+                                ) : <div style={{padding: '20px', background: '#e0e0e0'}}>Loading posts...</div>
                             ) : (
                                 <div className={`rcb-instance rcb-instance-${uniqueId}`}>
                                     {renderPreviewNodes(structureNodes)}

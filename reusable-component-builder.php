@@ -15,9 +15,9 @@ define('RCB_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('RCB_PLUGIN_URL', plugin_dir_url(__FILE__));
 define('RCB_VERSION', '1.0.0');
 
-// Include Core Files removed
 require_once RCB_PLUGIN_DIR . 'cpt/component-template.php';
 require_once RCB_PLUGIN_DIR . 'core/renderer.php';
+require_once RCB_PLUGIN_DIR . 'core/ajax-handler.php';
 
 // Initialize Block //
 function rcb_register_blocks()
@@ -107,3 +107,13 @@ function rcb_get_all_templates()
 	}
 	return rest_ensure_response($data);
 }
+
+function rcb_enqueue_frontend_scripts() {
+	$version = file_exists( RCB_PLUGIN_DIR . 'assets/js/rcb-frontend.js' ) ? filemtime( RCB_PLUGIN_DIR . 'assets/js/rcb-frontend.js' ) : RCB_VERSION;
+	wp_enqueue_script( 'rcb-frontend-js', RCB_PLUGIN_URL . 'assets/js/rcb-frontend.js', array('jquery'), $version, true );
+	wp_localize_script( 'rcb-frontend-js', 'rcbAjax', array(
+		'ajaxurl' => admin_url( 'admin-ajax.php' ),
+		'nonce'   => wp_create_nonce('rcb_ajax_nonce')
+	));
+}
+add_action( 'wp_enqueue_scripts', 'rcb_enqueue_frontend_scripts' );

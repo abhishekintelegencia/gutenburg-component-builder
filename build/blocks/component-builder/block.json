@@ -60,6 +60,30 @@
       "type": "boolean",
       "default": false
     },
+    "showPaginationText": {
+      "type": "boolean",
+      "default": true
+    },
+    "paginationFontSize": {
+      "type": "string",
+      "default": "1rem"
+    },
+    "paginationTextColor": {
+      "type": "string",
+      "default": ""
+    },
+    "paginationBgColor": {
+      "type": "string",
+      "default": ""
+    },
+    "paginationActiveTextColor": {
+      "type": "string",
+      "default": ""
+    },
+    "paginationActiveBgColor": {
+      "type": "string",
+      "default": ""
+    },
     "visibilityVars": {
       "type": "object",
       "default": {

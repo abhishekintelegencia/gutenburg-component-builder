@@ -202,11 +202,23 @@ function rcb_render_component_builder_block( $attributes, $content ) {
 		$layout         = isset( $attributes['layout'] ) ? $attributes['layout'] : 'grid';
 		$columns        = isset( $attributes['columns'] ) ? intval( $attributes['columns'] ) : 3;
 		$pagination     = isset( $attributes['pagination'] ) ? $attributes['pagination'] : false;
+		$showPaginationText = isset( $attributes['showPaginationText'] ) ? $attributes['showPaginationText'] : true;
+		$paginationFontSize = ! empty( $attributes['paginationFontSize'] ) ? esc_html( $attributes['paginationFontSize'] ) : '1rem';
+		$paginationText   = ! empty( $attributes['paginationTextColor'] ) ? esc_html( $attributes['paginationTextColor'] ) : '#333';
+		$paginationBg      = isset( $attributes['paginationBgColor'] ) && ! empty( $attributes['paginationBgColor'] ) ? $attributes['paginationBgColor'] : '#fff';
+		$paginationActBg   = isset( $attributes['paginationActiveBgColor'] ) && ! empty( $attributes['paginationActiveBgColor'] ) ? $attributes['paginationActiveBgColor'] : '#c82333';
+		$paginationActText = ! empty( $attributes['paginationActiveTextColor'] ) ? esc_html( $attributes['paginationActiveTextColor'] ) : '#fff';
 
 		$paged = 1;
 		if ( $pagination ) {
-			if ( ! is_singular() ) {
-				$paged = ( get_query_var( 'paged' ) ) ? get_query_var( 'paged' ) : 1;
+			if ( wp_doing_ajax() && isset( $_POST['paged'] ) ) {
+				$paged = intval( $_POST['paged'] );
+			} elseif ( get_query_var( 'paged' ) ) {
+				$paged = get_query_var( 'paged' );
+			} elseif ( get_query_var( 'page' ) ) {
+				$paged = get_query_var( 'page' );
+			} else {
+				$paged = 1;
 			}
 		}
 
@@ -366,9 +378,10 @@ function rcb_render_component_builder_block( $attributes, $content ) {
 			}
 
 			$final_output .= sprintf(
-				'<div class="rcb-loop-wrapper rcb-layout-%s rcb-instance-%s" %s>',
+				'<div class="rcb-loop-wrapper rcb-layout-%s rcb-instance-%s" data-rcb-attributes=\'%s\' %s>',
 				esc_attr( $layout ),
 				esc_attr( $unique_id ),
+				esc_attr( wp_json_encode( $attributes ) ),
 				$wrapper_style
 			);
 
@@ -389,18 +402,68 @@ function rcb_render_component_builder_block( $attributes, $content ) {
 				$final_output .= '</div>';
 			}
 
-			$final_output .= '</div>';
-
 			if ( $pagination ) {
-				$final_output .= '<div class="rcb-pagination" style="margin-top:20px;">';
-				$final_output .= paginate_links( array(
+				$style_registry .= "
+					.rcb-instance-{$unique_id}-pagination { display: flex; gap: 5px; margin-top: 20px; width: 100%; justify-content: space-between; align-items: center; grid-column: 1 / -1; flex-wrap: wrap; font-size: {$paginationFontSize}; }
+					.rcb-instance-{$unique_id}-pagination a.page-numbers, .rcb-instance-{$unique_id}-pagination span.page-numbers {
+						padding: 8px 16px; border: 1px solid #ccc; cursor: pointer; text-decoration: none;
+						background-color: {$paginationBg}; color: {$paginationText}; transition: all 0.3s ease;
+						display: inline-flex; align-items: center; justify-content: center; gap: 4px;
+					}
+					.rcb-instance-{$unique_id}-pagination a.page-numbers:hover {
+						background-color: #f5f5f5; color: #111;
+					}
+					.rcb-instance-{$unique_id}-pagination span.current, .rcb-instance-{$unique_id}-pagination .page-numbers.current {
+						background-color: {$paginationActBg} !important; color: {$paginationActText} !important; border-color: {$paginationActBg} !important;
+					}
+					.rcb-instance-{$unique_id}-pagination .rcb-disabled {
+						opacity: 0.5; cursor: not-allowed; pointer-events: none;
+					}
+				";
+
+                $left_arrow = '<svg width="1em" height="1em" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" style="display:block;"><path d="M19 12H5M5 12L11 6M5 12L11 18" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+                $right_arrow = '<svg width="1em" height="1em" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" style="display:block;"><path d="M5 12H19M19 12L13 6M19 12L13 18" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+
+                $prev_content = $showPaginationText ? $left_arrow . ' ' . __( 'Previous', 'reusable-component-builder' ) : $left_arrow;
+                $next_content = $showPaginationText ? __( 'Next', 'reusable-component-builder' ) . ' ' . $right_arrow : $right_arrow;
+
+				$final_output .= sprintf( '<div class="rcb-pagination rcb-instance-%s-pagination" data-rcb-attributes=\'%s\'>', esc_attr( $unique_id ), esc_attr( wp_json_encode( $attributes ) ) );
+
+				// Prev
+				if ( $paged > 1 ) {
+					$prev_url = get_pagenum_link( $paged - 1 );
+					$final_output .= sprintf( '<a class="prev page-numbers rcb-btn-edge" href="%s">%s</a>', esc_url( $prev_url ), $prev_content );
+				} else {
+					$final_output .= sprintf( '<span class="prev page-numbers rcb-btn-edge rcb-disabled">%s</span>', $prev_content );
+				}
+
+				// Numbers
+				$final_output .= '<div class="rcb-page-numbers-inner" style="display:flex;gap:5px;justify-content:center;">';
+				$pages = paginate_links( array(
 					'total'     => $query->max_num_pages,
 					'current'   => $paged,
-					'prev_text' => __( '&laquo; Previous' ),
-					'next_text' => __( 'Next &raquo;' ),
+					'type'      => 'array',
+					'prev_next' => false,
 				) );
+				if ( is_array( $pages ) ) {
+					foreach ( $pages as $page ) {
+						$final_output .= $page;
+					}
+				}
 				$final_output .= '</div>';
+
+				// Next
+				if ( $paged < $query->max_num_pages ) {
+					$next_url = get_pagenum_link( $paged + 1 );
+					$final_output .= sprintf( '<a class="next page-numbers rcb-btn-edge" href="%s">%s</a>', esc_url( $next_url ), $next_content );
+				} else {
+					$final_output .= sprintf( '<span class="next page-numbers rcb-btn-edge rcb-disabled">%s</span>', $next_content );
+				}
+
+				$final_output .= '</div>'; // End pagination container
 			}
+
+			$final_output .= '</div>'; // End array Loop wrapper
 
 			wp_reset_postdata();
 		} else {
