@@ -514,14 +514,49 @@ const renderVisualStructure = (nodes, post, parentContext, context) => {
                     const py = nodeStyles.paddingY !== undefined ? `${nodeStyles.paddingY}rem` : '0.5rem';
                     btnStyles.padding = `${py} ${px}`;
                 }
+
+                // Handle Advanced Button Settings (match renderer.php)
+                if (!btnStyles.borderRadius && nodeStyles.borderRadiusRem) {
+                    btnStyles.borderRadius = `${nodeStyles.borderRadiusRem}rem`;
+                }
+                if (!btnStyles.border && nodeStyles.borderWidthRem) {
+                    btnStyles.borderWidth = `${nodeStyles.borderWidthRem}rem`;
+                    if (!btnStyles.borderStyle) btnStyles.borderStyle = 'solid';
+                }
+
+                // Strip color/bg/border/radius props from inline style — the global <style> block handles these
+                // with !important for proper specificity in the editor (inline styles always win otherwise)
+                delete btnStyles.color;
+                delete btnStyles.backgroundColor;
+                delete btnStyles.borderColor;
+                delete btnStyles.borderRadius;
+
                 const alignMap = { 'start': 'flex-start', 'center': 'center', 'end': 'flex-end', 'default': 'flex-start', 'left': 'flex-start', 'right': 'flex-end' };
                 const wrapperStyles = { 
                     display: 'flex', 
-                    justify: alignMap[nodeStyles.textAlign || nodeStyles.buttonAlign || 'start'] || 'flex-start',
+                    justifyContent: alignMap[nodeStyles.textAlign || nodeStyles.buttonAlign || 'start'] || 'flex-start',
                     width: '100%'
                 };
                 const iconMode = content[`${node.field}_icon_mode`] || 'Default';
                 const iconSize = parseFloat(nodeStyles.iconSize) || 0.8;
+
+                // Icon inline styles — color/bg are overridden via global style block too
+                const iconInlineStyle = {
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    borderRadius: '50%',
+                    fontSize: `${iconSize}em`,
+                    lineHeight: 1,
+                    marginLeft: iconMode === 'Icon with Bg' ? '4px' : '0',
+                    transition: 'all 0.3s ease-in-out',
+                    ...(iconMode === 'Icon with Bg' ? {
+                        width: `${iconSize * 1.875}em`,
+                        height: `${iconSize * 1.875}em`,
+                        borderWidth: `${nodeStyles.iconBorderWidth || 0.1}rem`,
+                        borderStyle: 'solid',
+                    } : {}),
+                };
                 
                 return (
                     <div key={i} style={wrapperStyles} className="rcb-button-wrapper">
@@ -532,6 +567,11 @@ const renderVisualStructure = (nodes, post, parentContext, context) => {
                                 ${nodeStyles.hoverBorderColor ? `border-color: ${nodeStyles.hoverBorderColor} !important;` : ''}
                                 ${nodeStyles.hoverUnderline ? 'text-decoration: underline !important;' : ''}
                             }
+                            .rcb-button-wrapper .rcb-button.${node.id}:hover .rcb-button-icon {
+                                ${nodeStyles.iconHoverBgColor ? `background-color: ${nodeStyles.iconHoverBgColor} !important;` : ''}
+                                ${nodeStyles.iconHoverColor ? `color: ${nodeStyles.iconHoverColor} !important;` : ''}
+                                ${nodeStyles.iconHoverBorderColor ? `border-color: ${nodeStyles.iconHoverBorderColor} !important;` : ''}
+                            }
                         `}</style>
                         <a 
                             href={url || '#'} 
@@ -541,7 +581,7 @@ const renderVisualStructure = (nodes, post, parentContext, context) => {
                         >
                             {nodeContent}
                             {iconMode !== 'Default' && (
-                                <span className="rcb-button-icon" style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', background: iconMode === 'Icon with Bg' ? (nodeStyles.iconBgColor || '#f0f0f0') : 'transparent', color: nodeStyles.iconColor || 'inherit', borderRadius: '50%', width: iconMode === 'Icon with Bg' ? `${iconSize * 1.875}em` : 'auto', height: iconMode === 'Icon with Bg' ? `${iconSize * 1.875}em` : 'auto', border: iconMode === 'Icon with Bg' ? `${nodeStyles.iconBorderWidth || 0.1}rem solid ${nodeStyles.iconBorderColor || 'transparent'}` : 'none', fontSize: `${iconSize}em`, lineHeight: 1, marginLeft: iconMode === 'Icon with Bg' ? '4px' : '0', transition: 'all 0.3s ease-in-out' }}>
+                                <span className="rcb-button-icon" style={iconInlineStyle}>
                                     <svg width="1em" height="1em" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ display: 'block' }}><path d="M5 12H19M19 12L13 6M19 12L13 18" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>
                                 </span>
                             )}
@@ -736,14 +776,46 @@ export default function Edit({ attributes, setAttributes, clientId }) {
                 {configurableFields.map(node => {
                     const nodeStyle = styles[node.field] || {};
                     let css = '';
-                    if (nodeStyle.fontWeight) {
-                        css += `.rcb-instance-${uniqueId} .${node.id} { font-weight: ${nodeStyle.fontWeight} !important; } `;
+                    const r = (val) => getResponsiveValue(val, deviceMode);
+
+                    if (r(nodeStyle.fontWeight)) {
+                        css += `.rcb-instance-${uniqueId} .${node.id} { font-weight: ${r(nodeStyle.fontWeight)} !important; } `;
                     }
-                    if (nodeStyle.lineHeight) {
-                        css += `.rcb-instance-${uniqueId} .${node.id} { line-height: ${nodeStyle.lineHeight} !important; } `;
+                    if (r(nodeStyle.lineHeight)) {
+                        css += `.rcb-instance-${uniqueId} .${node.id} { line-height: ${r(nodeStyle.lineHeight)} !important; } `;
                     }
-                    if (nodeStyle.letterSpacing) {
-                        css += `.rcb-instance-${uniqueId} .${node.id} { letter-spacing: ${nodeStyle.letterSpacing} !important; } `;
+                    if (r(nodeStyle.letterSpacing)) {
+                        css += `.rcb-instance-${uniqueId} .${node.id} { letter-spacing: ${r(nodeStyle.letterSpacing)} !important; } `;
+                    }
+                    if (r(nodeStyle.color)) {
+                        css += `.rcb-instance-${uniqueId} .${node.id} { color: ${r(nodeStyle.color)} !important; } `;
+                    }
+                    if (r(nodeStyle.backgroundColor)) {
+                        css += `.rcb-instance-${uniqueId} .${node.id} { background-color: ${r(nodeStyle.backgroundColor)} !important; } `;
+                    }
+                    if (r(nodeStyle.borderColor)) {
+                        css += `.rcb-instance-${uniqueId} .${node.id} { border-color: ${r(nodeStyle.borderColor)} !important; } `;
+                    }
+                    // border-radius: support both the generic borderRadius and the advanced borderRadiusRem
+                    const _radius = r(nodeStyle.borderRadius) || (r(nodeStyle.borderRadiusRem) ? `${r(nodeStyle.borderRadiusRem)}rem` : '');
+                    if (_radius) {
+                        css += `.rcb-instance-${uniqueId} .${node.id} { border-radius: ${_radius} !important; } `;
+                    }
+                    if (r(nodeStyle.borderWidthRem)) {
+                        css += `.rcb-instance-${uniqueId} .${node.id} { border-width: ${r(nodeStyle.borderWidthRem)}rem !important; border-style: solid !important; } `;
+                    }
+                    // Icon Styles with High Specificity
+                    if (r(nodeStyle.iconColor)) {
+                        css += `.rcb-instance-${uniqueId} .${node.id} .rcb-button-icon { color: ${r(nodeStyle.iconColor)} !important; } `;
+                    }
+                    if (r(nodeStyle.iconBgColor)) {
+                        css += `.rcb-instance-${uniqueId} .${node.id} .rcb-button-icon { background-color: ${r(nodeStyle.iconBgColor)} !important; } `;
+                    }
+                    if (r(nodeStyle.iconBorderColor)) {
+                        css += `.rcb-instance-${uniqueId} .${node.id} .rcb-button-icon { border-color: ${r(nodeStyle.iconBorderColor)} !important; } `;
+                    }
+                    if (r(nodeStyle.iconBorderWidth)) {
+                        css += `.rcb-instance-${uniqueId} .${node.id} .rcb-button-icon { border-width: ${r(nodeStyle.iconBorderWidth)}rem !important; border-style: solid !important; } `;
                     }
                     return css;
                 }).join('\n')}

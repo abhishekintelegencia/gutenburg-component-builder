@@ -625,8 +625,9 @@ function rcb_render_visual_nodes_with_visibility( $nodes, $content_data, $styles
 			if ( isset( $raw_styles['hoverBgColor'] ) && ! empty( $raw_styles['hoverBgColor'] ) ) {
 				$hover_css .= "background-color: {$raw_styles['hoverBgColor']} !important;";
 			}
-			if ( isset( $raw_styles['hoverTextColor'] ) && ! empty( $raw_styles['hoverTextColor'] ) ) {
-				$hover_css .= "color: {$raw_styles['hoverTextColor']} !important;";
+			if ( ( isset( $raw_styles['hoverTextColor'] ) && ! empty( $raw_styles['hoverTextColor'] ) ) || ( isset( $raw_styles['hoverColor'] ) && ! empty( $raw_styles['hoverColor'] ) ) ) {
+				$h_text_color = ! empty( $raw_styles['hoverColor'] ) ? $raw_styles['hoverColor'] : $raw_styles['hoverTextColor'];
+				$hover_css .= "color: {$h_text_color} !important;";
 			}
 			if ( ! empty( $raw_styles['hoverUnderline'] ) ) {
 				$hover_css .= "text-decoration: underline !important;";
@@ -888,12 +889,15 @@ function rcb_render_visual_nodes_with_visibility( $nodes, $content_data, $styles
 				}
 
 				// Icon Hover
-				$hi_bg  = isset( $raw_styles['iconHoverBgColor'] ) ? $raw_styles['iconHoverBgColor'] : '';
-				$hi_col = isset( $raw_styles['iconHoverColor'] ) ? $raw_styles['iconHoverColor'] : '';
-				if ( $hi_bg || $hi_col ) {
+				$hi_bg     = isset( $raw_styles['iconHoverBgColor'] ) ? $raw_styles['iconHoverBgColor'] : '';
+				$hi_col    = isset( $raw_styles['iconHoverColor'] ) ? $raw_styles['iconHoverColor'] : '';
+				$hi_bd_col = isset( $raw_styles['iconHoverBorderColor'] ) ? $raw_styles['iconHoverBorderColor'] : '';
+				
+				if ( $hi_bg || $hi_col || $hi_bd_col ) {
 					$hover_css .= ".{$btn_css_id}:hover .rcb-button-icon {";
 					if ( $hi_bg ) $hover_css .= "background-color:{$hi_bg} !important;";
 					if ( $hi_col ) $hover_css .= "color:{$hi_col} !important;";
+					if ( $hi_bd_col ) $hover_css .= "border-color:{$hi_bd_col} !important;";
 					$hover_css .= "}";
 				}
 
