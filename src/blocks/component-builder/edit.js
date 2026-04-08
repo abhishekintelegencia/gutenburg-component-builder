@@ -421,20 +421,18 @@ const renderVisualStructure = (nodes, post, parentContext, context) => {
         } else if (mode !== 'query' && node.dynamicSource) {
             const source = node.dynamicSource;
             if (source === 'post_title') {
-                nodeContent = currentPostTitle || 'Post Title';
+                nodeContent = (content[node.field] && content[node.field].length > 0) ? content[node.field] : (currentPostTitle || 'Post Title');
             } else if (source === 'post_excerpt') {
-                nodeContent = currentPostExcerpt?.replace(/(<([^>]+)>)/gi, "") || 'Post Excerpt';
+                nodeContent = (content[node.field] && content[node.field].length > 0) ? content[node.field] : (currentPostExcerpt?.replace(/(<([^>]+)>)/gi, "") || 'Post Excerpt');
             } else if (source === 'post_date') {
-                nodeContent = currentPostDate ? new Date(currentPostDate).toLocaleDateString() : 'Post Date';
+                nodeContent = (content[node.field] && content[node.field].length > 0) ? content[node.field] : (currentPostDate ? new Date(currentPostDate).toLocaleDateString() : 'Post Date');
             } else if (source === 'post_author') {
-                nodeContent = currentPostAuthorName || 'Post Author';
+                nodeContent = (content[node.field] && content[node.field].length > 0) ? content[node.field] : (currentPostAuthorName || 'Post Author');
             } else if (source === 'featured_image') {
-                url = content[`${node.field}_url`] || 'https://via.placeholder.com/600x400?text=Featured+Image';
+                url = (content[`${node.field}_url`] && content[`${node.field}_url`].length > 0) ? content[`${node.field}_url`] : (content[`${node.field}_url`] || 'https://via.placeholder.com/600x400?text=Featured+Image');
             } else if (source === 'permalink') {
                 nodeContent = content[node.field] || __('Read More', 'reusable-component-builder');
                 url = content[`${node.field}_url`] || '#';
-            } else if (source === 'term') {
-                nodeContent = content[node.field] || `[Term: ${node.dynamicField}]`;
             } else if (source === 'custom_meta') {
                 const metaKey = node.dynamicField;
                 let metaVal = currentPostMeta[metaKey] || (currentPostACF && currentPostACF[metaKey]);
