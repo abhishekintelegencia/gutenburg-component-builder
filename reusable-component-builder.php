@@ -48,14 +48,26 @@ add_action('rest_api_init', 'rcb_register_template_rest_route');
  */
 function rcb_inject_meta_into_rest( $response, $post, $request ) {
 	$data = $response->get_data();
+	$existing_meta = isset( $data['meta'] ) && is_array( $data['meta'] ) ? $data['meta'] : array();
 	$raw_meta = get_post_meta( $post->ID );
-	$flattened = array();
+	
 	foreach ( $raw_meta as $key => $values ) {
 		// Skip private/internal keys
 		if ( strpos( $key, '_' ) === 0 ) continue;
-		$flattened[ $key ] = ( is_array( $values ) && count( $values ) === 1 ) ? $values[0] : $values;
+		
+		// CRITICAL: Do not overwrite meta keys that are already correctly formatted 
+		// by WordPress core according to their registered REST API schema.
+		// This prevents "ast-page-background-meta is not of type object" errors.
+		if ( array_key_exists( $key, $existing_meta ) ) continue;
+
+		if ( is_array( $values ) && count( $values ) === 1 ) {
+			$existing_meta[ $key ] = $values[0];
+		} else {
+			$existing_meta[ $key ] = $values;
+		}
 	}
-	$data['meta'] = $flattened;
+	
+	$data['meta'] = $existing_meta;
 	$response->set_data( $data );
 	return $response;
 }

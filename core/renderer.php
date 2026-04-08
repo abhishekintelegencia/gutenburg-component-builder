@@ -753,7 +753,9 @@ function rcb_render_visual_nodes_with_visibility( $nodes, $content_data, $styles
 				break;
 
 			case 'heading':
-				if ( ! empty( $dynamic_source ) && $post ) {
+				if ( ! empty( $content_data[ $field ] ) ) {
+					$node_content = $content_data[ $field ];
+				} elseif ( ! empty( $dynamic_source ) && $post ) {
 					if ( $dynamic_source === 'post_title' ) {
 						$node_content = get_the_title( $post );
 					} elseif ( $dynamic_source === 'post_excerpt' ) {
@@ -768,16 +770,18 @@ function rcb_render_visual_nodes_with_visibility( $nodes, $content_data, $styles
 					} elseif ( $dynamic_source === 'custom_meta' ) {
 						$node_content = get_post_meta( $post->ID, $dynamic_field, true );
 					} else {
-						$node_content = isset( $content_data[ $field ] ) ? $content_data[ $field ] : '';
+						$node_content = '';
 					}
 				} else {
-					$node_content = isset( $content_data[ $field ] ) ? $content_data[ $field ] : '';
+					$node_content = '';
 				}
 				$html .= sprintf( '<h2 class="rcb-heading %s" %s>%s</h2>', esc_attr( $id ), $style_attr, esc_html( $node_content ) );
 				break;
 
 			case 'text':
-				if ( ! empty( $dynamic_source ) && $post ) {
+				if ( ! empty( $content_data[ $field ] ) ) {
+					$node_content = $content_data[ $field ];
+				} elseif ( ! empty( $dynamic_source ) && $post ) {
 					if ( $dynamic_source === 'post_title' ) {
 						$node_content = get_the_title( $post );
 					} elseif ( $dynamic_source === 'post_excerpt' ) {
@@ -792,10 +796,10 @@ function rcb_render_visual_nodes_with_visibility( $nodes, $content_data, $styles
 					} elseif ( $dynamic_source === 'custom_meta' ) {
 						$node_content = get_post_meta( $post->ID, $dynamic_field, true );
 					} else {
-						$node_content = isset( $content_data[ $field ] ) ? $content_data[ $field ] : '';
+						$node_content = '';
 					}
 				} else {
-					$node_content = isset( $content_data[ $field ] ) ? $content_data[ $field ] : '';
+					$node_content = '';
 				}
 				$html .= sprintf( '<div class="rcb-text %s" %s>%s</div>', esc_attr( $id ), $style_attr, wp_kses_post( $node_content ) );
 				break;
@@ -803,20 +807,17 @@ function rcb_render_visual_nodes_with_visibility( $nodes, $content_data, $styles
 			case 'image':
 				$url = '';
 				$alt = '';
-				if ( ! empty( $dynamic_source ) && $post ) {
+				if ( ! empty( $content_data[ $field . '_url' ] ) ) {
+					$url = $content_data[ $field . '_url' ];
+					$alt = isset( $content_data[ $field ] ) ? $content_data[ $field ] : '';
+				} elseif ( ! empty( $dynamic_source ) && $post ) {
 					if ( $dynamic_source === 'featured_image' ) {
 						$url = get_the_post_thumbnail_url( $post, 'large' );
 						$alt = get_the_title( $post );
 					} elseif ( $dynamic_source === 'custom_meta' ) {
 						$url = get_post_meta( $post->ID, $dynamic_field, true );
 						$alt = 'Custom Image';
-					} else {
-						$url = isset( $content_data[ $field . '_url' ] ) ? $content_data[ $field . '_url' ] : '';
-						$alt = isset( $content_data[ $field ] ) ? $content_data[ $field ] : '';
 					}
-				} else {
-					$url = isset( $content_data[ $field . '_url' ] ) ? $content_data[ $field . '_url' ] : '';
-					$alt = isset( $content_data[ $field ] ) ? $content_data[ $field ] : '';
 				}
 
 				if ( $url ) {
@@ -830,18 +831,26 @@ function rcb_render_visual_nodes_with_visibility( $nodes, $content_data, $styles
 				break;
 
 			case 'button':
-				if ( ! empty( $dynamic_source ) && $post ) {
+				$btn_url = '';
+				$node_content = '';
+				
+				if ( ! empty( $content_data[ $field . '_url' ] ) ) {
+					$btn_url = $content_data[ $field . '_url' ];
+				} elseif ( ! empty( $dynamic_source ) && $post ) {
 					if ( $dynamic_source === 'permalink' ) {
 						$btn_url = get_permalink( $post );
 					} elseif ( $dynamic_source === 'custom_meta' ) {
 						$btn_url = get_post_meta( $post->ID, $dynamic_field, true );
-					} else {
-						$btn_url = isset( $content_data[ $field . '_url' ] ) ? $content_data[ $field . '_url' ] : '#';
 					}
-					$node_content = isset( $content_data[ $field ] ) && ! empty( $content_data[ $field ] ) ? $content_data[ $field ] : __( 'Read More', 'reusable-component-builder' );
+				}
+				if ( empty( $btn_url ) ) $btn_url = '#';
+
+				if ( ! empty( $content_data[ $field ] ) ) {
+					$node_content = $content_data[ $field ];
+				} elseif ( ! empty( $dynamic_source ) ) {
+					$node_content = __( 'Read More', 'reusable-component-builder' );
 				} else {
-					$btn_url      = isset( $content_data[ $field . '_url' ] ) ? $content_data[ $field . '_url' ] : '#';
-					$node_content = isset( $content_data[ $field ] ) ? $content_data[ $field ] : 'Button';
+					$node_content = 'Button';
 				}
 
 				$btn_target = isset( $content_data[ $field . '_target' ] ) ? $content_data[ $field . '_target' ] : '_self';

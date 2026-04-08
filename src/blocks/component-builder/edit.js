@@ -429,22 +429,30 @@ const renderVisualStructure = (nodes, post, parentContext, context) => {
             } else if (source === 'post_author') {
                 nodeContent = currentPostAuthorName || 'Post Author';
             } else if (source === 'featured_image') {
-                url = 'https://via.placeholder.com/600x400?text=Featured+Image';
+                url = content[`${node.field}_url`] || 'https://via.placeholder.com/600x400?text=Featured+Image';
             } else if (source === 'permalink') {
                 nodeContent = content[node.field] || __('Read More', 'reusable-component-builder');
-                url = '#';
+                url = content[`${node.field}_url`] || '#';
             } else if (source === 'term') {
-                nodeContent = `[Term: ${node.dynamicField}]`;
+                nodeContent = content[node.field] || `[Term: ${node.dynamicField}]`;
             } else if (source === 'custom_meta') {
                 const metaKey = node.dynamicField;
                 let metaVal = currentPostMeta[metaKey] || (currentPostACF && currentPostACF[metaKey]);
+                
+                // Read live keystrokes from ACF metabox inputs to provide real-time preview
+                const acfElement = document.querySelector(`.acf-field[data-name="${metaKey}"] input:not([type="hidden"]), .acf-field[data-name="${metaKey}"] textarea`);
+                if (acfElement && typeof acfElement.value !== 'undefined') {
+                    metaVal = acfElement.value;
+                }
+                
+                // Extremely verbose explicit fallback logic to completely prevent evaluation errors
                 if (node.type === 'image') {
-                    url = metaVal || 'https://via.placeholder.com/600x400?text=Dynamic+Image';
+                    url = (content[`${node.field}_url`] && content[`${node.field}_url`].length > 0) ? content[`${node.field}_url`] : (metaVal || 'https://via.placeholder.com/600x400?text=Dynamic+Image');
                 } else if (node.type === 'button') {
-                    url = metaVal || '#';
-                    nodeContent = content[node.field] || __('Read More', 'reusable-component-builder');
+                    url = (content[`${node.field}_url`] && content[`${node.field}_url`].length > 0) ? content[`${node.field}_url`] : (metaVal || '#');
+                    nodeContent = (content[node.field] && content[node.field].length > 0) ? content[node.field] : __('Read More', 'reusable-component-builder');
                 } else {
-                    nodeContent = metaVal || `[Meta: ${metaKey}]`;
+                    nodeContent = (content[node.field] && content[node.field].length > 0) ? content[node.field] : (metaVal || `[Meta: ${metaKey}]`);
                 }
             }
         }
@@ -617,6 +625,26 @@ export default function Edit({ attributes, setAttributes, clientId }) {
             currentPostMeta: getEditedPostAttribute('meta') || {},
             currentPostACF: getEditedPostAttribute('acf') || {}
         };
+    }, []);
+
+    // Create a local state to forcefully trigger re-renders when ACF DOM inputs change
+    const [acfDomTick, setAcfDomTick] = useState(0);
+
+    useEffect(() => {
+        // Since ACF metaboxes don't sync with core/editor meta on keystroke,
+        // we set up a polling mechanism to catch live typing in ACF fields
+        const interval = setInterval(() => {
+            let acfChanged = false;
+            document.querySelectorAll('.acf-field input:not([type="hidden"]), .acf-field textarea, .acf-field select').forEach(el => {
+                if (document.activeElement === el) {
+                    acfChanged = true;
+                }
+            });
+            if (acfChanged) {
+                setAcfDomTick(prev => prev + 1);
+            }
+        }, 500);
+        return () => clearInterval(interval);
     }, []);
     
     // We already know our templateId from the variation registration.
@@ -984,22 +1012,16 @@ export default function Edit({ attributes, setAttributes, clientId }) {
                 {templateId > 0 && mode === 'static' && (
                     <PanelBody title={`${templateName} Content`} initialOpen={true}>
                         {(() => {
-                            const fieldsToRender = configurableFields.filter(node => node.type !== 'container' && node.type !== 'column' && !node.dynamicSource);
-                            
-                            if (fieldsToRender.length === 0) {
-                                return (
-                                    <div style={{ padding: '10px', background: '#f8f9fa', border: '1px solid #e2e4e7', borderRadius: '4px' }}>
-                                        <p style={{ margin: 0, fontSize: '12px', color: '#646970' }}>All content in this component is configured to load dynamically (e.g. from Custom Fields). No manual input is required here.</p>
-                                    </div>
-                                );
-                            }
+                            const fieldsToRender = configurableFields.filter(node => node.type !== 'container' && node.type !== 'column');
 
                             return fieldsToRender.map((fieldNode) => {
+                                const isDynamic = !!fieldNode.dynamicSource;
+                                const dynamicLabel = isDynamic ? ` (Override ${fieldNode.dynamicSource})` : '';
 
-                            if (fieldNode.type === 'image') {
+                                if (fieldNode.type === 'image') {
                                 return (
                                     <div key={fieldNode.id} className="rcb-field-row" style={{marginBottom: '15px'}}>
-                                        <BaseControl id={`img-${fieldNode.field}`} label={`${fieldNode.field} (Image)`}>
+                                        <BaseControl id={`img-${fieldNode.field}`} label={`${fieldNode.field} (Image)${dynamicLabel}`}>
                                             <MediaUploadCheck>
                                                 <MediaUpload
                                                     onSelect={(media) => {
@@ -1040,7 +1062,7 @@ export default function Edit({ attributes, setAttributes, clientId }) {
                                 return (
                                     <div key={fieldNode.id} className="rcb-field-row" style={{marginBottom: '15px'}}>
                                         <TextareaControl
-                                            label={`${fieldNode.field} (Text)`}
+                                            label={`${fieldNode.field} (Text)${dynamicLabel}`}
                                             value={content[fieldNode.field] || ''}
                                             onChange={(val) => updateContent(fieldNode.field, val)}
                                             rows={5}
@@ -1052,7 +1074,7 @@ export default function Edit({ attributes, setAttributes, clientId }) {
                             return (
                                 <div key={fieldNode.id} className="rcb-field-row" style={{marginBottom: '10px'}}>
                                     <TextControl
-                                        label={`${fieldNode.field} (${fieldNode.type})`}
+                                        label={`${fieldNode.field} (${fieldNode.type})${dynamicLabel}`}
                                         value={content[fieldNode.field] || ''}
                                         onChange={(val) => updateContent(fieldNode.field, val)}
                                     />
