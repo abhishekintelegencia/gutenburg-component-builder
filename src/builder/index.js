@@ -124,17 +124,16 @@ const NodeEditor = ({ node, updateNode, removeNode, duplicateNode, addChild, mov
                                         { label: 'Post Author', value: 'post_author' },
                                         { label: 'Featured Image', value: 'featured_image' },
                                         { label: 'Permalink', value: 'permalink' },
-                                        { label: 'Taxonomy Term', value: 'term' },
                                         { label: 'Custom Meta Field', value: 'custom_meta' }
                                     ]}
                                     onChange={(val) => updateNode({ ...node, dynamicSource: val })}
                                 />
-                                {(node.dynamicSource === 'term' || node.dynamicSource === 'custom_meta') && (
+                                {node.dynamicSource === 'custom_meta' && (
                                     <TextControl
-                                        label={node.dynamicSource === 'term' ? "Taxonomy Slug (e.g. category, event_category)" : "Meta Key (e.g. _my_custom_field)"}
+                                        label="Meta Key (e.g. _my_custom_field)"
                                         value={node.dynamicField || ''}
                                         onChange={(val) => updateNode({ ...node, dynamicField: val })}
-                                        help={node.dynamicSource === 'term' ? "Enter the taxonomy slug to retrieve the first term." : "Enter the exact post meta key."}
+                                        help="Enter the exact post meta key."
                                     />
                                 )}
                             </div>
