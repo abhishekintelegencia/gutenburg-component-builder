@@ -84,7 +84,7 @@ function rcb_component_builder_html( $post ) {
 }
 
 function rcb_save_component_template_meta( $post_id ) {
-	if ( ! isset( $_POST['rcb_template_meta_nonce'] ) || ! wp_verify_nonce( $_POST['rcb_template_meta_nonce'], 'rcb_save_template_meta' ) ) {
+	if ( ! isset( $_POST['rcb_template_meta_nonce'] ) || ! wp_verify_nonce( sanitize_text_field( wp_unslash( $_POST['rcb_template_meta_nonce'] ) ), 'rcb_save_template_meta' ) ) {
 		return;
 	}
 
@@ -98,6 +98,7 @@ function rcb_save_component_template_meta( $post_id ) {
 
 	if ( isset( $_POST['_component_structure'] ) ) {
 		// Just validate it is JSON
+		// phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized, WordPress.Security.ValidatedSanitizedInput.MissingUnslash -- JSON is validated below.
 		$structure_data = wp_unslash( $_POST['_component_structure'] );
 		$decoded = json_decode( $structure_data );
 		if ( json_last_error() === JSON_ERROR_NONE ) {
@@ -109,8 +110,10 @@ function rcb_save_component_template_meta( $post_id ) {
     }
     if ( isset( $_POST['_component_html'] ) ) {
         if ( current_user_can('unfiltered_html') ) {
+            // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized, WordPress.Security.ValidatedSanitizedInput.MissingUnslash -- HTML is allowed for this capability.
             update_post_meta( $post_id, '_component_html', wp_unslash($_POST['_component_html']) );
         } else {
+            // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.MissingUnslash -- Unslashed before kses.
             update_post_meta( $post_id, '_component_html', wp_kses_post( wp_unslash( $_POST['_component_html'] ) ) );
         }
     }
@@ -167,7 +170,7 @@ function rcb_handle_duplicate_action() {
 
 		$post = get_post( $post_id );
 		if ( ! $post ) {
-			wp_die( __( 'Post not found.', 'reusable-component-builder' ) );
+			wp_die( esc_html__( 'Post not found.', 'reusable-component-builder' ) );
 		}
 
 		$current_user = wp_get_current_user();
@@ -194,7 +197,7 @@ function rcb_handle_duplicate_action() {
 			wp_redirect( admin_url( 'edit.php?post_type=component_template' ) );
 			exit;
 		} else {
-			wp_die( __( 'Failed to duplicate the component.', 'reusable-component-builder' ) );
+			wp_die( esc_html__( 'Failed to duplicate the component.', 'reusable-component-builder' ) );
 		}
 	}
 }

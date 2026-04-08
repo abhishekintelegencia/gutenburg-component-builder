@@ -9,7 +9,9 @@ add_action('wp_ajax_nopriv_rcb_load_loop_page', 'rcb_ajax_load_loop_page');
 function rcb_ajax_load_loop_page() {
 	check_ajax_referer('rcb_ajax_nonce', 'nonce');
 
-	$attributes_json = isset($_POST['attributes']) ? stripslashes($_POST['attributes']) : '';
+	// phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized, WordPress.Security.ValidatedSanitizedInput.MissingUnslash -- Validated via json_decode.
+	$attributes_json = isset($_POST['attributes']) ? wp_unslash($_POST['attributes']) : '';
+	// phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized, WordPress.Security.ValidatedSanitizedInput.MissingUnslash -- Validated via intval.
 	$paged = isset($_POST['paged']) ? intval($_POST['paged']) : 1;
 	
 	if (empty($attributes_json)) {

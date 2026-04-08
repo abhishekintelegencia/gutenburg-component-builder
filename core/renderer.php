@@ -121,6 +121,8 @@ function rcb_render_component_builder_block( $attributes, $content ) {
 		return '';
 	}
 
+	global $post;
+
 	$unique_id      = isset( $attributes['uniqueId'] ) ? $attributes['uniqueId'] : uniqid();
 	$mode           = isset( $attributes['mode'] ) ? $attributes['mode'] : 'static';
 	$content_data   = isset( $attributes['content'] ) ? $attributes['content'] : array();
@@ -211,7 +213,9 @@ function rcb_render_component_builder_block( $attributes, $content ) {
 
 		$paged = 1;
 		if ( $pagination ) {
+			// phpcs:ignore WordPress.Security.NonceVerification.Missing -- Nonce verified in ajax handler.
 			if ( wp_doing_ajax() && isset( $_POST['paged'] ) ) {
+				// phpcs:ignore WordPress.Security.NonceVerification.Missing -- Nonce verified in ajax handler.
 				$paged = intval( $_POST['paged'] );
 			} elseif ( get_query_var( 'paged' ) ) {
 				$paged = get_query_var( 'paged' );
@@ -232,6 +236,7 @@ function rcb_render_component_builder_block( $attributes, $content ) {
 		$taxonomy = isset( $attributes['taxonomy'] ) ? $attributes['taxonomy'] : '';
 		$term_id  = isset( $attributes['termId'] ) ? intval( $attributes['termId'] ) : 0;
 		if ( ! empty( $taxonomy ) && ! empty( $term_id ) ) {
+			// phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_tax_query -- Tax query is required for dynamic template filtering feature.
 			$args['tax_query'] = array(
 				array(
 					'taxonomy' => $taxonomy,
@@ -277,7 +282,7 @@ function rcb_render_component_builder_block( $attributes, $content ) {
 					$f_gap = rcb_get_responsive_value( isset( $c_raw_styles['flexGap'] ) ? $c_raw_styles['flexGap'] : '', 'desktop' );
 					if ( $f_gap !== '' ) $wrapper_layout_styles['gap'] = $f_gap;
 				} else {
-					// Grid (default)
+					// Layout is Grid by default.
 					$wrapper_layout_styles['display'] = 'grid';
 					$template_cols = rcb_get_responsive_value( isset( $c_raw_styles['gridTemplateColumns'] ) ? $c_raw_styles['gridTemplateColumns'] : '', 'desktop' );
 					if ( $template_cols === 'custom' ) {
@@ -387,9 +392,8 @@ function rcb_render_component_builder_block( $attributes, $content ) {
 
 			while ( $query->have_posts() ) {
 				$query->the_post();
-				global $post;
-
-				// Use item appearance style directly — do NOT fall back to $root_style_attr (that's for static mode)
+				
+				// Apply loop appearance styles to the item; do NOT fall back to $root_style_attr (that's for static mode).
 				$combined_style_attr = $item_extra_style_attr;
 
 				$final_output .= sprintf(
@@ -470,7 +474,6 @@ function rcb_render_component_builder_block( $attributes, $content ) {
 			$final_output .= '<p>' . __( 'No posts found.', 'reusable-component-builder' ) . '</p>';
 		}
 	} else {
-		global $post;
 		$inner_html = rcb_render_visual_nodes_with_visibility( $nodes, $content_data, $styles_data, $mode, $post, $visibility, $content, $style_registry, $unique_id );
 		
 		$final_output .= sprintf( '<div class="rcb-instance rcb-instance-%s" %s>', esc_attr( $unique_id ), $root_style_attr );
