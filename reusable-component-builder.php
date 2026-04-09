@@ -19,13 +19,54 @@ require_once RCB_PLUGIN_DIR . 'cpt/component-template.php';
 require_once RCB_PLUGIN_DIR . 'core/renderer.php';
 require_once RCB_PLUGIN_DIR . 'core/ajax-handler.php';
 
-// Initialize Block //
+// Add custom block category
+function rcb_block_categories( $categories ) {
+	array_unshift(
+		$categories,
+		array(
+			'slug'  => 'rcb-components',
+			'title' => __( 'RCB COMPONENTS', 'reusable-component-builder' ),
+			'icon'  => 'layout',
+		)
+	);
+	return $categories;
+}
+add_filter( 'block_categories_all', 'rcb_block_categories', 10, 2 );
+add_filter( 'block_categories', 'rcb_block_categories', 10, 2 ); // Backward compatibility
+
+// Initialize Blocks //
 function rcb_register_blocks()
 {
-	if (function_exists('register_block_type') && file_exists(RCB_PLUGIN_DIR . 'build/blocks/component-builder/block.json')) {
-		register_block_type(RCB_PLUGIN_DIR . 'build/blocks/component-builder', array(
-			'render_callback' => 'rcb_render_component_builder_block'
-		));
+	$blocks_dir = RCB_PLUGIN_DIR . 'build/blocks';
+	if ( is_dir( $blocks_dir ) ) {
+		$it = new DirectoryIterator( $blocks_dir );
+		foreach ( $it as $fileinfo ) {
+			if ( $fileinfo->isDir() && ! $fileinfo->isDot() ) {
+				$block_json = $fileinfo->getPathname() . '/block.json';
+				if ( file_exists( $block_json ) ) {
+					$metadata = json_decode( file_get_contents( $block_json ), true );
+					$args = array();
+					
+					// Only use the render_callback for the main component builder block
+					if ( isset( $metadata['name'] ) && $metadata['name'] === 'reusable-component-builder/block' ) {
+						$args['render_callback'] = 'rcb_render_component_builder_block';
+					}
+					
+					register_block_type_from_metadata( $fileinfo->getPathname(), $args );
+
+					// Handle sub-blocks (like accordion-item)
+					$sub_it = new DirectoryIterator( $fileinfo->getPathname() );
+					foreach ( $sub_it as $sub_file ) {
+						if ( $sub_file->isDir() && ! $sub_file->isDot() ) {
+							$sub_json = $sub_file->getPathname() . '/block.json';
+							if ( file_exists( $sub_json ) ) {
+								register_block_type_from_metadata( $sub_file->getPathname() );
+							}
+						}
+					}
+				}
+			}
+		}
 	}
 }
 add_action('init', 'rcb_register_blocks');

@@ -5,6 +5,8 @@ module.exports = {
 	...defaultConfig,
 	entry: {
 		'builder/index': path.resolve( process.cwd(), 'src/builder', 'index.js' ),
-        'blocks/component-builder/index': path.resolve( process.cwd(), 'src/blocks/component-builder', 'index.js' )
+		'blocks/component-builder/index': path.resolve( process.cwd(), 'src/blocks/component-builder', 'index.js' ),
+		'blocks/accordion/index': path.resolve( process.cwd(), 'src/blocks/accordion', 'index.js' ),
+		'blocks/accordion/accordion-item/index': path.resolve( process.cwd(), 'src/blocks/accordion/accordion-item', 'index.js' ),
 	},
 };

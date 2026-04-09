@@ -88,4 +88,40 @@ document.addEventListener('DOMContentLoaded', function() {
             wrapper.style.pointerEvents = 'all';
         });
     });
+
+    // RCB Accordion Toggle Logic
+    document.body.addEventListener('click', function(e) {
+        const header = e.target.closest('.rcb-accordion-header');
+        if (!header) return;
+
+        const item = header.closest('.rcb-accordion-item');
+        if (!item) return;
+
+        const wrapper = item.closest('.rcb-accordion-wrapper');
+        const isHorizontal = wrapper && wrapper.classList.contains('rcb-acc-horizontal');
+        const isOpen = item.classList.contains('is-open');
+        
+        // If not horizontal, close other items (standard accordion behavior)
+        if (!isHorizontal && wrapper) {
+            const items = wrapper.querySelectorAll('.rcb-accordion-item');
+            items.forEach(otherItem => {
+                if (otherItem !== item) {
+                    otherItem.classList.remove('is-open');
+                    const content = otherItem.querySelector('.rcb-accordion-content');
+                    if (content) content.style.display = 'none';
+                }
+            });
+        }
+
+        // Toggle current item
+        if (isOpen) {
+            item.classList.remove('is-open');
+            const content = item.querySelector('.rcb-accordion-content');
+            if (content) content.style.display = 'none';
+        } else {
+            item.classList.add('is-open');
+            const content = item.querySelector('.rcb-accordion-content');
+            if (content) content.style.display = 'block';
+        }
+    });
 });

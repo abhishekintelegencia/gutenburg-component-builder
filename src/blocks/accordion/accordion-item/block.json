@@ -1,0 +1,72 @@
+{
+    "$schema": "https://schemas.wp.org/trunk/block.json",
+    "apiVersion": 3,
+    "name": "rcb/accordion-item",
+    "version": "1.0.0",
+    "title": "Accordion Item (RCB)",
+    "category": "design",
+    "parent": [ "rcb/accordion" ],
+    "attributes": {
+        "title": {
+            "type": "string",
+            "default": "Accordion Title"
+        },
+        "isOpen": {
+            "type": "boolean",
+            "default": false
+        },
+        "id": {
+            "type": "string"
+        },
+        "titleColor": {
+            "type": "string"
+        },
+        "titleBgColor": {
+            "type": "string"
+        },
+        "titleFontFamily": {
+            "type": "string"
+        },
+        "titleFontSize": {
+            "type": "number"
+        },
+        "titleFontWeight": {
+            "type": "string"
+        },
+        "titleTextTransform": {
+            "type": "string"
+        },
+        "titleLineHeight": {
+            "type": "number"
+        },
+        "titleLetterSpacing": {
+            "type": "number"
+        },
+        "titlePadding": {
+            "type": "object"
+        },
+        "contentBgColor": {
+            "type": "string"
+        }
+    },
+    "usesContext": [ "rcb/iconType" ],
+    "supports": {
+        "html": false,
+        "reusable": false,
+        "color": {
+            "text": true,
+            "background": true
+        },
+        "typography": {
+            "fontSize": true,
+            "__experimentalFontFamily": true,
+            "__experimentalFontWeight": true
+        },
+        "spacing": {
+            "margin": true,
+            "padding": true
+        }
+    },
+    "textdomain": "reusable-component-builder",
+    "editorScript": "file:./index.js"
+}
