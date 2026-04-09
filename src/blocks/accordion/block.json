@@ -1,0 +1,47 @@
+{
+    "$schema": "https://schemas.wp.org/trunk/block.json",
+    "apiVersion": 3,
+    "name": "rcb/accordion",
+    "version": "1.0.0",
+    "title": "Advanced Accordion (RCB)",
+    "category": "design",
+    "icon": "feedback",
+    "description": "Premium custom accordion with horizontal and vertical options.",
+    "attributes": {
+        "gap": {
+            "type": "number",
+            "default": 10
+        },
+        "uniqueId": {
+            "type": "string"
+        },
+        "iconType": {
+            "type": "string",
+            "default": "plus"
+        }
+    },
+    "providesContext": {
+        "rcb/iconType": "iconType"
+    },
+    "supports": {
+        "html": false,
+        "anchor": true,
+        "color": {
+            "text": true,
+            "background": true
+        },
+        "typography": {
+            "fontSize": true,
+            "__experimentalFontFamily": true,
+            "__experimentalFontWeight": true
+        },
+        "spacing": {
+            "margin": true,
+            "padding": true,
+            "blockGap": true
+        }
+    },
+    "textdomain": "reusable-component-builder",
+    "editorScript": "file:./index.js",
+    "style": "file:./style-index.css"
+}

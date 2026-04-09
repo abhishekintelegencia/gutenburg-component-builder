@@ -1,0 +1,117 @@
+.rcb-accordion-wrapper {
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+
+    // Item Layout
+    .rcb-accordion-item {
+        border: 1px solid #e2e8f0;
+        border-radius: 8px;
+        overflow: hidden;
+        background: #fff;
+        transition: all 0.3s ease;
+
+        .rcb-accordion-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 15px 20px;
+            background: var(--rcb-title-bg-color, #f8fafc);
+            cursor: pointer;
+            user-select: none;
+            
+            h4 {
+                margin: 0;
+                font-size: var(--rcb-title-font-size, 16px);
+                font-weight: var(--rcb-title-font-weight, 600);
+                color: var(--rcb-title-color, #1e293b);
+                font-family: var(--rcb-title-font-family, inherit);
+                line-height: var(--rcb-title-line-height, 1.5);
+                letter-spacing: var(--rcb-title-letter-spacing, 0);
+                text-transform: var(--rcb-title-text-transform, none);
+                flex: 1;
+            }
+
+            .rcb-accordion-icon {
+                font-size: 20px;
+                font-weight: bold;
+                color: var(--rcb-title-color, #64748b);
+                transition: transform 0.3s ease;
+                width: 30px;
+                height: 30px;
+                flex-shrink: 0;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+
+                &::before {
+                    content: '+';
+                }
+            }
+        }
+
+        .rcb-accordion-content {
+            padding: 20px;
+            border-top: 1px solid #f1f5f9;
+            background: var(--rcb-content-bg-color, #fff);
+            display: none; // Hidden by default
+        }
+
+        // Active State
+        &.is-open {
+            border-color: #cbd5e1;
+            box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1);
+
+            .rcb-accordion-header {
+                background: var(--rcb-title-bg-color, #f1f5f9);
+
+                .rcb-accordion-icon::before {
+                    content: '−';
+                }
+            }
+
+            .rcb-accordion-content {
+                display: block;
+            }
+        }
+    }
+
+    // ── Icon Types (class on WRAPPER, selectors cascade down to items) ──────
+    &.rcb-icon-arrow {
+        .rcb-accordion-item .rcb-accordion-icon::before {
+            content: '▼';
+        }
+        .rcb-accordion-item.is-open .rcb-accordion-icon::before {
+            content: '▲';
+        }
+    }
+
+    &.rcb-icon-chevron {
+        .rcb-accordion-item .rcb-accordion-icon {
+            font-size: 24px;
+            &::before {
+                content: '›';
+                display: inline-block;
+                transform: rotate(90deg);
+            }
+        }
+        .rcb-accordion-item.is-open .rcb-accordion-icon::before {
+            transform: rotate(-90deg);
+        }
+    }
+
+    &.rcb-icon-none {
+        .rcb-accordion-item .rcb-accordion-icon {
+            display: none;
+        }
+    }
+
+    // ── Backend Editor overrides ─────────────────────────────────────────────
+    .rcb-accordion-item .rcb-accordion-content {
+        opacity: 0.5;
+    }
+    
+    .rcb-accordion-item.is-open .rcb-accordion-content {
+        opacity: 1;
+    }
+}

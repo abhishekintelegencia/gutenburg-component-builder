@@ -4,7 +4,7 @@
   "name": "reusable-component-builder/block",
   "version": "1.0.0",
   "title": "Component Builder",
-  "category": "design",
+  "category": "rcb-components",
   "icon": "layout",
   "description": "Dynamic component block from a selected template.",
   "supports": {
