@@ -7,6 +7,8 @@ module.exports = {
 		'builder/index': path.resolve( process.cwd(), 'src/builder', 'index.js' ),
 		'blocks/component-builder/index': path.resolve( process.cwd(), 'src/blocks/component-builder', 'index.js' ),
 		'blocks/accordion/index': path.resolve( process.cwd(), 'src/blocks/accordion', 'index.js' ),
-		'blocks/accordion/accordion-item/index': path.resolve( process.cwd(), 'src/blocks/accordion/accordion-item', 'index.js' ),
+		'blocks/accordion/accordion-item/index': path.resolve( process.cwd(), 'src/blocks/accordion', 'accordion-item', 'index.js' ),
+		'blocks/tabs/index': path.resolve( process.cwd(), 'src/blocks/tabs', 'index.js' ),
+		'blocks/tabs/tab-item/index': path.resolve( process.cwd(), 'src/blocks/tabs/tab-item', 'index.js' ),
 	},
 };

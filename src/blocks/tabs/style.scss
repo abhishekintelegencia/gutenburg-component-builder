@@ -1,0 +1,130 @@
+.rcb-tabs-wrapper {
+    display: flex;
+    gap: 0; // Removed gap to let nav and content touch
+    margin-bottom: 2rem;
+    background: var(--rcb-content-bg, #fff);
+    border-radius: 8px;
+    border: 1px solid #e2e8f0;
+    overflow: hidden;
+
+    // Horizontal Layout (Top Tabs)
+    &.layout-horizontal {
+        flex-direction: column;
+
+        .rcb-tabs-nav {
+            display: flex;
+            border-bottom: 1px solid #e2e8f0;
+            background: var(--rcb-nav-bg, #f8fafc);
+            
+            .rcb-tabs-nav-item {
+                padding: 15px 25px;
+                cursor: pointer;
+                font-family: var(--rcb-label-font-family, inherit);
+                font-size: var(--rcb-label-font-size, 16px);
+                font-weight: var(--rcb-label-font-weight, 500);
+                color: var(--rcb-label-color, #64748b);
+                border-right: 1px solid #e2e8f0;
+                transition: all 0.2s ease;
+
+                &:hover {
+                    color: var(--rcb-label-hover-color, #2563eb);
+                    background: var(--rcb-nav-hover-bg, #fff);
+                }
+
+                &.is-active {
+                    color: var(--rcb-label-active-color, #3b82f6);
+                    background: var(--rcb-nav-active-bg, #fff);
+                    border-bottom: 3px solid var(--rcb-active-border-color, var(--rcb-label-active-color, #3b82f6));
+                    margin-bottom: -1px;
+                    z-index: 1;
+                }
+            }
+        }
+    }
+
+    // Vertical Layout (Side Tabs)
+    &.layout-vertical {
+        flex-direction: row;
+
+        .rcb-tabs-nav-container {
+            width: 250px;
+            flex-shrink: 0;
+            border-right: 1px solid #e2e8f0;
+            background: var(--rcb-nav-bg, #f8fafc);
+            align-self: flex-start;
+        }
+
+        .rcb-tabs-nav {
+            display: flex;
+            flex-direction: column;
+            
+            .rcb-tabs-nav-item {
+                padding: 15px 20px;
+                cursor: pointer;
+                font-family: var(--rcb-label-font-family, inherit);
+                font-size: var(--rcb-label-font-size, 16px);
+                font-weight: var(--rcb-label-font-weight, 500);
+                color: var(--rcb-label-color, #64748b);
+                border-bottom: 1px solid #e2e8f0;
+                transition: all 0.2s ease;
+
+                &:hover {
+                    color: var(--rcb-label-hover-color, #2563eb);
+                    background: var(--rcb-nav-hover-bg, #fff);
+                }
+
+                &.is-active {
+                    color: var(--rcb-label-active-color, #2563eb);
+                    background: var(--rcb-nav-active-bg, #fff);
+                    border-right: 3px solid var(--rcb-active-border-color, var(--rcb-label-active-color, #2563eb));
+                    margin-right: -1px;
+                    border-bottom-color: #e2e8f0;
+                }
+            }
+        }
+
+        .rcb-tabs-content-wrapper {
+            flex-grow: 1;
+        }
+    }
+
+    .rcb-tabs-content-area {
+        padding: 30px;
+        
+        .rcb-tab-item {
+            // Content hidden/shown via JS
+            &.is-hidden {
+                display: none;
+            }
+        }
+    }
+}
+
+// Editor-specific overrides
+.is-visualizer-preview {
+    .rcb-tab-item {
+        display: none;
+        
+        &.is-active {
+            display: block;
+        }
+    }
+}
+
+// Ensure child blocks look clean in editor
+.rcb-tab-item {
+    border: 1px dashed transparent;
+    
+    &:hover {
+        border-color: #ddd;
+    }
+
+    .rcb-tab-item-editor-label {
+        background: #f1f5f9;
+        padding: 5px 10px;
+        margin-bottom: 10px;
+        border-radius: 4px;
+        font-size: 11px;
+        color: #64748b;
+    }
+}

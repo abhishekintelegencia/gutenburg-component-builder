@@ -124,4 +124,50 @@ document.addEventListener('DOMContentLoaded', function() {
             if (content) content.style.display = 'block';
         }
     });
+
+    // RCB Tabs Initialization and Logic
+    function initTabs() {
+        const tabWrappers = document.querySelectorAll('.rcb-tabs-wrapper');
+        
+        tabWrappers.forEach(wrapper => {
+            const nav = wrapper.querySelector('.rcb-tabs-nav');
+            const tabItems = wrapper.querySelectorAll('.rcb-tab-item');
+            
+            if (!nav || tabItems.length === 0) return;
+            if (nav.children.length > 0) return; // Already initialized
+
+            tabItems.forEach((item, index) => {
+                const label = item.getAttribute('data-label') || 'Tab ' + (index + 1);
+                const iconClass = item.getAttribute('data-icon');
+                const navItem = document.createElement('div');
+                navItem.className = 'rcb-tabs-nav-item' + (index === 0 ? ' is-active' : '');
+                
+                let iconHtml = '';
+                if (iconClass) {
+                    iconHtml = `<span class="rcb-tabs-nav-icon dashicons ${iconClass}"></span> `;
+                }
+                
+                navItem.innerHTML = `${iconHtml}<span class="rcb-tabs-nav-label">${label}</span>`;
+                
+                navItem.addEventListener('click', () => {
+                    // Update Nav
+                    wrapper.querySelectorAll('.rcb-tabs-nav-item').forEach(i => i.classList.remove('is-active'));
+                    navItem.classList.add('is-active');
+                    
+                    // Update Content
+                    tabItems.forEach(child => child.classList.add('is-hidden'));
+                    item.classList.remove('is-hidden');
+                });
+
+                nav.appendChild(navItem);
+
+                // Initial state
+                if (index !== 0) {
+                    item.classList.add('is-hidden');
+                }
+            });
+        });
+    }
+
+    initTabs();
 });
