@@ -1,0 +1,69 @@
+{
+    "$schema": "https://schemas.wp.org/trunk/block.json",
+    "apiVersion": 3,
+    "name": "rcb/slider",
+    "version": "1.0.0",
+    "title": "Advanced Slider (RCB)",
+    "category": "rcb-components",
+    "icon": "images-alt2",
+    "description": "Premium image slider with Swiper.js support.",
+    "attributes": {
+        "arrows": {
+            "type": "boolean",
+            "default": true
+        },
+        "dots": {
+            "type": "boolean",
+            "default": true
+        },
+        "autoplay": {
+            "type": "boolean",
+            "default": false
+        },
+        "autoplayDelay": {
+            "type": "number",
+            "default": 3000
+        },
+        "loop": {
+            "type": "boolean",
+            "default": true
+        },
+        "effect": {
+            "type": "string",
+            "default": "slide"
+        },
+        "slidesPerView": {
+            "type": "number",
+            "default": 1
+        },
+        "spaceBetween": {
+            "type": "number",
+            "default": 0
+        },
+        "arrowColor": {
+            "type": "string",
+            "default": "#ffffff"
+        },
+        "dotColor": {
+            "type": "string",
+            "default": "#3b82f6"
+        },
+        "height": {
+            "type": "string",
+            "default": "500px"
+        }
+    },
+    "supports": {
+        "html": false,
+        "anchor": true,
+        "align": [ "wide", "full" ],
+        "spacing": {
+            "margin": true,
+            "padding": true
+        }
+    },
+    "textdomain": "reusable-component-builder",
+    "editorScript": "file:./index.js",
+    "viewScript": "file:./view.js",
+    "style": "file:./style-index.css"
+}

@@ -4,7 +4,7 @@
   "name": "rcb/accordion-item",
   "version": "1.0.0",
   "title": "Accordion Item (RCB)",
-  "category": "design",
+  "category": "rcb-components",
   "parent": [
     "rcb/accordion"
   ],

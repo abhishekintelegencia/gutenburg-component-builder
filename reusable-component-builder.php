@@ -163,6 +163,7 @@ function rcb_get_all_templates()
 
 function rcb_enqueue_frontend_scripts() {
 	$version = file_exists( RCB_PLUGIN_DIR . 'assets/js/rcb-frontend.js' ) ? filemtime( RCB_PLUGIN_DIR . 'assets/js/rcb-frontend.js' ) : RCB_VERSION;
+	wp_enqueue_style( 'dashicons' );
 	wp_enqueue_script( 'rcb-frontend-js', RCB_PLUGIN_URL . 'assets/js/rcb-frontend.js', array('jquery'), $version, true );
 	wp_localize_script( 'rcb-frontend-js', 'rcbAjax', array(
 		'ajaxurl' => admin_url( 'admin-ajax.php' ),
