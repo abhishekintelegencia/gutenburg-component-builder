@@ -1,0 +1,81 @@
+{
+  "$schema": "https://schemas.wp.org/trunk/block.json",
+  "apiVersion": 3,
+  "name": "rcb/tabs",
+  "version": "1.0.0",
+  "title": "Advanced Tab (RCB)",
+  "category": "design",
+  "description": "Premium custom tabs with horizontal and vertical options.",
+  "attributes": {
+    "layout": {
+      "type": "string",
+      "default": "horizontal"
+    },
+    "activeTabClientId": {
+      "type": "string"
+    },
+    "activeTab": {
+      "type": "number",
+      "default": 0
+    },
+    "blockId": {
+      "type": "string"
+    },
+    "navBgColor": {
+      "type": "string"
+    },
+    "contentBgColor": {
+      "type": "string"
+    },
+    "labelColor": {
+      "type": "string"
+    },
+    "labelActiveColor": {
+      "type": "string"
+    },
+    "navActiveBgColor": {
+      "type": "string"
+    },
+    "labelActiveBorderColor": {
+      "type": "string"
+    },
+    "labelFontSize": {
+      "type": "number"
+    },
+    "labelFontWeight": {
+      "type": "string"
+    },
+    "labelHoverColor": {
+      "type": "string"
+    },
+    "navHoverBgColor": {
+      "type": "string"
+    },
+    "labelFontFamily": {
+      "type": "string"
+    }
+  },
+  "supports": {
+    "anchor": true,
+    "html": false,
+    "color": {
+      "text": true,
+      "background": true
+    },
+    "spacing": {
+      "margin": true,
+      "padding": true,
+      "blockGap": true
+    },
+    "typography": {
+      "fontSize": true,
+      "lineHeight": true
+    }
+  },
+  "textdomain": "reusable-component-builder",
+  "providesContext": {
+    "rcb/activeTabClientId": "activeTabClientId"
+  },
+  "editorScript": "file:./index.js",
+  "style": "file:./style-index.css"
+}
