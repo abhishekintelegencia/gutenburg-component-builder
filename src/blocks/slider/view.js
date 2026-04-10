@@ -1,0 +1,42 @@
+import Swiper from 'swiper';
+import { Navigation, Pagination, Autoplay, EffectFade } from 'swiper/modules';
+
+// Function to init each slider
+const initRcbSlider = ( el ) => {
+    const arrows = el.getAttribute('data-arrows') === 'true';
+    const dots = el.getAttribute('data-dots') === 'true';
+    const autoplay = el.getAttribute('data-autoplay') === 'true';
+    const delay = parseInt(el.getAttribute('data-autoplay-delay'), 10) || 3000;
+    const loop = el.getAttribute('data-loop') === 'true';
+    const effect = el.getAttribute('data-effect') || 'slide';
+    const slidesPerView = parseInt(el.getAttribute('data-slides-per-view'), 10) || 1;
+    const spaceBetween = parseInt(el.getAttribute('data-space-between'), 10) || 0;
+
+    const swiperOptions = {
+        modules: [ Navigation, Pagination, Autoplay, EffectFade ],
+        slidesPerView: slidesPerView,
+        spaceBetween: spaceBetween,
+        loop: loop,
+        effect: effect,
+        grabCursor: true,
+        autoplay: autoplay ? {
+            delay: delay,
+            disableOnInteraction: false,
+        } : false,
+        navigation: arrows ? {
+            nextEl: el.querySelector('.swiper-button-next'),
+            prevEl: el.querySelector('.swiper-button-prev'),
+        } : false,
+        pagination: dots ? {
+            el: el.querySelector('.swiper-pagination'),
+            clickable: true,
+        } : false,
+    };
+
+    new Swiper( el, swiperOptions );
+};
+
+document.addEventListener( 'DOMContentLoaded', () => {
+    const sliders = document.querySelectorAll( '.rcb-slider' );
+    sliders.forEach( initRcbSlider );
+} );

@@ -4,7 +4,7 @@
   "name": "rcb/tabs",
   "version": "1.0.0",
   "title": "Advanced Tab (RCB)",
-  "category": "design",
+  "category": "rcb-components",
   "description": "Premium custom tabs with horizontal and vertical options.",
   "attributes": {
     "layout": {

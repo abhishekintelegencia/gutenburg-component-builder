@@ -10,5 +10,8 @@ module.exports = {
 		'blocks/accordion/accordion-item/index': path.resolve( process.cwd(), 'src/blocks/accordion', 'accordion-item', 'index.js' ),
 		'blocks/tabs/index': path.resolve( process.cwd(), 'src/blocks/tabs', 'index.js' ),
 		'blocks/tabs/tab-item/index': path.resolve( process.cwd(), 'src/blocks/tabs/tab-item', 'index.js' ),
+		'blocks/slider/index': path.resolve( process.cwd(), 'src/blocks/slider', 'index.js' ),
+		'blocks/slider/view': path.resolve( process.cwd(), 'src/blocks/slider', 'view.js' ),
+		'blocks/slider/slide-item/index': path.resolve( process.cwd(), 'src/blocks/slider/slide-item', 'index.js' ),
 	},
 };

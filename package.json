@@ -12,5 +12,8 @@
   "description": "",
   "devDependencies": {
     "@wordpress/scripts": "^31.6.0"
+  },
+  "dependencies": {
+    "swiper": "^12.1.3"
   }
 }
