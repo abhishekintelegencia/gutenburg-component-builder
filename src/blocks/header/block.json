@@ -1,0 +1,39 @@
+{
+    "$schema": "https://schemas.wp.org/trunk/block.json",
+    "apiVersion": 3,
+    "name": "rcb/header",
+    "version": "1.0.0",
+    "title": "Advanced Header & Mega Menu (RCB)",
+    "category": "rcb-blocks",
+    "icon": "performance",
+    "description": "Premium header with site logo, navigation, and customizable mega menus.",
+    "attributes": {
+        "menuId": { "type": "number" },
+        "showLogo": { "type": "boolean", "default": true },
+        "logoSize": { "type": "number", "default": 150 },
+        "sticky": { "type": "boolean", "default": false },
+        "showCTA": { "type": "boolean", "default": true },
+        "ctaText": { "type": "string", "default": "Enquire Now" },
+        "ctaLink": { "type": "string", "default": "#" },
+        "ctaBgColor": { "type": "string", "default": "#b91c1c" },
+        "ctaTextColor": { "type": "string", "default": "#ffffff" },
+        "showSearch": { "type": "boolean", "default": true },
+        "headerBgColor": { "type": "string", "default": "#ffffff" },
+        "navColor": { "type": "string", "default": "#334155" },
+        "navHoverColor": { "type": "string", "default": "#b91c1c" },
+        "menuFontSize": { "type": "number", "default": 15 },
+        "menuFontWeight": { "type": "string", "default": "600" },
+        "paddingTop": { "type": "number", "default": 15 },
+        "paddingBottom": { "type": "number", "default": 15 },
+        "megaDropdownBg": { "type": "string", "default": "#ffffff" },
+        "megaDropdownTextColor": { "type": "string", "default": "#1e293b" },
+        "searchIconColor": { "type": "string", "default": "#1e293b" }
+    },
+    "supports": {
+        "html": false,
+        "anchor": true
+    },
+    "textdomain": "reusable-component-builder",
+    "editorScript": "file:./index.js",
+    "style": "file:./style-index.css"
+}
