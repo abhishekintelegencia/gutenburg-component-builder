@@ -170,4 +170,112 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     initTabs();
+
+    // --- RCB Header Logic ---
+    
+    // Sticky Header
+    const header = document.querySelector('.rcb-header-wrapper.rcb-header-sticky');
+    if (header) {
+        window.addEventListener('scroll', () => {
+            if (window.scrollY > 50) {
+                header.classList.add('is-sticky');
+            } else {
+                header.classList.remove('is-sticky');
+            }
+        });
+    }
+
+    // Search Overlay
+    const searchToggle = document.querySelector('.rcb-search-toggle');
+    const searchOverlay = document.querySelector('.rcb-search-overlay');
+    const searchClose = document.querySelector('.rcb-search-close');
+
+    if (searchToggle && searchOverlay) {
+        searchToggle.addEventListener('click', () => {
+            searchOverlay.classList.add('active');
+            const input = searchOverlay.querySelector('input');
+            if (input) setTimeout(() => input.focus(), 300);
+        });
+    }
+
+    if (searchClose && searchOverlay) {
+        searchClose.addEventListener('click', () => {
+            searchOverlay.classList.remove('active');
+        });
+    }
+
+    // Mobile Toggle
+    const mobileToggle = document.querySelector('.rcb-mobile-toggle');
+    const mobileDrawer = document.querySelector('.rcb-mobile-drawer');
+    const mobileClose = document.querySelector('.rcb-mobile-close');
+    const mobileNavContainer = document.querySelector('.rcb-mobile-nav-container');
+    const desktopNav = document.querySelector('.rcb-header-nav .rcb-nav-list');
+
+    if (mobileToggle && mobileDrawer && desktopNav && mobileNavContainer) {
+        // Clone nav for mobile
+        if (!mobileNavContainer.children.length) {
+            const mobileMenu = desktopNav.cloneNode(true);
+            mobileMenu.className = 'rcb-mobile-nav-list';
+            mobileNavContainer.appendChild(mobileMenu);
+
+            // Handle mobile accordions for submenus
+            mobileMenu.querySelectorAll('.has-dropdown > a').forEach(link => {
+                link.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    const parent = link.parentElement;
+                    const dropdown = parent.querySelector('.rcb-dropdown-container');
+                    
+                    if (dropdown) {
+                        const isOpen = parent.classList.contains('mobile-open');
+                        
+                        // Close others
+                        mobileMenu.querySelectorAll('.mobile-open').forEach(openItem => {
+                            if (openItem !== parent) openItem.classList.remove('mobile-open');
+                        });
+
+                        parent.classList.toggle('mobile-open');
+                    }
+                });
+            });
+        }
+
+        mobileToggle.addEventListener('click', () => {
+            mobileDrawer.classList.add('active');
+            document.body.style.overflow = 'hidden'; // Prevent scroll
+        });
+    }
+
+    if (mobileClose && mobileDrawer) {
+        mobileClose.addEventListener('click', () => {
+            mobileDrawer.classList.remove('active');
+            document.body.style.overflow = 'auto';
+        });
+    }
+
+    // --- Desktop Click-to-Open (Arrow) ---
+    document.querySelectorAll('.rcb-header-nav .rcb-dropdown-toggle').forEach(toggle => {
+        toggle.addEventListener('click', function(e) {
+            e.stopPropagation();
+            const parentLi = this.closest('.rcb-nav-item');
+            if (!parentLi) return;
+
+            const isActive = parentLi.classList.contains('is-active');
+
+            // Close other open menus
+            document.querySelectorAll('.rcb-nav-item.is-active').forEach(item => {
+                if (item !== parentLi) item.classList.remove('is-active');
+            });
+
+            parentLi.classList.toggle('is-active');
+        });
+    });
+
+    // Close on click outside
+    document.addEventListener('click', function(e) {
+        if (!e.target.closest('.rcb-nav-item.has-dropdown')) {
+            document.querySelectorAll('.rcb-nav-item.is-active').forEach(item => {
+                item.classList.remove('is-active');
+            });
+        }
+    });
 });

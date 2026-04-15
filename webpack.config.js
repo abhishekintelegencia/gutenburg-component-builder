@@ -13,5 +13,6 @@ module.exports = {
 		'blocks/slider/index': path.resolve( process.cwd(), 'src/blocks/slider', 'index.js' ),
 		'blocks/slider/view': path.resolve( process.cwd(), 'src/blocks/slider', 'view.js' ),
 		'blocks/slider/slide-item/index': path.resolve( process.cwd(), 'src/blocks/slider/slide-item', 'index.js' ),
+		'blocks/header/index': path.resolve( process.cwd(), 'src/blocks/header', 'index.js' ),
 	},
 };

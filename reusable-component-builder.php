@@ -47,9 +47,17 @@ function rcb_register_blocks()
 					$metadata = json_decode( file_get_contents( $block_json ), true );
 					$args = array();
 					
-					// Only use the render_callback for the main component builder block
-					if ( isset( $metadata['name'] ) && $metadata['name'] === 'reusable-component-builder/block' ) {
-						$args['render_callback'] = 'rcb_render_component_builder_block';
+					// Handle dynamic rendering
+					if ( isset( $metadata['name'] ) ) {
+						if ( $metadata['name'] === 'reusable-component-builder/block' ) {
+							$args['render_callback'] = 'rcb_render_component_builder_block';
+						} elseif ( $metadata['name'] === 'rcb/header' ) {
+							$args['render_callback'] = function( $attributes ) {
+								ob_start();
+								include RCB_PLUGIN_DIR . 'src/blocks/header/render.php';
+								return ob_get_clean();
+							};
+						}
 					}
 					
 					register_block_type_from_metadata( $fileinfo->getPathname(), $args );
