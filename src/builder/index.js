@@ -490,7 +490,7 @@ const App = () => {
                 dimensions: type === 'image', 
                 backgroundImage: type === 'container' || type === 'column',
                 buttonSettings: type === 'button',
-                iconSettings: type === 'button'
+                iconSettings: type === 'button',
             },
             ...(type === 'container' || type === 'column' ? { children: [] } : {})
         };
@@ -518,7 +518,7 @@ const App = () => {
                         dimensions: type === 'image', 
                         backgroundImage: type === 'container' || type === 'column',
                         buttonSettings: type === 'button',
-                        iconSettings: type === 'button'
+                        iconSettings: type === 'button',
                     },
                     ...(type === 'container' || type === 'column' ? { children: [] } : {})
                 };

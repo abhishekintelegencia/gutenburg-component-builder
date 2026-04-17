@@ -14,5 +14,7 @@ module.exports = {
 		'blocks/slider/view': path.resolve( process.cwd(), 'src/blocks/slider', 'view.js' ),
 		'blocks/slider/slide-item/index': path.resolve( process.cwd(), 'src/blocks/slider/slide-item', 'index.js' ),
 		'blocks/header/index': path.resolve( process.cwd(), 'src/blocks/header', 'index.js' ),
+		'blocks/advance-dynamic-slider/index': path.resolve( process.cwd(), 'src/blocks/advance-dynamic-slider', 'index.js' ),
+		'blocks/advance-dynamic-slider/view': path.resolve( process.cwd(), 'src/blocks/advance-dynamic-slider', 'view.js' ),
 	},
 };

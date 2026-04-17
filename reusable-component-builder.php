@@ -57,6 +57,8 @@ function rcb_register_blocks()
 								include RCB_PLUGIN_DIR . 'src/blocks/header/render.php';
 								return ob_get_clean();
 							};
+						} elseif ( $metadata['name'] === 'rcb/advance-dynamic-slider' ) {
+							$args['render_callback'] = 'rcb_render_advance_dynamic_slider_block';
 						}
 					}
 					
