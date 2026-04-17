@@ -40,7 +40,8 @@
             "type": "string"
         },
         "labelFontSize": {
-            "type": "number"
+            "type": "object",
+            "default": { "desktop": "16px" }
         },
         "labelFontWeight": {
             "type": "string"
@@ -53,6 +54,15 @@
         },
         "labelFontFamily": {
             "type": "string"
+        },
+        "labelLineHeight": {
+            "type": "object"
+        },
+        "labelLetterSpacing": {
+            "type": "object"
+        },
+        "labelPadding": {
+            "type": "object"
         }
     },
     "supports": {

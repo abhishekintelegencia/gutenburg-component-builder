@@ -131,7 +131,10 @@ document.addEventListener('DOMContentLoaded', function() {
         
         tabWrappers.forEach(wrapper => {
             const nav = wrapper.querySelector('.rcb-tabs-nav');
-            const tabItems = wrapper.querySelectorAll('.rcb-tab-item');
+            // Select all possible tab items and filter for those with a valid data-label
+            // This is safer than restrictive CSS selectors that might fail due to nesting
+            const allItems = wrapper.querySelectorAll('.rcb-tab-item');
+            const tabItems = Array.from(allItems).filter(item => item.hasAttribute('data-label'));
             
             if (!nav || tabItems.length === 0) return;
             if (nav.children.length > 0) return; // Already initialized

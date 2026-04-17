@@ -46,25 +46,59 @@ if (!empty($menu_items)) {
     }
 }
 
-$classes = ['rcb-header-wrapper'];
+// Responsive
+$padding_top = $attributes['paddingTop'] ?? '';
+$padding_bottom = $attributes['paddingBottom'] ?? '';
+$menu_font_size = $attributes['menuFontSize'] ?? '';
+$menu_line_height = $attributes['menuLineHeight'] ?? '';
+$menu_letter_spacing = $attributes['menuLetterSpacing'] ?? '';
+
+$unique_class = 'rcb-header-' . uniqid();
+$style_registry = "";
+
+// Header Padding
+$header_resp = array();
+if ( $padding_top ) $header_resp['paddingTop'] = $padding_top;
+if ( $padding_bottom ) $header_resp['paddingBottom'] = $padding_bottom;
+if ( ! empty( $header_resp ) ) {
+    $style_registry .= rcb_generate_responsive_css( '.' . $unique_class, $header_resp );
+}
+
+// Logo Size
+if ( $logo_size ) {
+    $style_registry .= rcb_generate_responsive_css( '.' . $unique_class . ' .rcb-header-logo img', array( 'maxWidth' => $logo_size ) );
+    $style_registry .= rcb_generate_responsive_css( '.' . $unique_class . ' .rcb-header-logo svg', array( 'maxWidth' => $logo_size ) );
+}
+
+// Menu Typography
+$menu_resp = array();
+if ( $menu_font_size ) $menu_resp['fontSize'] = $menu_font_size;
+if ( $menu_line_height ) $menu_resp['lineHeight'] = $menu_line_height;
+if ( $menu_letter_spacing ) $menu_resp['letterSpacing'] = $menu_letter_spacing;
+if ( ! empty( $menu_resp ) ) {
+    $style_registry .= rcb_generate_responsive_css( '.' . $unique_class . ' .rcb-nav-item a', $menu_resp );
+}
+
+$classes = ['rcb-header-wrapper', $unique_class];
 if ($sticky) $classes[] = 'rcb-header-sticky';
 
-// Inline Styles
-$styles = [
-    'background-color: ' . ($attributes['headerBgColor'] ?? '#ffffff'),
-    'padding-top: ' . ($attributes['paddingTop'] ?? 15) . 'px',
-    'padding-bottom: ' . ($attributes['paddingBottom'] ?? 15) . 'px',
+// CSS Variables for colors
+$vars = [
     '--rcb-nav-color: ' . ($attributes['navColor'] ?? '#334155'),
     '--rcb-nav-hover: ' . ($attributes['navHoverColor'] ?? '#b91c1c'),
     '--rcb-cta-bg: ' . ($attributes['ctaBgColor'] ?? '#b91c1c'),
     '--rcb-cta-text: ' . ($attributes['ctaTextColor'] ?? '#ffffff'),
-    '--rcb-logo-max-width: ' . $logo_size . 'px',
-    '--rcb-search-color: ' . ($attributes['searchIconColor'] ?? $attributes['navColor'] ?? '#1e293b')
+    '--rcb-search-color: ' . ($attributes['searchIconColor'] ?? $attributes['navColor'] ?? '#1e293b'),
+    '--rcb-menu-weight: ' . ($attributes['menuFontWeight'] ?? '600'),
+    'background-color: ' . ($attributes['headerBgColor'] ?? '#ffffff')
 ];
 
+if ( ! empty( $style_registry ) ) {
+    echo '<style>' . $style_registry . '</style>';
+}
 ?>
 
-<header class="<?php echo esc_attr(implode(' ', $classes)); ?>" style="<?php echo esc_attr(implode('; ', $styles)); ?>">
+<header class="<?php echo esc_attr(implode(' ', $classes)); ?>" style="<?php echo esc_attr(implode('; ', $vars)); ?>">
     <div class="rcb-container">
         <div class="rcb-header-inner">
             <!-- Logo Area -->

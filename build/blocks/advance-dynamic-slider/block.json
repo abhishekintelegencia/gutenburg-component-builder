@@ -52,12 +52,16 @@
       "default": "slide"
     },
     "slidesPerView": {
-      "type": "number",
-      "default": 1
+      "type": "object",
+      "default": {
+        "desktop": 1
+      }
     },
     "spaceBetween": {
-      "type": "number",
-      "default": 0
+      "type": "object",
+      "default": {
+        "desktop": 0
+      }
     },
     "arrowColor": {
       "type": "string",
@@ -68,8 +72,10 @@
       "default": "#3b82f6"
     },
     "height": {
-      "type": "string",
-      "default": "500px"
+      "type": "object",
+      "default": {
+        "desktop": "500px"
+      }
     },
     "bgType": {
       "type": "string",
@@ -122,8 +128,10 @@
       "default": "rgba(0,0,0,0.5)"
     },
     "contentPadding": {
-      "type": "number",
-      "default": 40
+      "type": "object",
+      "default": {
+        "desktop": "40px"
+      }
     },
     "contentBorderRadius": {
       "type": "number",
@@ -138,8 +146,10 @@
       "default": "#ffffff"
     },
     "titleFontSize": {
-      "type": "number",
-      "default": 40
+      "type": "object",
+      "default": {
+        "desktop": "40px"
+      }
     },
     "titleFontWeight": {
       "type": "string",
@@ -154,8 +164,10 @@
       "default": "#eeeeee"
     },
     "descFontSize": {
-      "type": "number",
-      "default": 18
+      "type": "object",
+      "default": {
+        "desktop": "18px"
+      }
     },
     "descFontWeight": {
       "type": "string",
@@ -182,8 +194,10 @@
       "default": 4
     },
     "btnFontSize": {
-      "type": "number",
-      "default": 16
+      "type": "object",
+      "default": {
+        "desktop": "16px"
+      }
     },
     "overlayOpacity": {
       "type": "number",

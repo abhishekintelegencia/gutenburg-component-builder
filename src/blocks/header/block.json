@@ -10,7 +10,7 @@
     "attributes": {
         "menuId": { "type": "number" },
         "showLogo": { "type": "boolean", "default": true },
-        "logoSize": { "type": "number", "default": 150 },
+        "logoSize": { "type": "object", "default": { "desktop": 150 } },
         "sticky": { "type": "boolean", "default": false },
         "showCTA": { "type": "boolean", "default": true },
         "ctaText": { "type": "string", "default": "Enquire Now" },
@@ -21,13 +21,15 @@
         "headerBgColor": { "type": "string", "default": "#ffffff" },
         "navColor": { "type": "string", "default": "#334155" },
         "navHoverColor": { "type": "string", "default": "#b91c1c" },
-        "menuFontSize": { "type": "number", "default": 15 },
+        "menuFontSize": { "type": "object", "default": { "desktop": "15px" } },
         "menuFontWeight": { "type": "string", "default": "600" },
-        "paddingTop": { "type": "number", "default": 15 },
-        "paddingBottom": { "type": "number", "default": 15 },
+        "paddingTop": { "type": "object", "default": { "desktop": "15px" } },
+        "paddingBottom": { "type": "object", "default": { "desktop": "15px" } },
         "megaDropdownBg": { "type": "string", "default": "#ffffff" },
         "megaDropdownTextColor": { "type": "string", "default": "#1e293b" },
-        "searchIconColor": { "type": "string", "default": "#1e293b" }
+        "searchIconColor": { "type": "string", "default": "#1e293b" },
+        "menuLineHeight": { "type": "object" },
+        "menuLetterSpacing": { "type": "object" }
     },
     "supports": {
         "html": false,
