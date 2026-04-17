@@ -472,8 +472,11 @@ function rcb_render_advance_dynamic_slider_block( $attributes, $content ) {
 
 		for ( $i = 0; $i < $repeats; $i++ ) {
 			foreach ( $posts as $post_obj ) {
-				setup_postdata( $GLOBALS['post'] =& $post_obj );
-				$media_url = get_the_post_thumbnail_url( null, 'large' );
+				$p_id = $post_obj->ID;
+				$p_title = get_the_title( $p_id );
+				$p_excerpt = has_excerpt( $p_id ) ? get_the_excerpt( $p_id ) : wp_trim_words( $post_obj->post_content, 20 );
+				$p_permalink = get_permalink( $p_id );
+				$media_url = get_the_post_thumbnail_url( $p_id, 'large' );
 				
 				$final_output .= sprintf(
 					'<div class="swiper-slide rcb-slide-item v-align-%s" style="background-image: %s; background-color: %s; background-size:cover; background-position:center; width:100%%; height:100%%; position:relative; overflow:hidden;">',
@@ -499,21 +502,21 @@ function rcb_render_advance_dynamic_slider_block( $attributes, $content ) {
 				if ( $show_title ) {
 					$final_output .= sprintf(
 						'<h2 class="rcb-slide-title">%s</h2>',
-						get_the_title()
+						esc_html( $p_title )
 					);
 				}
 				
 				if ( $show_desc ) {
 					$final_output .= sprintf(
 						'<div class="rcb-slide-desc">%s</div>',
-						get_the_excerpt()
+						esc_html( $p_excerpt )
 					);
 				}
 				
 				if ( $show_btn ) {
 					$final_output .= sprintf(
 						'<div class="rcb-slide-btn-wrapper"><a href="%s" class="rcb-slide-btn">%s</a></div>',
-						get_permalink(),
+						esc_url( $p_permalink ),
 						esc_html( $btn_text )
 					);
 				}
