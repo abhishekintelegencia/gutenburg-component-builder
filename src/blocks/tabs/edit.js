@@ -14,10 +14,17 @@ import {
     SelectControl,
     __experimentalToggleGroupControl as ToggleGroupControl,
     __experimentalToggleGroupControlOption as ToggleGroupControlOption,
+    __experimentalDivider as Divider,
+    __experimentalBoxControl as BoxControl
 } from '@wordpress/components';
+import { 
+    ResponsiveControl, 
+    AdvancedTypographyControl, 
+    getResponsiveValue as getResp 
+} from '../shared-styles';
 import { useSelect, useDispatch } from '@wordpress/data';
 import { createBlock } from '@wordpress/blocks';
-import { useEffect } from '@wordpress/element';
+import { useEffect, useState } from '@wordpress/element';
 
 const FONT_FAMILY_OPTIONS = [
     { label: 'Default', value: '' },
@@ -49,7 +56,8 @@ export default function Edit( { attributes, setAttributes, clientId } ) {
         labelColor, labelActiveColor,
         navActiveBgColor, labelActiveBorderColor,
         labelHoverColor, navHoverBgColor,
-        labelFontSize, labelFontWeight, labelFontFamily
+        labelFontSize, labelFontWeight, labelFontFamily,
+        labelLineHeight, labelLetterSpacing, labelPadding
     } = attributes;
 
     const { insertBlock, removeBlock } = useDispatch( 'core/block-editor' );
@@ -63,6 +71,15 @@ export default function Edit( { attributes, setAttributes, clientId } ) {
             setAttributes( { blockId: `tabs-${ clientId.substring( 0, 8 ) }` } );
         }
     }, [] );
+
+    const [ deviceMode, setDeviceMode ] = useState( 'desktop' );
+
+    const updateResponsiveAttribute = ( name, value ) => {
+        const currentData = attributes[ name ] || { desktop: '' };
+        const newData = { ...( typeof currentData === 'object' ? currentData : { desktop: currentData } ) };
+        newData[ deviceMode ] = value;
+        setAttributes( { [ name ]: newData } );
+    };
 
     // Ensure we have a valid active tab if blocks exist
     useEffect( () => {
@@ -92,6 +109,11 @@ export default function Edit( { attributes, setAttributes, clientId } ) {
 
     // Build CSS Variables
     const styleVars = {};
+    const respLabelFontSize = getResp( labelFontSize );
+    const respLabelLineHeight = getResp( labelLineHeight );
+    const respLabelLetterSpacing = getResp( labelLetterSpacing );
+    const respLabelPadding = getResp( labelPadding );
+
     if ( navBgColor )        styleVars['--rcb-nav-bg']             = navBgColor;
     if ( contentBgColor )    styleVars['--rcb-content-bg']         = contentBgColor;
     if ( labelColor )        styleVars['--rcb-label-color']        = labelColor;
@@ -100,9 +122,19 @@ export default function Edit( { attributes, setAttributes, clientId } ) {
     if ( labelHoverColor )   styleVars['--rcb-label-hover-color']  = labelHoverColor;
     if ( navHoverBgColor )   styleVars['--rcb-nav-hover-bg']       = navHoverBgColor;
     if ( labelActiveBorderColor ) styleVars['--rcb-active-border-color'] = labelActiveBorderColor;
-    if ( labelFontSize )     styleVars['--rcb-label-font-size']    = `${labelFontSize}px`;
+    if ( respLabelFontSize )     styleVars['--rcb-label-font-size']    = respLabelFontSize;
     if ( labelFontWeight )   styleVars['--rcb-label-font-weight']  = labelFontWeight;
     if ( labelFontFamily )   styleVars['--rcb-label-font-family']  = labelFontFamily;
+    if ( respLabelLineHeight ) styleVars['--rcb-label-line-height'] = respLabelLineHeight;
+    if ( respLabelLetterSpacing ) styleVars['--rcb-label-letter-spacing'] = respLabelLetterSpacing;
+
+    const navItemPaddingStyle = {};
+    if ( respLabelPadding ) {
+        if ( respLabelPadding.top )    navItemPaddingStyle.paddingTop    = respLabelPadding.top;
+        if ( respLabelPadding.right )  navItemPaddingStyle.paddingRight  = respLabelPadding.right;
+        if ( respLabelPadding.bottom ) navItemPaddingStyle.paddingBottom = respLabelPadding.bottom;
+        if ( respLabelPadding.left )   navItemPaddingStyle.paddingLeft   = respLabelPadding.left;
+    }
 
     const blockProps = useBlockProps( {
         className: `rcb-tabs-wrapper layout-${ layout }`,
@@ -252,26 +284,46 @@ export default function Edit( { attributes, setAttributes, clientId } ) {
                     ] }
                 />
 
-                <PanelBody title={ __( 'Label Typography', 'reusable-component-builder' ) } initialOpen={ false }>
-                    <SelectControl
-                        label={ __( 'Font Family', 'reusable-component-builder' ) }
-                        value={ labelFontFamily || '' }
-                        options={ FONT_FAMILY_OPTIONS }
-                        onChange={ ( val ) => setAttributes( { labelFontFamily: val } ) }
+                <PanelBody title={ __( 'Label Style', 'reusable-component-builder' ) } initialOpen={ false }>
+                    <AdvancedTypographyControl
+                        label={ __( 'Label Typography', 'reusable-component-builder' ) }
+                        value={ labelFontSize }
+                        fontWeight={ labelFontWeight }
+                        fontFamily={ labelFontFamily }
+                        lineHeight={ labelLineHeight }
+                        letterSpacing={ labelLetterSpacing }
+                        onChange={ ( prop, val, isResp ) => {
+                            if ( isResp ) {
+                                const attrMap = {
+                                    fontSize: 'labelFontSize',
+                                    lineHeight: 'labelLineHeight',
+                                    letterSpacing: 'labelLetterSpacing'
+                                };
+                                updateResponsiveAttribute( attrMap[prop] || prop, val );
+                            } else {
+                                const attrMap = {
+                                    fontWeight: 'labelFontWeight',
+                                    fontFamily: 'labelFontFamily'
+                                };
+                                setAttributes( { [ attrMap[prop] || prop ]: val } );
+                            }
+                        } }
+                        deviceMode={ deviceMode }
+                        setDeviceMode={ setDeviceMode }
                     />
-                    <RangeControl
-                        label={ __( 'Font Size', 'reusable-component-builder' ) }
-                        value={ labelFontSize || 16 }
-                        min={ 10 }
-                        max={ 80 }
-                        onChange={ ( val ) => setAttributes( { labelFontSize: val } ) }
-                    />
-                    <SelectControl
-                        label={ __( 'Font Weight', 'reusable-component-builder' ) }
-                        value={ labelFontWeight || '' }
-                        options={ FONT_WEIGHT_OPTIONS }
-                        onChange={ ( val ) => setAttributes( { labelFontWeight: val } ) }
-                    />
+
+                    <Divider />
+
+                    <ResponsiveControl 
+                        label={ __( 'Label Padding', 'reusable-component-builder' ) } 
+                        deviceMode={ deviceMode } 
+                        setDeviceMode={ setDeviceMode }
+                    >
+                        <BoxControl
+                            values={ getResp( labelPadding ) || { top: '10px', right: '20px', bottom: '10px', left: '20px' } }
+                            onChange={ ( val ) => updateResponsiveAttribute( 'labelPadding', val ) }
+                        />
+                    </ResponsiveControl>
                 </PanelBody>
             </InspectorControls>
 
@@ -285,16 +337,19 @@ export default function Edit( { attributes, setAttributes, clientId } ) {
                                     key={ block.clientId }
                                     className={ `rcb-tabs-nav-item ${ isActive ? 'is-active' : '' }` }
                                     onClick={ () => setAttributes( { activeTabClientId: block.clientId } ) }
-                                    style={ isActive ? {
-                                        backgroundColor: navActiveBgColor || '#fff',
-                                        color: labelActiveColor || '#3b82f6',
-                                        borderRightColor: layout === 'vertical' ? ( labelActiveBorderColor || labelActiveColor || '#3b82f6' ) : undefined,
-                                        borderBottomColor: layout === 'horizontal' ? ( labelActiveBorderColor || labelActiveColor || '#3b82f6' ) : undefined,
-                                        borderRightWidth: layout === 'vertical' ? '3px' : undefined,
-                                        borderBottomWidth: layout === 'horizontal' ? '3px' : undefined,
-                                        borderRightStyle: layout === 'vertical' ? 'solid' : undefined,
-                                        borderBottomStyle: layout === 'horizontal' ? 'solid' : undefined,
-                                    } : {} }
+                                    style={ {
+                                        ...navItemPaddingStyle,
+                                        ...( isActive ? {
+                                            backgroundColor: navActiveBgColor || '#fff',
+                                            color: labelActiveColor || '#3b82f6',
+                                            borderRightColor: layout === 'vertical' ? ( labelActiveBorderColor || labelActiveColor || '#3b82f6' ) : undefined,
+                                            borderBottomColor: layout === 'horizontal' ? ( labelActiveBorderColor || labelActiveColor || '#3b82f6' ) : undefined,
+                                            borderRightWidth: layout === 'vertical' ? '3px' : undefined,
+                                            borderBottomWidth: layout === 'horizontal' ? '3px' : undefined,
+                                            borderRightStyle: layout === 'vertical' ? 'solid' : undefined,
+                                            borderBottomStyle: layout === 'horizontal' ? 'solid' : undefined,
+                                        } : {} )
+                                    } }
                                 >
                                     { block.attributes.icon && (
                                         <span className={ `rcb-tabs-nav-icon dashicons ${ block.attributes.icon }` } style={ { marginRight: '8px' } }></span>

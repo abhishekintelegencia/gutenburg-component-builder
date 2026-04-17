@@ -18,6 +18,11 @@ import {
 } from '@wordpress/components';
 import { useState, useEffect } from '@wordpress/element';
 import apiFetch from '@wordpress/api-fetch';
+import { 
+    ResponsiveControl, 
+    AdvancedTypographyControl, 
+    getResponsiveValue 
+} from '../shared-styles';
 
 export default function Edit( { attributes, setAttributes } ) {
     const { 
@@ -39,6 +44,17 @@ export default function Edit( { attributes, setAttributes } ) {
     const [taxonomies, setTaxonomies] = useState([]);
     const [terms, setTerms] = useState([]);
     const [loading, setLoading] = useState(false);
+    const [deviceMode, setDeviceMode] = useState('desktop');
+
+    const updateResponsiveAttribute = (key, value) => {
+        const currentVal = attributes[key];
+        const responsiveObj = (typeof currentVal === 'object' && currentVal !== null) ? { ...currentVal } : { desktop: currentVal || '' };
+        responsiveObj[deviceMode] = value;
+        setAttributes({ [key]: responsiveObj });
+    };
+    
+    // Helper to get current display value
+    const getResp = (val) => getResponsiveValue(val, deviceMode);
 
     // Generate uniqueId
     useEffect( () => {
@@ -170,13 +186,15 @@ export default function Edit( { attributes, setAttributes } ) {
                     />
                     { showContentBg && (
                         <>
-                            <RangeControl
-                                label={ __( 'Card Padding (px)', 'reusable-component-builder' ) }
-                                value={ contentPadding }
-                                min={ 0 }
-                                max={ 100 }
-                                onChange={ ( val ) => setAttributes( { contentPadding: val } ) }
-                            />
+                            <ResponsiveControl label={ __( 'Card Padding (px)', 'reusable-component-builder' ) } deviceMode={deviceMode} setDeviceMode={setDeviceMode}>
+                                <RangeControl
+                                    value={ parseInt(getResp(contentPadding)) || 0 }
+                                    min={ 0 }
+                                    max={ 100 }
+                                    onChange={ ( val ) => updateResponsiveAttribute( 'contentPadding', val ) }
+                                    __nextHasNoMarginBottom={true}
+                                />
+                            </ResponsiveControl>
                             <RangeControl
                                 label={ __( 'Corner Roundness (px)', 'reusable-component-builder' ) }
                                 value={ contentBorderRadius }
@@ -219,27 +237,19 @@ export default function Edit( { attributes, setAttributes } ) {
                         onChange={ ( val ) => setAttributes( { showTitle: val } ) }
                     />
                     { showTitle && (
-                        <>
-                            <RangeControl
-                                label={ __( 'Font Size (px)', 'reusable-component-builder' ) }
-                                value={ titleFontSize }
-                                min={ 10 }
-                                max={ 100 }
-                                onChange={ ( val ) => setAttributes( { titleFontSize: val } ) }
-                            />
-                            <SelectControl
-                                label={ __( 'Font Weight', 'reusable-component-builder' ) }
-                                value={ titleFontWeight }
-                                options={ [
-                                    { label: 'Normal', value: '400' },
-                                    { label: 'Medium', value: '500' },
-                                    { label: 'Semi-Bold', value: '600' },
-                                    { label: 'Bold', value: '700' },
-                                    { label: 'Extra-Bold', value: '800' },
-                                ] }
-                                onChange={ ( val ) => setAttributes( { titleFontWeight: val } ) }
-                            />
-                        </>
+                        <AdvancedTypographyControl
+                            value={ titleFontSize }
+                            fontWeight={ titleFontWeight }
+                            onChange={ ( prop, val, isResp ) => {
+                                if ( isResp ) {
+                                    updateResponsiveAttribute( prop === 'fontSize' ? 'titleFontSize' : prop, val );
+                                } else {
+                                    setAttributes( { [ prop === 'fontWeight' ? 'titleFontWeight' : prop ]: val } );
+                                }
+                            } }
+                            deviceMode={ deviceMode }
+                            setDeviceMode={ setDeviceMode }
+                        />
                     ) }
                 </PanelBody>
 
@@ -285,15 +295,20 @@ export default function Edit( { attributes, setAttributes } ) {
                                 value={ btnText }
                                 onChange={ ( val ) => setAttributes( { btnText: val } ) }
                             />
-                            <RangeControl
-                                label={ __( 'Font Size (px)', 'reusable-component-builder' ) }
+                            <AdvancedTypographyControl
                                 value={ btnFontSize }
-                                min={ 10 }
-                                max={ 30 }
-                                onChange={ ( val ) => setAttributes( { btnFontSize: val } ) }
+                                onChange={ ( prop, val, isResp ) => {
+                                    if ( isResp ) {
+                                        updateResponsiveAttribute( prop === 'fontSize' ? 'btnFontSize' : prop, val );
+                                    } else {
+                                        setAttributes( { [ prop ]: val } );
+                                    }
+                                } }
+                                deviceMode={ deviceMode }
+                                setDeviceMode={ setDeviceMode }
                             />
                             <RangeControl
-                                label={ __( 'Border Radius (px)', 'reusable-component-builder' ) }
+                                label={ __( 'Button Roundness (px)', 'reusable-component-builder' ) }
                                 value={ btnBorderRadius }
                                 min={ 0 }
                                 max={ 50 }
@@ -303,7 +318,36 @@ export default function Edit( { attributes, setAttributes } ) {
                     ) }
                 </PanelBody>
 
-                <PanelBody title={ __( 'Slider Settings', 'reusable-component-builder' ) }>
+                <PanelBody title={ __( 'Slider Settings', 'reusable-component-builder' ) } initialOpen={ false }>
+                    <ResponsiveControl label={ __( 'Slider Height', 'reusable-component-builder' ) } deviceMode={deviceMode} setDeviceMode={setDeviceMode}>
+                        <TextControl
+                            value={ getResp(height) }
+                            onChange={ ( val ) => updateResponsiveAttribute( 'height', val ) }
+                            help={ __( 'e.g. 500px, 80vh, 100%', 'reusable-component-builder' ) }
+                            __nextHasNoMarginBottom={true}
+                        />
+                    </ResponsiveControl>
+
+                    <ResponsiveControl label={ __( 'Slides Per View', 'reusable-component-builder' ) } deviceMode={deviceMode} setDeviceMode={setDeviceMode}>
+                        <RangeControl
+                            value={ parseInt(getResp(slidesPerView)) || 1 }
+                            min={ 1 }
+                            max={ 6 }
+                            onChange={ ( val ) => updateResponsiveAttribute( 'slidesPerView', val ) }
+                            __nextHasNoMarginBottom={true}
+                        />
+                    </ResponsiveControl>
+
+                    <ResponsiveControl label={ __( 'Space Between (px)', 'reusable-component-builder' ) } deviceMode={deviceMode} setDeviceMode={setDeviceMode}>
+                        <RangeControl
+                            value={ parseInt(getResp(spaceBetween)) || 0 }
+                            min={ 0 }
+                            max={ 100 }
+                            onChange={ ( val ) => updateResponsiveAttribute( 'spaceBetween', val ) }
+                            __nextHasNoMarginBottom={true}
+                        />
+                    </ResponsiveControl>
+
                     <ToggleControl
                         label={ __( 'Show Arrows', 'reusable-component-builder' ) }
                         checked={ arrows }
@@ -345,25 +389,6 @@ export default function Edit( { attributes, setAttributes } ) {
                             { label: __( 'Flip', 'reusable-component-builder' ), value: 'flip' },
                         ] }
                         onChange={ ( val ) => setAttributes( { effect: val } ) }
-                    />
-                    <RangeControl
-                        label={ __( 'Slides Per View', 'reusable-component-builder' ) }
-                        value={ slidesPerView }
-                        min={ 1 }
-                        max={ 6 }
-                        onChange={ ( val ) => setAttributes( { slidesPerView: val } ) }
-                    />
-                    <RangeControl
-                        label={ __( 'Space Between Slides', 'reusable-component-builder' ) }
-                        value={ spaceBetween }
-                        min={ 0 }
-                        max={ 50 }
-                        onChange={ ( val ) => setAttributes( { spaceBetween: val } ) }
-                    />
-                    <TextControl
-                        label={ __( 'Slider Height (e.g. 500px)', 'reusable-component-builder' ) }
-                        value={ height }
-                        onChange={ ( val ) => setAttributes( { height: val } ) }
                     />
                 </PanelBody>
 
@@ -427,10 +452,10 @@ export default function Edit( { attributes, setAttributes } ) {
                     <span>{ __( 'Advance Dynamic Slider Preview', 'reusable-component-builder' ) }</span>
                 </div>
 
-                <div className="rcb-slider-preview-container" style={{ height: height }}>
+                <div className="rcb-slider-preview-container" style={{ height: getResp(height) }}>
                     <div className="rcb-slider-preview-track" style={{ 
                         display: 'flex', 
-                        gap: spaceBetween + 'px',
+                        gap: getResp(spaceBetween) + 'px',
                         width: '100%'
                     }}>
                         { previewPosts.map( ( post, index ) => {
@@ -439,12 +464,12 @@ export default function Edit( { attributes, setAttributes } ) {
                             
                             return (
                                 <div key={post.id} className={`rcb-slide-item v-align-${verticalAlignment}`} style={{ 
-                                    flex: `0 0 calc(${100/slidesPerView}% - ${spaceBetween}px)`,
+                                    flex: `0 0 calc(${100/getResp(slidesPerView)}% - ${getResp(spaceBetween)}px)`,
                                     backgroundImage: bgType === 'image' && mediaUrl ? `url(${mediaUrl})` : 'none',
                                     backgroundColor: (bgType === 'color' || (bgType === 'image' && !mediaUrl)) ? bgColor : 'transparent',
                                     backgroundSize: 'cover',
                                     backgroundPosition: 'center',
-                                    height: height,
+                                    height: getResp(height),
                                     position: 'relative'
                                 }}>
                                     { bgType === 'image' && mediaUrl && (
@@ -460,17 +485,18 @@ export default function Edit( { attributes, setAttributes } ) {
                                         />
                                     ) }
 
-                                    <div className={ `rcb-slide-content align-${ contentAlignment }${ showContentBg ? ' has-card' : '' }` } style={{
-                                        zIndex: 2,
+                                    <div className={`rcb-slide-content h-align-${contentAlignment}`} style={{
                                         position: 'relative',
+                                        zIndex: 2,
+                                        width: '100%',
+                                        padding: getResp(contentPadding),
                                         backgroundColor: showContentBg ? contentBgColor : 'transparent',
-                                        padding: contentPadding + 'px',
                                         borderRadius: contentBorderRadius + 'px'
                                     }}>
                                         { showTitle && post?.title?.rendered && (
                                             <h2 className="rcb-slide-title" style={{
                                                 color: titleColor,
-                                                fontSize: titleFontSize + 'px',
+                                                fontSize: getResp(titleFontSize),
                                                 fontWeight: titleFontWeight,
                                                 margin: 0
                                             }} dangerouslySetInnerHTML={{ __html: post.title.rendered }} />
@@ -479,7 +505,7 @@ export default function Edit( { attributes, setAttributes } ) {
                                         { showDesc && post?.excerpt?.rendered && (
                                             <div className="rcb-slide-desc" style={{
                                                 color: descColor,
-                                                fontSize: descFontSize + 'px',
+                                                fontSize: getResp(descFontSize),
                                                 fontWeight: descFontWeight,
                                                 marginTop: '10px'
                                             }} dangerouslySetInnerHTML={{ __html: post.excerpt.rendered }} />
@@ -491,7 +517,7 @@ export default function Edit( { attributes, setAttributes } ) {
                                                     display: 'inline-block',
                                                     color: btnColor,
                                                     backgroundColor: btnBgColor,
-                                                    fontSize: btnFontSize + 'px',
+                                                    fontSize: getResp(btnFontSize),
                                                     borderRadius: btnBorderRadius + 'px',
                                                     padding: '10px 20px'
                                                 }}>

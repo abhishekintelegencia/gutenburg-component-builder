@@ -2,9 +2,7 @@ import { __ } from '@wordpress/i18n';
 import { 
     useBlockProps, 
     InspectorControls,
-    PanelColorSettings,
-    MediaUpload,
-    MediaUploadCheck
+    PanelColorSettings 
 } from '@wordpress/block-editor';
 import { 
     PanelBody, 
@@ -12,7 +10,13 @@ import {
     ToggleControl,
     TextControl,
     SelectControl,
+    __experimentalDivider as Divider
 } from '@wordpress/components';
+import { 
+    ResponsiveControl, 
+    AdvancedTypographyControl, 
+    getResponsiveValue as getResp 
+} from '../shared-styles';
 import { useSelect } from '@wordpress/data';
 import { store as coreStore } from '@wordpress/core-data';
 import { useState } from '@wordpress/element';
@@ -23,10 +27,19 @@ export default function Edit( { attributes, setAttributes } ) {
         showCTA, ctaText, ctaLink, ctaBgColor, ctaTextColor,
         showSearch, headerBgColor, navColor, navHoverColor,
         menuFontSize, menuFontWeight, paddingTop, paddingBottom,
-        megaDropdownBg, megaDropdownTextColor, searchIconColor
+        megaDropdownBg, megaDropdownTextColor, searchIconColor,
+        menuLineHeight, menuLetterSpacing
     } = attributes;
 
     const [ isPreviewingMega, setIsPreviewingMega ] = useState( false );
+    const [ deviceMode, setDeviceMode ] = useState( 'desktop' );
+
+    const updateResponsiveAttribute = ( name, value ) => {
+        const currentData = attributes[ name ] || { desktop: '' };
+        const newData = { ...( typeof currentData === 'object' ? currentData : { desktop: currentData } ) };
+        newData[ deviceMode ] = value;
+        setAttributes( { [ name ]: newData } );
+    };
 
     const menus = useSelect( ( select ) => {
         return select( coreStore ).getMenus( { per_page: -1 } );
@@ -57,8 +70,8 @@ export default function Edit( { attributes, setAttributes } ) {
         className: `rcb-header-editor ${ isPreviewingMega ? 'is-previewing' : '' }`,
         style: {
             backgroundColor: headerBgColor,
-            paddingTop: paddingTop + 'px',
-            paddingBottom: paddingBottom + 'px',
+            paddingTop: getResp( paddingTop ),
+            paddingBottom: getResp( paddingBottom ),
             fontFamily: "'Inter', sans-serif"
         }
     } );
@@ -66,6 +79,10 @@ export default function Edit( { attributes, setAttributes } ) {
     return (
         <>
             <InspectorControls>
+                <div style={ { padding: '15px', borderBottom: '1px solid #ddd', background: '#f9f9f9' } }>
+                    <ResponsiveControl deviceMode={ deviceMode } setDeviceMode={ setDeviceMode } />
+                </div>
+
                 <PanelBody title={ __( 'Select the Menu', 'reusable-component-builder' ) }>
                     <SelectControl
                         label={ __( 'WordPress Menu', 'reusable-component-builder' ) }
@@ -82,13 +99,18 @@ export default function Edit( { attributes, setAttributes } ) {
                         onChange={ ( val ) => setAttributes( { showLogo: val } ) }
                     />
                     { showLogo && (
-                        <RangeControl
+                        <ResponsiveControl 
                             label={ __( 'Logo Max Width (px)', 'reusable-component-builder' ) }
-                            value={ logoSize }
-                            min={ 50 }
-                            max={ 400 }
-                            onChange={ ( val ) => setAttributes( { logoSize: val } ) }
-                        />
+                            deviceMode={ deviceMode }
+                            setDeviceMode={ setDeviceMode }
+                        >
+                            <RangeControl
+                                value={ parseInt( getResp( logoSize ) ) || 150 }
+                                min={ 50 }
+                                max={ 400 }
+                                onChange={ ( val ) => updateResponsiveAttribute( 'logoSize', val ) }
+                            />
+                        </ResponsiveControl>
                     ) }
                     <ToggleControl
                         label={ __( 'Show Search Icon', 'reusable-component-builder' ) }
@@ -124,21 +146,56 @@ export default function Edit( { attributes, setAttributes } ) {
                     ) }
                 </PanelBody>
 
-                <PanelBody title={ __( 'Spacing Settings', 'reusable-component-builder' ) } initialOpen={ false }>
-                    <RangeControl
-                        label={ __( 'Padding Top (px)', 'reusable-component-builder' ) }
-                        value={ paddingTop }
-                        min={ 0 }
-                        max={ 100 }
-                        onChange={ ( val ) => setAttributes( { paddingTop: val } ) }
+                <PanelBody title={ __( 'Header Style', 'reusable-component-builder' ) } initialOpen={ false }>
+                    <AdvancedTypographyControl
+                        label={ __( 'Menu Typography', 'reusable-component-builder' ) }
+                        value={ menuFontSize }
+                        lineHeight={ menuLineHeight }
+                        letterSpacing={ menuLetterSpacing }
+                        fontWeight={ menuFontWeight }
+                        onChange={ ( prop, val, isResp ) => {
+                            if ( isResp ) {
+                                const attrMap = {
+                                    fontSize: 'menuFontSize',
+                                    lineHeight: 'menuLineHeight',
+                                    letterSpacing: 'menuLetterSpacing'
+                                };
+                                updateResponsiveAttribute( attrMap[prop] || prop, val );
+                            } else {
+                                setAttributes( { [ prop === 'fontWeight' ? 'menuFontWeight' : prop ]: val } );
+                            }
+                        } }
+                        deviceMode={ deviceMode }
+                        setDeviceMode={ setDeviceMode }
                     />
-                    <RangeControl
-                        label={ __( 'Padding Bottom (px)', 'reusable-component-builder' ) }
-                        value={ paddingBottom }
-                        min={ 0 }
-                        max={ 100 }
-                        onChange={ ( val ) => setAttributes( { paddingBottom: val } ) }
-                    />
+
+                    <Divider />
+
+                    <ResponsiveControl 
+                        label={ __( 'Padding Top (px)', 'reusable-component-builder' ) } 
+                        deviceMode={ deviceMode } 
+                        setDeviceMode={ setDeviceMode }
+                    >
+                        <RangeControl
+                            value={ parseInt( getResp( paddingTop ) ) || 0 }
+                            min={ 0 }
+                            max={ 100 }
+                            onChange={ ( val ) => updateResponsiveAttribute( 'paddingTop', val + 'px' ) }
+                        />
+                    </ResponsiveControl>
+
+                    <ResponsiveControl 
+                        label={ __( 'Padding Bottom (px)', 'reusable-component-builder' ) } 
+                        deviceMode={ deviceMode } 
+                        setDeviceMode={ setDeviceMode }
+                    >
+                        <RangeControl
+                            value={ parseInt( getResp( paddingBottom ) ) || 0 }
+                            min={ 0 }
+                            max={ 100 }
+                            onChange={ ( val ) => updateResponsiveAttribute( 'paddingBottom', val + 'px' ) }
+                        />
+                    </ResponsiveControl>
                 </PanelBody>
 
                 <PanelBody title={ __( 'Design Preview', 'reusable-component-builder' ) } initialOpen={ false }>

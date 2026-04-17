@@ -10,11 +10,31 @@ const initRcbDynamicSlider = ( el ) => {
     const effect = el.getAttribute('data-effect') || 'slide';
     const slidesPerView = parseInt(el.getAttribute('data-slides-per-view'), 10) || 1;
     const spaceBetween = parseInt(el.getAttribute('data-space-between'), 10) || 0;
+    const breakpointsRaw = el.getAttribute('data-breakpoints');
+    let breakpoints = {};
+    
+    if ( breakpointsRaw ) {
+        try {
+            const parsed = JSON.parse( breakpointsRaw );
+            // Swiper uses the pixel value as the KEY for "greater than or equal to"
+            // Our PHP sends { 768: {...}, 0: {...} }
+            // Swiper expectations: { 768: { slidesPerView: 2 }, 1024: { slidesPerView: 3 } }
+            // Let's map our 768 (tablet) and 0 (mobile) to Swiper format.
+            breakpoints = {
+                0: parsed[0] || { slidesPerView: 1, spaceBetween: 10 },
+                768: parsed[768] || { slidesPerView: Math.min(2, slidesPerView), spaceBetween: Math.min(20, spaceBetween) },
+                1025: { slidesPerView: slidesPerView, spaceBetween: spaceBetween }
+            };
+        } catch ( e ) {
+            console.error( 'RCB Slider: Error parsing breakpoints', e );
+        }
+    }
     
     new Swiper( el, {
         modules: [ Navigation, Pagination, Autoplay, EffectFade ],
         slidesPerView: slidesPerView,
         spaceBetween: spaceBetween,
+        breakpoints: breakpoints,
         loop: loop,
         effect: effect,
         grabCursor: false,
@@ -27,7 +47,7 @@ const initRcbDynamicSlider = ( el ) => {
             el: el.querySelector('.swiper-pagination'),
             clickable: true,
         } : false,
-        watchOverflow: false, // Match base slider to keep arrows visible
+        watchOverflow: false,
     });
 };
 

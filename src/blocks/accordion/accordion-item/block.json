@@ -28,7 +28,8 @@
             "type": "string"
         },
         "titleFontSize": {
-            "type": "number"
+            "type": "object",
+            "default": { "desktop": "16px" }
         },
         "titleFontWeight": {
             "type": "string"
@@ -37,10 +38,10 @@
             "type": "string"
         },
         "titleLineHeight": {
-            "type": "number"
+            "type": "object"
         },
         "titleLetterSpacing": {
-            "type": "number"
+            "type": "object"
         },
         "titlePadding": {
             "type": "object"

@@ -9,8 +9,10 @@
   "description": "Premium custom accordion with horizontal and vertical options.",
   "attributes": {
     "gap": {
-      "type": "number",
-      "default": 10
+      "type": "object",
+      "default": {
+        "desktop": 10
+      }
     },
     "uniqueId": {
       "type": "string"

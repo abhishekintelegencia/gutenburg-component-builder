@@ -15,6 +15,11 @@ import {
     __experimentalBoxControl as BoxControl,
     __experimentalDivider as Divider,
 } from '@wordpress/components';
+import { 
+    ResponsiveControl, 
+    AdvancedTypographyControl, 
+    getResponsiveValue as getResp 
+} from '../../shared-styles';
 import { useEffect, useState } from '@wordpress/element';
 import { select, dispatch } from '@wordpress/data';
 
@@ -65,6 +70,14 @@ export default function Edit( { attributes, setAttributes, clientId } ) {
     } = attributes;
 
     const [ isEditorOpen, setIsEditorOpen ] = useState( true );
+    const [ deviceMode, setDeviceMode ] = useState( 'desktop' );
+
+    const updateResponsiveAttribute = ( name, value ) => {
+        const currentData = attributes[ name ] || { desktop: '' };
+        const newData = { ...( typeof currentData === 'object' ? currentData : { desktop: currentData } ) };
+        newData[ deviceMode ] = value;
+        setAttributes( { [ name ]: newData } );
+    };
 
     useEffect( () => {
         if ( ! id ) {
@@ -74,23 +87,28 @@ export default function Edit( { attributes, setAttributes, clientId } ) {
 
     // Build CSS variables for title styling
     const titleCssVars = {};
+    const respTitleFontSize = getResp( titleFontSize );
+    const respTitleLineHeight = getResp( titleLineHeight );
+    const respTitleLetterSpacing = getResp( titleLetterSpacing );
+    const respTitlePadding = getResp( titlePadding );
+
     if ( titleColor )         titleCssVars['--rcb-title-color']          = titleColor;
     if ( titleBgColor )       titleCssVars['--rcb-title-bg-color']       = titleBgColor;
     if ( titleFontFamily )    titleCssVars['--rcb-title-font-family']    = titleFontFamily;
-    if ( titleFontSize )      titleCssVars['--rcb-title-font-size']      = `${ titleFontSize }px`;
+    if ( respTitleFontSize )  titleCssVars['--rcb-title-font-size']      = respTitleFontSize;
     if ( titleFontWeight )    titleCssVars['--rcb-title-font-weight']    = titleFontWeight;
     if ( titleTextTransform ) titleCssVars['--rcb-title-text-transform'] = titleTextTransform;
-    if ( titleLineHeight )    titleCssVars['--rcb-title-line-height']    = titleLineHeight;
-    if ( titleLetterSpacing ) titleCssVars['--rcb-title-letter-spacing'] = `${ titleLetterSpacing }px`;
+    if ( respTitleLineHeight ) titleCssVars['--rcb-title-line-height']   = respTitleLineHeight;
+    if ( respTitleLetterSpacing ) titleCssVars['--rcb-title-letter-spacing'] = respTitleLetterSpacing;
     if ( contentBgColor )     titleCssVars['--rcb-content-bg-color']     = contentBgColor;
 
     // Build padding style for the header
     const headerPaddingStyle = {};
-    if ( titlePadding ) {
-        if ( titlePadding.top )    headerPaddingStyle.paddingTop    = titlePadding.top;
-        if ( titlePadding.right )  headerPaddingStyle.paddingRight  = titlePadding.right;
-        if ( titlePadding.bottom ) headerPaddingStyle.paddingBottom = titlePadding.bottom;
-        if ( titlePadding.left )   headerPaddingStyle.paddingLeft   = titlePadding.left;
+    if ( respTitlePadding ) {
+        if ( respTitlePadding.top )    headerPaddingStyle.paddingTop    = respTitlePadding.top;
+        if ( respTitlePadding.right )  headerPaddingStyle.paddingRight  = respTitlePadding.right;
+        if ( respTitlePadding.bottom ) headerPaddingStyle.paddingBottom = respTitlePadding.bottom;
+        if ( respTitlePadding.left )   headerPaddingStyle.paddingLeft   = respTitlePadding.left;
     }
 
     const blockProps = useBlockProps( {
@@ -151,80 +169,47 @@ export default function Edit( { attributes, setAttributes, clientId } ) {
                 />
 
                 <PanelBody title={ __( 'Title Style', 'reusable-component-builder' ) } initialOpen={ false }>
-
-                    {/* Typography */}
-                    <p style={ { fontWeight: 600, marginBottom: '6px' } }>{ __( 'Typography', 'reusable-component-builder' ) }</p>
-                    <SelectControl
-                        label={ __( 'Font Family', 'reusable-component-builder' ) }
-                        value={ titleFontFamily || '' }
-                        options={ FONT_FAMILY_OPTIONS }
-                        onChange={ ( val ) => setAttributes( { titleFontFamily: val } ) }
+                    <AdvancedTypographyControl
+                        label={ __( 'Title Typography', 'reusable-component-builder' ) }
+                        value={ titleFontSize }
+                        fontWeight={ titleFontWeight }
+                        fontFamily={ titleFontFamily }
+                        textTransform={ titleTextTransform }
+                        lineHeight={ titleLineHeight }
+                        letterSpacing={ titleLetterSpacing }
+                        onChange={ ( prop, val, isResp ) => {
+                            if ( isResp ) {
+                                const attrMap = {
+                                    fontSize: 'titleFontSize',
+                                    lineHeight: 'titleLineHeight',
+                                    letterSpacing: 'titleLetterSpacing'
+                                };
+                                updateResponsiveAttribute( attrMap[prop] || prop, val );
+                            } else {
+                                const attrMap = {
+                                    fontWeight: 'titleFontWeight',
+                                    fontFamily: 'titleFontFamily',
+                                    textTransform: 'titleTextTransform'
+                                };
+                                setAttributes( { [ attrMap[prop] || prop ]: val } );
+                            }
+                        } }
+                        deviceMode={ deviceMode }
+                        setDeviceMode={ setDeviceMode }
                     />
-                    <div style={ { display: 'flex', gap: '10px', alignItems: 'flex-end' } }>
-                        <div style={ { flex: 1 } }>
-                            <RangeControl
-                                label={ __( 'Font Size', 'reusable-component-builder' ) }
-                                value={ titleFontSize || 16 }
-                                min={ 10 }
-                                max={ 80 }
-                                onChange={ ( val ) => setAttributes( { titleFontSize: val } ) }
-                            />
-                        </div>
-                        <span style={ { marginBottom: '8px', color: '#757575', fontSize: '12px' } }>PX</span>
-                    </div>
-                    <div style={ { display: 'flex', gap: '10px' } }>
-                        <div style={ { flex: 1 } }>
-                            <SelectControl
-                                label={ __( 'Weight', 'reusable-component-builder' ) }
-                                value={ titleFontWeight || '' }
-                                options={ FONT_WEIGHT_OPTIONS }
-                                onChange={ ( val ) => setAttributes( { titleFontWeight: val } ) }
-                            />
-                        </div>
-                        <div style={ { flex: 1 } }>
-                            <SelectControl
-                                label={ __( 'Transform', 'reusable-component-builder' ) }
-                                value={ titleTextTransform || '' }
-                                options={ TEXT_TRANSFORM_OPTIONS }
-                                onChange={ ( val ) => setAttributes( { titleTextTransform: val } ) }
-                            />
-                        </div>
-                    </div>
-                    <div style={ { display: 'flex', gap: '10px', alignItems: 'flex-end' } }>
-                        <div style={ { flex: 1 } }>
-                            <RangeControl
-                                label={ __( 'Line Height', 'reusable-component-builder' ) }
-                                value={ titleLineHeight || 1.5 }
-                                min={ 0.5 }
-                                max={ 5 }
-                                step={ 0.1 }
-                                onChange={ ( val ) => setAttributes( { titleLineHeight: val } ) }
-                            />
-                        </div>
-                    </div>
-                    <div style={ { display: 'flex', gap: '10px', alignItems: 'flex-end' } }>
-                        <div style={ { flex: 1 } }>
-                            <RangeControl
-                                label={ __( 'Letter Spacing', 'reusable-component-builder' ) }
-                                value={ titleLetterSpacing || 0 }
-                                min={ -5 }
-                                max={ 20 }
-                                step={ 0.5 }
-                                onChange={ ( val ) => setAttributes( { titleLetterSpacing: val } ) }
-                            />
-                        </div>
-                        <span style={ { marginBottom: '8px', color: '#757575', fontSize: '12px' } }>PX</span>
-                    </div>
 
                     <Divider />
 
-                    {/* Padding */}
-                    <p style={ { fontWeight: 600, marginBottom: '6px' } }>{ __( 'Padding', 'reusable-component-builder' ) }</p>
-                    <BoxControl
-                        label={ __( 'Box Control', 'reusable-component-builder' ) }
-                        values={ titlePadding || { top: '15px', right: '20px', bottom: '15px', left: '20px' } }
-                        onChange={ ( val ) => setAttributes( { titlePadding: val } ) }
-                    />
+                    <ResponsiveControl 
+                        label={ __( 'Title Padding', 'reusable-component-builder' ) } 
+                        deviceMode={ deviceMode } 
+                        setDeviceMode={ setDeviceMode }
+                    >
+                        <BoxControl
+                            values={ getResp( titlePadding ) || { top: '15px', right: '20px', bottom: '15px', left: '20px' } }
+                            onChange={ ( val ) => updateResponsiveAttribute( 'titlePadding', val ) }
+                        />
+                    </ResponsiveControl>
                 </PanelBody>
             </InspectorControls>
 
