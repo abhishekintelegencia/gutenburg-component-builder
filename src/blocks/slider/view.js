@@ -7,10 +7,16 @@ const initRcbSlider = ( el ) => {
     const dots = el.getAttribute('data-dots') === 'true';
     const autoplay = el.getAttribute('data-autoplay') === 'true';
     const delay = parseInt(el.getAttribute('data-autoplay-delay'), 10) || 3000;
-    const loop = el.getAttribute('data-loop') === 'true';
+    let loop = el.getAttribute('data-loop') === 'true';
     const effect = el.getAttribute('data-effect') || 'slide';
     const slidesPerView = parseInt(el.getAttribute('data-slides-per-view'), 10) || 1;
     const spaceBetween = parseInt(el.getAttribute('data-space-between'), 10) || 0;
+    
+    const slideCount = el.querySelectorAll('.swiper-slide').length;
+    
+    if (slideCount <= slidesPerView) {
+        loop = false;
+    }
 
     const swiperOptions = {
         modules: [ Navigation, Pagination, Autoplay, EffectFade ],
@@ -18,7 +24,7 @@ const initRcbSlider = ( el ) => {
         spaceBetween: spaceBetween,
         loop: loop,
         effect: effect,
-        grabCursor: true,
+        grabCursor: false,
         autoplay: autoplay ? {
             delay: delay,
             disableOnInteraction: false,
@@ -31,6 +37,7 @@ const initRcbSlider = ( el ) => {
             el: el.querySelector('.swiper-pagination'),
             clickable: true,
         } : false,
+        watchOverflow: false,
     };
 
     new Swiper( el, swiperOptions );

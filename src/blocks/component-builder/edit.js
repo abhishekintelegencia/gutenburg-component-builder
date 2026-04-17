@@ -381,6 +381,7 @@ const renderVisualStructure = (nodes, post, parentContext, context) => {
             'heading': 'Enter heading...',
             'text': 'Enter text content...',
             'button': 'Button label',
+            'testimonial': 'Testimonial content',
             'innerblocks': '',
         };
         let nodeContent = content[node.field] || placeholderMap[node.type] || '';
@@ -592,6 +593,22 @@ const renderVisualStructure = (nodes, post, parentContext, context) => {
                                 </span>
                             )}
                         </a>
+                    </div>
+                );
+            case 'testimonial':
+                const rating = parseInt(content[`${node.field}_rating`]) || 5;
+                const avatarUrl = content[`${node.field}_avatar_url`] || 'https://via.placeholder.com/80x80?text=Avatar';
+                return (
+                    <div key={i} className={`rcb-testimonial ${node.id}`} style={{...nodeStyles, display: 'flex', flexDirection: 'column', gap: '10px'}}>
+                        <div style={{display: 'flex', alignItems: 'center', gap: '15px'}}>
+                            <img src={avatarUrl} style={{width: '50px', height: '50px', borderRadius: '50%', objectFit: 'cover'}} alt="Avatar" />
+                            <div style={{display: 'flex', gap: '4px'}}>
+                                {Array.from({ length: 5 }).map((_, starIdx) => (
+                                    <span key={starIdx} className="dashicons dashicons-star-filled" style={{color: starIdx < rating ? '#ffb900' : '#ccc', fontSize: '16px', width: '16px', height: '16px'}}></span>
+                                ))}
+                            </div>
+                        </div>
+                        <div style={{whiteSpace: 'pre-wrap'}}>{nodeContent}</div>
                     </div>
                 );
             default:
