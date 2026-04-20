@@ -308,7 +308,7 @@ const renderVisualStructure = (nodes, post, parentContext, context) => {
     const { 
         styles, content, mode, currentPostTitle, currentPostExcerpt, 
         currentPostDate, currentPostAuthorName, currentPostMeta, 
-        currentPostACF, uniqueId, deviceMode 
+        currentPostACF, uniqueId, deviceMode, clientId
     } = context;
 
     return nodes.map((node, i) => {
@@ -568,13 +568,13 @@ const renderVisualStructure = (nodes, post, parentContext, context) => {
                 return (
                     <div key={i} style={wrapperStyles} className="rcb-button-wrapper">
                         <style>{`
-                            .rcb-button-wrapper .rcb-button.${node.id}:hover {
+                            .rcb-instance-${clientId} .rcb-button-wrapper .rcb-button.${node.id}:hover {
                                 ${nodeStyles.hoverColor ? `color: ${nodeStyles.hoverColor} !important;` : ''}
                                 ${nodeStyles.hoverBgColor ? `background-color: ${nodeStyles.hoverBgColor} !important;` : ''}
                                 ${nodeStyles.hoverBorderColor ? `border-color: ${nodeStyles.hoverBorderColor} !important;` : ''}
                                 ${nodeStyles.hoverUnderline ? 'text-decoration: underline !important;' : ''}
                             }
-                            .rcb-button-wrapper .rcb-button.${node.id}:hover .rcb-button-icon {
+                            .rcb-instance-${clientId} .rcb-button-wrapper .rcb-button.${node.id}:hover .rcb-button-icon {
                                 ${nodeStyles.iconHoverBgColor ? `background-color: ${nodeStyles.iconHoverBgColor} !important;` : ''}
                                 ${nodeStyles.iconHoverColor ? `color: ${nodeStyles.iconHoverColor} !important;` : ''}
                                 ${nodeStyles.iconHoverBorderColor ? `border-color: ${nodeStyles.iconHoverBorderColor} !important;` : ''}
@@ -682,9 +682,28 @@ export default function Edit({ attributes, setAttributes, clientId }) {
     // Optional loop visibility settings
     const vVars = visibilityVars || { showTitle: true, showExcerpt: true, showImage: true, showButton: true };
 
-    // Set uniqueId once
+    // Set uniqueId once and handle duplication conflicts
+    const otherBlocksWithSameId = useSelect((select) => {
+        const blocks = select('core/block-editor').getBlocks();
+        const findMatches = (list) => {
+            let found = [];
+            list.forEach(b => {
+                if (b.name === 'reusable-component-builder/block' && b.attributes.uniqueId === uniqueId && b.clientId !== clientId) {
+                    found.push(b.clientId);
+                }
+                if (b.innerBlocks) found = found.concat(findMatches(b.innerBlocks));
+            });
+            return found;
+        };
+        return findMatches(blocks);
+    }, [uniqueId, clientId]);
+
     useEffect(() => {
-        if (!uniqueId) setAttributes({ uniqueId: clientId });
+        // If ID is missing or shared with another block (likely due to duplication), regenerate it.
+        if (!uniqueId || otherBlocksWithSameId.length > 0) {
+            const newId = Math.random().toString(36).substr(2, 9);
+            setAttributes({ uniqueId: newId });
+        }
         
         if (templateId > 0) {
             apiFetch({ path: '/rcb/v1/templates/' }).then((templates) => {
@@ -792,7 +811,7 @@ export default function Edit({ attributes, setAttributes, clientId }) {
         return renderVisualStructure(nodes, post, parentContext, {
             styles, content, mode, currentPostTitle, currentPostExcerpt, 
             currentPostDate, currentPostAuthorName, currentPostMeta, 
-            currentPostACF, uniqueId, deviceMode
+            currentPostACF, uniqueId, deviceMode, clientId
         });
     };
 ;
@@ -822,43 +841,43 @@ export default function Edit({ attributes, setAttributes, clientId }) {
                     const r = (val) => getResponsiveValue(val, deviceMode);
 
                     if (r(nodeStyle.fontWeight)) {
-                        css += `.rcb-instance-${uniqueId} .${node.id} { font-weight: ${r(nodeStyle.fontWeight)} !important; } `;
+                        css += `.rcb-instance-${clientId} .${node.id} { font-weight: ${r(nodeStyle.fontWeight)} !important; } `;
                     }
                     if (r(nodeStyle.lineHeight)) {
-                        css += `.rcb-instance-${uniqueId} .${node.id} { line-height: ${r(nodeStyle.lineHeight)} !important; } `;
+                        css += `.rcb-instance-${clientId} .${node.id} { line-height: ${r(nodeStyle.lineHeight)} !important; } `;
                     }
                     if (r(nodeStyle.letterSpacing)) {
-                        css += `.rcb-instance-${uniqueId} .${node.id} { letter-spacing: ${r(nodeStyle.letterSpacing)} !important; } `;
+                        css += `.rcb-instance-${clientId} .${node.id} { letter-spacing: ${r(nodeStyle.letterSpacing)} !important; } `;
                     }
                     if (r(nodeStyle.color)) {
-                        css += `.rcb-instance-${uniqueId} .${node.id} { color: ${r(nodeStyle.color)} !important; } `;
+                        css += `.rcb-instance-${clientId} .${node.id} { color: ${r(nodeStyle.color)} !important; } `;
                     }
                     if (r(nodeStyle.backgroundColor)) {
-                        css += `.rcb-instance-${uniqueId} .${node.id} { background-color: ${r(nodeStyle.backgroundColor)} !important; } `;
+                        css += `.rcb-instance-${clientId} .${node.id} { background-color: ${r(nodeStyle.backgroundColor)} !important; } `;
                     }
                     if (r(nodeStyle.borderColor)) {
-                        css += `.rcb-instance-${uniqueId} .${node.id} { border-color: ${r(nodeStyle.borderColor)} !important; } `;
+                        css += `.rcb-instance-${clientId} .${node.id} { border-color: ${r(nodeStyle.borderColor)} !important; } `;
                     }
                     // border-radius: support both the generic borderRadius and the advanced borderRadiusRem
                     const _radius = r(nodeStyle.borderRadius) || (r(nodeStyle.borderRadiusRem) ? `${r(nodeStyle.borderRadiusRem)}rem` : '');
                     if (_radius) {
-                        css += `.rcb-instance-${uniqueId} .${node.id} { border-radius: ${_radius} !important; } `;
+                        css += `.rcb-instance-${clientId} .${node.id} { border-radius: ${_radius} !important; } `;
                     }
                     if (r(nodeStyle.borderWidthRem)) {
-                        css += `.rcb-instance-${uniqueId} .${node.id} { border-width: ${r(nodeStyle.borderWidthRem)}rem !important; border-style: solid !important; } `;
+                        css += `.rcb-instance-${clientId} .${node.id} { border-width: ${r(nodeStyle.borderWidthRem)}rem !important; border-style: solid !important; } `;
                     }
                     // Icon Styles with High Specificity
                     if (r(nodeStyle.iconColor)) {
-                        css += `.rcb-instance-${uniqueId} .${node.id} .rcb-button-icon { color: ${r(nodeStyle.iconColor)} !important; } `;
+                        css += `.rcb-instance-${clientId} .${node.id} .rcb-button-icon { color: ${r(nodeStyle.iconColor)} !important; } `;
                     }
                     if (r(nodeStyle.iconBgColor)) {
-                        css += `.rcb-instance-${uniqueId} .${node.id} .rcb-button-icon { background-color: ${r(nodeStyle.iconBgColor)} !important; } `;
+                        css += `.rcb-instance-${clientId} .${node.id} .rcb-button-icon { background-color: ${r(nodeStyle.iconBgColor)} !important; } `;
                     }
                     if (r(nodeStyle.iconBorderColor)) {
-                        css += `.rcb-instance-${uniqueId} .${node.id} .rcb-button-icon { border-color: ${r(nodeStyle.iconBorderColor)} !important; } `;
+                        css += `.rcb-instance-${clientId} .${node.id} .rcb-button-icon { border-color: ${r(nodeStyle.iconBorderColor)} !important; } `;
                     }
                     if (r(nodeStyle.iconBorderWidth)) {
-                        css += `.rcb-instance-${uniqueId} .${node.id} .rcb-button-icon { border-width: ${r(nodeStyle.iconBorderWidth)}rem !important; border-style: solid !important; } `;
+                        css += `.rcb-instance-${clientId} .${node.id} .rcb-button-icon { border-width: ${r(nodeStyle.iconBorderWidth)}rem !important; border-style: solid !important; } `;
                     }
                     return css;
                 }).join('\n')}
@@ -1960,7 +1979,7 @@ export default function Edit({ attributes, setAttributes, clientId }) {
                                     </>
                                 ) : <div style={{padding: '20px', background: '#e0e0e0'}}>Loading posts...</div>
                             ) : (
-                                <div className={`rcb-instance rcb-instance-${uniqueId}`}>
+                                <div className={`rcb-instance rcb-instance-${clientId}`}>
                                     {renderPreviewNodes(structureNodes)}
                                 </div>
                             )

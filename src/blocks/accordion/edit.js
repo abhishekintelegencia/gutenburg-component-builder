@@ -10,11 +10,7 @@ import {
     RangeControl,
     SelectControl
 } from '@wordpress/components';
-import { 
-    ResponsiveControl, 
-    getResponsiveValue as getResp 
-} from '../shared-styles';
-import { useEffect, useState } from '@wordpress/element';
+import { useEffect } from '@wordpress/element';
 
 const ALLOWED_BLOCKS = [ 'rcb/accordion-item' ];
 const TEMPLATE = [
@@ -24,14 +20,6 @@ const TEMPLATE = [
 
 export default function Edit( { attributes, setAttributes, clientId } ) {
     const { gap, uniqueId, iconType } = attributes;
-    const [ deviceMode, setDeviceMode ] = useState( 'desktop' );
-
-    const updateResponsiveAttribute = ( name, value ) => {
-        const currentData = attributes[ name ] || { desktop: '' };
-        const newData = { ...( typeof currentData === 'object' ? currentData : { desktop: currentData } ) };
-        newData[ deviceMode ] = value;
-        setAttributes( { [ name ]: newData } );
-    };
 
     useEffect( () => {
         if ( ! uniqueId ) {
@@ -41,7 +29,7 @@ export default function Edit( { attributes, setAttributes, clientId } ) {
 
     const blockProps = useBlockProps( {
         className: `rcb-accordion-wrapper rcb-icon-${ iconType }`,
-        style: { gap: `${ getResp(gap) }px` }
+        style: { gap: `${ gap }px` }
     } );
 
     const innerBlocksProps = useInnerBlocksProps( blockProps, {
@@ -54,15 +42,13 @@ export default function Edit( { attributes, setAttributes, clientId } ) {
         <>
             <InspectorControls>
                 <PanelBody title={ __( 'Layout Settings', 'reusable-component-builder' ) }>
-                    <ResponsiveControl label={ __( 'Item Gap', 'reusable-component-builder' ) } deviceMode={deviceMode} setDeviceMode={setDeviceMode}>
-                        <RangeControl
-                            value={ getResp(gap) }
-                            min={ 0 }
-                            max={ 100 }
-                            onChange={ ( val ) => updateResponsiveAttribute( 'gap', val ) }
-                            __nextHasNoMarginBottom={true}
-                        />
-                    </ResponsiveControl>
+                    <RangeControl
+                        label={ __( 'Item Gap', 'reusable-component-builder' ) }
+                        value={ gap }
+                        min={ 0 }
+                        max={ 100 }
+                        onChange={ ( val ) => setAttributes( { gap: val } ) }
+                    />
                     <SelectControl
                         label={ __( 'Icon Style', 'reusable-component-builder' ) }
                         value={ iconType }

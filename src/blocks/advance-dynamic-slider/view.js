@@ -2,6 +2,9 @@ import Swiper from 'swiper';
 import { Navigation, Pagination, Autoplay, EffectFade } from 'swiper/modules';
 
 const initRcbDynamicSlider = ( el ) => {
+    // Prevent double initialization
+    if (el.classList.contains('swiper-initialized')) return;
+
     const arrows = el.getAttribute('data-arrows') === 'true';
     const dots = el.getAttribute('data-dots') === 'true';
     const autoplay = el.getAttribute('data-autoplay') === 'true';
@@ -11,30 +14,41 @@ const initRcbDynamicSlider = ( el ) => {
     const slidesPerView = parseInt(el.getAttribute('data-slides-per-view'), 10) || 1;
     const spaceBetween = parseInt(el.getAttribute('data-space-between'), 10) || 0;
     const breakpointsRaw = el.getAttribute('data-breakpoints');
-    let breakpoints = {};
+    let swiperBreakpoints = {};
     
     if ( breakpointsRaw ) {
         try {
             const parsed = JSON.parse( breakpointsRaw );
-            // Swiper uses the pixel value as the KEY for "greater than or equal to"
-            // Our PHP sends { 768: {...}, 0: {...} }
-            // Swiper expectations: { 768: { slidesPerView: 2 }, 1024: { slidesPerView: 3 } }
-            // Let's map our 768 (tablet) and 0 (mobile) to Swiper format.
-            breakpoints = {
-                0: parsed[0] || { slidesPerView: 1, spaceBetween: 10 },
-                768: parsed[768] || { slidesPerView: Math.min(2, slidesPerView), spaceBetween: Math.min(20, spaceBetween) },
+            // Map our specific keys (0 and 768) to Swiper breakpoints
+            // We use 0 for mobile, 768 for tablet, and default for desktop
+            swiperBreakpoints = {
+                0: parsed[0] || parsed['0'] || { slidesPerView: 1, spaceBetween: 10 },
+                768: parsed[768] || parsed['768'] || { slidesPerView: Math.min(2, slidesPerView), spaceBetween: Math.min(20, spaceBetween) },
                 1025: { slidesPerView: slidesPerView, spaceBetween: spaceBetween }
             };
+
+            // Prevent Swiper loop reset bug by removing redundant breakpoint props
+            Object.keys(swiperBreakpoints).forEach(key => {
+                if (swiperBreakpoints[key].slidesPerView === slidesPerView) {
+                    delete swiperBreakpoints[key].slidesPerView;
+                }
+                if (swiperBreakpoints[key].spaceBetween === spaceBetween) {
+                    delete swiperBreakpoints[key].spaceBetween;
+                }
+                if (Object.keys(swiperBreakpoints[key]).length === 0) {
+                    delete swiperBreakpoints[key];
+                }
+            });
         } catch ( e ) {
-            console.error( 'RCB Slider: Error parsing breakpoints', e );
+            console.error( 'RCB Dynamic Slider: Error parsing breakpoints', breakpointsRaw, e );
         }
     }
     
-    new Swiper( el, {
+    const swiper = new Swiper( el, {
         modules: [ Navigation, Pagination, Autoplay, EffectFade ],
         slidesPerView: slidesPerView,
         spaceBetween: spaceBetween,
-        breakpoints: breakpoints,
+        breakpoints: swiperBreakpoints,
         loop: loop,
         effect: effect,
         grabCursor: false,
@@ -48,7 +62,24 @@ const initRcbDynamicSlider = ( el ) => {
             clickable: true,
         } : false,
         watchOverflow: false,
+        allowSlidePrev: true,
+        allowSlideNext: true,
+        observer: true,
+        observeParents: true,
+        observeSlideChildren: true,
     });
+
+    // Use ResizeObserver for maximum layout stability.
+    if (window.ResizeObserver) {
+        const ro = new ResizeObserver(() => {
+            if (swiper && swiper.update) {
+                swiper.update();
+            }
+        });
+        ro.observe(el);
+    } else {
+        setTimeout(() => swiper.update(), 500);
+    }
 };
 
 document.addEventListener( 'DOMContentLoaded', () => {

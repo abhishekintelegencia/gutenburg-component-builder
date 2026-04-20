@@ -59,10 +59,6 @@ function rcb_register_blocks()
 							};
 						} elseif ( $metadata['name'] === 'rcb/advance-dynamic-slider' ) {
 							$args['render_callback'] = 'rcb_render_advance_dynamic_slider_block';
-						} elseif ( $metadata['name'] === 'rcb/accordion' ) {
-							$args['render_callback'] = 'rcb_render_accordion_block';
-						} elseif ( $metadata['name'] === 'rcb/tabs' ) {
-							$args['render_callback'] = 'rcb_render_tabs_block';
 						}
 					}
 					
@@ -74,14 +70,7 @@ function rcb_register_blocks()
 						if ( $sub_file->isDir() && ! $sub_file->isDot() ) {
 							$sub_json = $sub_file->getPathname() . '/block.json';
 							if ( file_exists( $sub_json ) ) {
-								$sub_metadata = json_decode( file_get_contents( $sub_json ), true );
-								$sub_args = array();
-								if ( isset( $sub_metadata['name'] ) && $sub_metadata['name'] === 'rcb/accordion-item' ) {
-									$sub_args['render_callback'] = 'rcb_render_accordion_item_block';
-								} elseif ( isset( $sub_metadata['name'] ) && $sub_metadata['name'] === 'rcb/tab-item' ) {
-									$sub_args['render_callback'] = 'rcb_render_tab_item_block';
-								}
-								register_block_type_from_metadata( $sub_file->getPathname(), $sub_args );
+								register_block_type_from_metadata( $sub_file->getPathname() );
 							}
 						}
 					}

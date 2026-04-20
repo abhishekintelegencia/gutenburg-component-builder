@@ -4,7 +4,7 @@
     "name": "rcb/accordion-item",
     "version": "1.0.0",
     "title": "Accordion Item (RCB)",
-    "category": "rcb-components",
+    "category": "design",
     "parent": [ "rcb/accordion" ],
     "attributes": {
         "title": {
@@ -28,8 +28,7 @@
             "type": "string"
         },
         "titleFontSize": {
-            "type": "object",
-            "default": { "desktop": "16px" }
+            "type": "number"
         },
         "titleFontWeight": {
             "type": "string"
@@ -38,10 +37,10 @@
             "type": "string"
         },
         "titleLineHeight": {
-            "type": "object"
+            "type": "number"
         },
         "titleLetterSpacing": {
-            "type": "object"
+            "type": "number"
         },
         "titlePadding": {
             "type": "object"

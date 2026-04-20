@@ -1,0 +1,2 @@
+post_content
+<!-- wp:reusable-component-builder/block {"templateId":372,"uniqueId":"njxjaasa1","mode":"query","postType":"events","postsPerPage":1,"pagination":true} /-->
