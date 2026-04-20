@@ -99,19 +99,9 @@
     .rcb-tabs-content-area {
         padding: 30px;
         
-        .rcb-tab-item {
-            // Content hidden/shown via JS
-            &.is-hidden {
-                display: none;
-            }
-
-            // Legacy compatibility
-            &:not(.rcb-is-dynamic) {
-                display: none !important;
-            }
-        }
     }
 }
+
 
 // Mobile Responsive Styles
 @media (max-width: 768px) {
