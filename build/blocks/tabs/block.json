@@ -4,7 +4,7 @@
   "name": "rcb/tabs",
   "version": "1.0.0",
   "title": "Advanced Tab (RCB)",
-  "category": "rcb-components",
+  "category": "design",
   "description": "Premium custom tabs with horizontal and vertical options.",
   "attributes": {
     "layout": {
@@ -40,10 +40,7 @@
       "type": "string"
     },
     "labelFontSize": {
-      "type": "object",
-      "default": {
-        "desktop": "16px"
-      }
+      "type": "number"
     },
     "labelFontWeight": {
       "type": "string"
@@ -56,15 +53,6 @@
     },
     "labelFontFamily": {
       "type": "string"
-    },
-    "labelLineHeight": {
-      "type": "object"
-    },
-    "labelLetterSpacing": {
-      "type": "object"
-    },
-    "labelPadding": {
-      "type": "object"
     }
   },
   "supports": {

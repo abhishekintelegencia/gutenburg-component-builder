@@ -114,21 +114,4 @@
     .rcb-accordion-item.is-open .rcb-accordion-content {
         opacity: 1;
     }
-
-    // Compatibility for legacy static content
-    .rcb-accordion-header:not(.rcb-is-dynamic) {
-        display: none !important;
-    }
-    // Do NOT hide or collapse the content wrapper, just strip its styling
-    .rcb-accordion-content:not(.rcb-is-dynamic) {
-        background: transparent !important;
-        border: none !important;
-        padding: 0 !important;
-        margin: 0 !important;
-        box-shadow: none !important;
-        height: auto !important;
-        max-height: none !important;
-        opacity: 1 !important;
-        display: block !important;
-    }
 }

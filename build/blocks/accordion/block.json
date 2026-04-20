@@ -4,15 +4,13 @@
   "name": "rcb/accordion",
   "version": "1.0.0",
   "title": "Advanced Accordion (RCB)",
-  "category": "rcb-components",
+  "category": "design",
   "icon": "feedback",
   "description": "Premium custom accordion with horizontal and vertical options.",
   "attributes": {
     "gap": {
-      "type": "object",
-      "default": {
-        "desktop": 10
-      }
+      "type": "number",
+      "default": 10
     },
     "uniqueId": {
       "type": "string"
