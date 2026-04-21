@@ -50,6 +50,18 @@ const initRcbSlider = ( el ) => {
         modules: [ Navigation, Pagination, Autoplay, EffectFade ],
         slidesPerView: slidesPerView,
         spaceBetween: spaceBetween,
+        breakpoints: {
+            // Mobile (up to 767px)
+            0: {
+                slidesPerView: 1,
+                spaceBetween: 10
+            },
+            // Tablet/Desktop (768px and up)
+            768: {
+                slidesPerView: slidesPerView,
+                spaceBetween: spaceBetween
+            }
+        },
         loop: loop,
         effect: effect,
         grabCursor: false,
