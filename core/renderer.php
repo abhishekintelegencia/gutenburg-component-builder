@@ -15,7 +15,39 @@ function rcb_render_component_builder_block( $attributes, $content ) {
 		$post = get_post();
 	}
 
-	$unique_id    = isset( $attributes['uniqueId'] ) ? $attributes['uniqueId'] : uniqid();
+	$unique_id = isset( $attributes['uniqueId'] ) ? $attributes['uniqueId'] : uniqid();
+	
+	/**
+	 * Robust Fallback for InnerBlocks in Dynamic Context:
+	 * In some WP versions/configs, nested core blocks in an API v3 dynamic block 
+	 * don't correctly pass their rendered content to $content. We manually 
+	 * parse and render them here if $content comes in empty.
+	 */
+	if ( empty( $content ) && $post && ! empty( $post->post_content ) ) {
+		$all_blocks = parse_blocks( $post->post_content );
+		$blocks_to_check = $all_blocks;
+		$found_block = null;
+		
+		while ( ! empty( $blocks_to_check ) ) {
+			$curr = array_shift( $blocks_to_check );
+			if ( $curr['blockName'] === 'reusable-component-builder/block' ) {
+				if ( ( isset( $curr['attrs']['uniqueId'] ) && $curr['attrs']['uniqueId'] === $unique_id ) || ( count( $all_blocks ) === 1 ) ) {
+					$found_block = $curr;
+					break;
+				}
+			}
+			if ( ! empty( $curr['innerBlocks'] ) ) {
+				$blocks_to_check = array_merge( $blocks_to_check, $curr['innerBlocks'] );
+			}
+		}
+		
+		if ( $found_block && ! empty( $found_block['innerBlocks'] ) ) {
+			foreach ( $found_block['innerBlocks'] as $inner_b ) {
+				$content .= render_block( $inner_b );
+			}
+		}
+	}
+
 	$template_type = strtolower( get_post_meta( $template_id, '_component_type', true ) ?: 'visual' );
 
 	switch ( $template_type ) {
@@ -733,7 +765,7 @@ function rcb_render_visual_nodes_with_visibility( $nodes, $content_data, $styles
 				);
 				break;
 
-			case 'inner_blocks':
+			case 'innerblocks':
 				$html .= sprintf( '<div class="rcb-inner-blocks %s" %s>%s</div>', esc_attr( $id ), $style_attr, $inner_blocks_content );
 				break;
 			
