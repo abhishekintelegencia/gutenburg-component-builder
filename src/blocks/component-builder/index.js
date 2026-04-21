@@ -18,7 +18,7 @@ apiFetch({ path: '/rcb/v1/templates/' }).then((templates) => {
             icon: 'layout',
             attributes: { 
                 templateId: template.id,
-                mode: template.type === 'query' ? 'query' : 'static'
+                mode: template.type || 'static'
             },
             isActive: (blockAttributes) => blockAttributes.templateId === template.id,
             scope: ['inserter']

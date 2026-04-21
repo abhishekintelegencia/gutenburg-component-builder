@@ -1,7 +1,8 @@
 <?php
 
 /**
- * Main render callback for Gutenberg dynamic block.
+ * Main render callback — acts as a dispatcher.
+ * Routes to a specialized handler based on the template_type meta.
  */
 function rcb_render_component_builder_block( $attributes, $content ) {
 	$template_id = isset( $attributes['templateId'] ) ? intval( $attributes['templateId'] ) : 0;
@@ -10,12 +11,38 @@ function rcb_render_component_builder_block( $attributes, $content ) {
 	}
 
 	global $post;
+	if ( ! $post ) {
+		$post = get_post();
+	}
 
-	$unique_id      = isset( $attributes['uniqueId'] ) ? $attributes['uniqueId'] : uniqid();
-	$mode           = isset( $attributes['mode'] ) ? $attributes['mode'] : 'static';
-	$content_data   = isset( $attributes['content'] ) ? $attributes['content'] : array();
-	$styles_data    = isset( $attributes['styles'] ) ? $attributes['styles'] : array();
-	$visibility     = isset( $attributes['visibilityVars'] ) ? $attributes['visibilityVars'] : array(
+	$unique_id    = isset( $attributes['uniqueId'] ) ? $attributes['uniqueId'] : uniqid();
+	$template_type = strtolower( get_post_meta( $template_id, '_component_type', true ) ?: 'visual' );
+
+	switch ( $template_type ) {
+		case 'query':
+			$output = rcb_render_query_type( $attributes, $content, $template_id, $unique_id, $post );
+			break;
+		case 'meta':
+			$output = rcb_render_meta_type( $attributes, $content, $template_id, $unique_id, $post );
+			break;
+		case 'visual':
+		default:
+			$output = rcb_render_visual_type( $attributes, $content, $template_id, $unique_id, $post );
+			break;
+	}
+
+	return $output;
+}
+
+/**
+ * Handler: Visual Layout
+ * Renders a static visual template with no dynamic query.
+ */
+function rcb_render_visual_type( $attributes, $content, $template_id, $unique_id, $post ) {
+	$mode         = isset( $attributes['mode'] ) ? $attributes['mode'] : 'static';
+	$content_data = isset( $attributes['content'] ) ? $attributes['content'] : array();
+	$styles_data  = isset( $attributes['styles'] ) ? $attributes['styles'] : array();
+	$visibility   = isset( $attributes['visibilityVars'] ) ? $attributes['visibilityVars'] : array(
 		'showTitle'   => true,
 		'showExcerpt' => true,
 		'showImage'   => true,
@@ -25,150 +52,225 @@ function rcb_render_component_builder_block( $attributes, $content ) {
 	$structure_json = get_post_meta( $template_id, '_component_structure', true );
 	$structure_data = $structure_json ? json_decode( $structure_json, true ) : array();
 	$nodes          = isset( $structure_data['structure'] ) ? $structure_data['structure'] : array();
-	
+
 	$style_registry = '';
-	$template_type = get_post_meta( $template_id, '_component_type', true );
-	$is_loop       = ( $template_type === 'query' );
+	$inner_output   = rcb_render_visual_nodes_with_visibility( $nodes, $content_data, $styles_data, $mode, $post, $visibility, $content, $style_registry, $unique_id );
 
-	if ( $is_loop ) {
-		// Determine current page robustly
-		if ( wp_doing_ajax() && isset( $_POST['paged'] ) ) {
-			$paged = intval( $_POST['paged'] );
-		} else {
-			$paged = ( get_query_var( 'paged' ) ) ? get_query_var( 'paged' ) : ( ( get_query_var( 'page' ) ) ? get_query_var( 'page' ) : 1 );
-		}
-		$paged = max( 1, intval( $paged ) );
-
-		$args = array(
-			'post_type'      => isset( $attributes['postType'] ) ? $attributes['postType'] : 'post',
-			'posts_per_page' => isset( $attributes['postsPerPage'] ) ? intval( $attributes['postsPerPage'] ) : 3,
-			'post_status'    => 'publish',
-			'paged'          => $paged,
-		);
-
-		if ( ! empty( $attributes['taxonomy'] ) && ! empty( $attributes['termId'] ) ) {
-			$args['tax_query'] = array(
-				array(
-					'taxonomy' => $attributes['taxonomy'],
-					'field'    => 'term_id',
-					'terms'    => $attributes['termId'],
-				),
-			);
-		}
-
-		$query = new WP_Query( $args );
-		$loop_output = '';
-
-		if ( $query->have_posts() ) {
-			$layout_class = isset( $attributes['layout'] ) ? 'rcb-layout-' . $attributes['layout'] : 'rcb-layout-grid';
-			$columns = isset( $attributes['columns'] ) ? intval( $attributes['columns'] ) : 3;
-			
-			// AJAX data attribute
-			$attr_json = wp_json_encode( $attributes );
-
-			// Add inline styles for layout parity with editor
-			$wrapper_style = '';
-			if ( $layout_class === 'rcb-layout-grid' ) {
-				$wrapper_style = sprintf( 'display: grid; grid-template-columns: repeat(%d, 1fr); gap: 20px;', $columns );
-			}
-
-			$loop_output .= sprintf( 
-				'<div class="rcb-loop-wrapper rcb-loop-container %s rcb-cols-%d" data-rcb-attributes="%s" style="%s">', 
-				esc_attr( $layout_class ), 
-				$columns,
-				esc_attr( $attr_json ),
-				esc_attr( $wrapper_style )
-			);
-
-			while ( $query->have_posts() ) {
-				$query->the_post();
-				$current_post = get_post();
-				
-				$post_output = rcb_render_visual_nodes_with_visibility( $nodes, $content_data, $styles_data, 'query', $current_post, $visibility, $content, $style_registry, $unique_id . '-' . $current_post->ID );
-				$loop_output .= sprintf( '<div class="rcb-loop-item">%s</div>', $post_output );
-			}
-
-				// Custom Pagination implementation matching the editor design
-				if ( isset( $attributes['pagination'] ) && $attributes['pagination'] && $query->max_num_pages > 1 ) {
-					$pagination_font_size = ! empty( $attributes['paginationFontSize'] ) ? $attributes['paginationFontSize'] : '1rem';
-					$pg_text_color        = ! empty( $attributes['paginationTextColor'] ) ? $attributes['paginationTextColor'] : '#333';
-					$pg_bg_color          = ! empty( $attributes['paginationBgColor'] ) ? $attributes['paginationBgColor'] : '#fff';
-					$pg_active_text       = ! empty( $attributes['paginationActiveTextColor'] ) ? $attributes['paginationActiveTextColor'] : '#fff';
-					$pg_active_bg         = ! empty( $attributes['paginationActiveBgColor'] ) ? $attributes['paginationActiveBgColor'] : '#c82333';
-					$show_text            = isset( $attributes['showPaginationText'] ) ? $attributes['showPaginationText'] : true;
-
-					// High-specificity CSS to override themes
-					$style_registry .= " .rcb-instance-{$unique_id} .rcb-pagination a.page-numbers { background-color: {$pg_bg_color} !important; color: {$pg_text_color} !important; border: 1px solid #ccc !important; padding: 10px 18px !important; text-decoration: none !important; display: inline-flex !important; align-items: center !important; justify-content: center !important; transition: all 0.2s ease !important; line-height: 1 !important; }";
-					$style_registry .= " .rcb-instance-{$unique_id} .rcb-pagination a.current.page-numbers { background-color: {$pg_active_bg} !important; color: {$pg_active_text} !important; border-color: {$pg_active_bg} !important; pointer-events: none !important; }";
-					$style_registry .= " .rcb-instance-{$unique_id} .rcb-pagination a.page-numbers:hover { opacity: 0.8 !important; }";
-
-					$loop_output .= sprintf( '<!-- RCB_DEBUG: paged=%d, max_pages=%d -->', $paged, $query->max_num_pages );
-					$loop_output .= sprintf( 
-						'<div class="rcb-pagination" style="display: flex; gap: 10px; width: 100%% !important; justify-content: space-between; flex-wrap: wrap; align-items: center; margin-top: 40px; font-size: %s; grid-column: 1 / -1 !important;">', 
-						esc_attr( $pagination_font_size ) 
-					);
-
-					// Previous
-					$prev_url = get_pagenum_link( max( 1, $paged - 1 ) );
-					$prev_opacity = $paged > 1 ? '1' : '0.5';
-					$prev_pointer = $paged > 1 ? 'pointer' : 'not-allowed';
-					$left_arrow = '<svg width="1em" height="1em" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" style="display:block"><path d="M19 12H5M5 12L11 6M5 12L11 18" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
-					
-					$loop_output .= sprintf( 
-						'<a href="%s" class="rcb-pagination-prev page-numbers" style="cursor: %s; opacity: %s;">%s %s</a>',
-						esc_url( $prev_url ), $prev_pointer, $prev_opacity, $left_arrow, ( $show_text ? 'Previous' : '' )
-					);
-
-					// Numbers
-					$loop_output .= '<div style="display: flex; gap: 8px;">';
-					for ( $i = 1; $i <= $query->max_num_pages; $i++ ) {
-						$is_active = ( intval( $paged ) == $i );
-						$url = get_pagenum_link( $i );
-						// Use attribute-based colors
-						$cur_bg = $is_active ? $pg_active_bg : $pg_bg_color;
-						$cur_txt = $is_active ? $pg_active_text : $pg_text_color;
-						$loop_output .= sprintf(
-							'<a href="%s" class="page-numbers %s" style="background-color: %s !important; color: %s !important;">%d</a>',
-							esc_url( $url ), $is_active ? 'current' : '',
-							esc_attr( $cur_bg ), esc_attr( $cur_txt ),
-							$i
-						);
-					}
-					$loop_output .= '</div>';
-
-					// Next
-					$next_url = get_pagenum_link( min( $query->max_num_pages, $paged + 1 ) );
-					$next_opacity = $paged < intval($query->max_num_pages) ? '1' : '0.5';
-					$next_pointer = $paged < intval($query->max_num_pages) ? 'pointer' : 'not-allowed';
-					$right_arrow = '<svg width="1em" height="1em" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" style="display:block"><path d="M5 12H19M19 12L13 6M19 12L13 18" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
-					
-					$loop_output .= sprintf( 
-						'<a href="%s" class="rcb-pagination-next page-numbers" style="cursor: %s; opacity: %s;">%s %s</a>',
-						esc_url( $next_url ), $next_pointer, $next_opacity, ( $show_text ? 'Next' : '' ), $right_arrow
-					);
-
-					$loop_output .= '</div>';
-				}
-
-			$loop_output .= '</div>'; // End rcb-loop-wrapper
-			
-			wp_reset_postdata();
-		} else {
-			$loop_output = '<p>' . __( 'No posts found.', 'reusable-component-builder' ) . '</p>';
-		}
-
-		$output = $loop_output;
-	} else {
-		$output = rcb_render_visual_nodes_with_visibility( $nodes, $content_data, $styles_data, $mode, $post, $visibility, $content, $style_registry, $unique_id );
-	}
-
-	$output = sprintf( '<div class="rcb-component-builder rcb-instance-%s">%s</div>', esc_attr( $unique_id ), $output );
+	$output = sprintf( '<div class="rcb-component-builder rcb-instance-%s">%s</div>', esc_attr( $unique_id ), $inner_output );
 
 	if ( ! empty( $style_registry ) ) {
 		$output = "<style>{$style_registry}</style>" . $output;
 	}
 
 	return $output;
+}
+
+/**
+ * Handler: Dynamic Post Loop (Query)
+ * Renders a WP_Query loop with optional pagination.
+ */
+function rcb_render_query_type( $attributes, $content, $template_id, $unique_id, $global_post ) {
+	$content_data = isset( $attributes['content'] ) ? $attributes['content'] : array();
+	$styles_data  = isset( $attributes['styles'] ) ? $attributes['styles'] : array();
+	$visibility   = isset( $attributes['visibilityVars'] ) ? $attributes['visibilityVars'] : array(
+		'showTitle'   => true,
+		'showExcerpt' => true,
+		'showImage'   => true,
+		'showButton'  => true,
+	);
+
+	$structure_json = get_post_meta( $template_id, '_component_structure', true );
+	$structure_data = $structure_json ? json_decode( $structure_json, true ) : array();
+	$nodes          = isset( $structure_data['structure'] ) ? $structure_data['structure'] : array();
+
+	$style_registry = '';
+
+	// Determine current page robustly
+	if ( wp_doing_ajax() && isset( $_POST['paged'] ) ) {
+		$paged = intval( $_POST['paged'] );
+	} else {
+		$paged = ( get_query_var( 'paged' ) ) ? get_query_var( 'paged' ) : ( ( get_query_var( 'page' ) ) ? get_query_var( 'page' ) : 1 );
+	}
+	$paged = max( 1, intval( $paged ) );
+
+	$args = array(
+		'post_type'      => isset( $attributes['postType'] ) ? $attributes['postType'] : 'post',
+		'posts_per_page' => isset( $attributes['postsPerPage'] ) ? intval( $attributes['postsPerPage'] ) : 3,
+		'post_status'    => 'publish',
+		'paged'          => $paged,
+	);
+
+	if ( ! empty( $attributes['taxonomy'] ) && ! empty( $attributes['termId'] ) ) {
+		$args['tax_query'] = array(
+			array(
+				'taxonomy' => $attributes['taxonomy'],
+				'field'    => 'term_id',
+				'terms'    => $attributes['termId'],
+			),
+		);
+	}
+
+	$query       = new WP_Query( $args );
+	$loop_output = '';
+
+	if ( $query->have_posts() ) {
+		$layout_class = isset( $attributes['layout'] ) ? 'rcb-layout-' . $attributes['layout'] : 'rcb-layout-grid';
+		$columns      = isset( $attributes['columns'] ) ? intval( $attributes['columns'] ) : 3;
+
+		$attr_json     = wp_json_encode( $attributes );
+		$wrapper_style = '';
+		if ( $layout_class === 'rcb-layout-grid' ) {
+			$wrapper_style = sprintf( 'display: grid; grid-template-columns: repeat(%d, 1fr); gap: 20px;', $columns );
+		}
+
+		$loop_output .= sprintf(
+			'<div class="rcb-loop-wrapper rcb-loop-container %s rcb-cols-%d" data-rcb-attributes="%s" style="%s">',
+			esc_attr( $layout_class ),
+			$columns,
+			esc_attr( $attr_json ),
+			esc_attr( $wrapper_style )
+		);
+
+		while ( $query->have_posts() ) {
+			$query->the_post();
+			$current_post = get_post();
+
+			$post_output  = rcb_render_visual_nodes_with_visibility( $nodes, $content_data, $styles_data, 'query', $current_post, $visibility, $content, $style_registry, $unique_id . '-' . $current_post->ID );
+			$loop_output .= sprintf( '<div class="rcb-loop-item">%s</div>', $post_output );
+		}
+
+		// Pagination
+		if ( isset( $attributes['pagination'] ) && $attributes['pagination'] && $query->max_num_pages > 1 ) {
+			$pagination_font_size = ! empty( $attributes['paginationFontSize'] ) ? $attributes['paginationFontSize'] : '1rem';
+			$pg_text_color        = ! empty( $attributes['paginationTextColor'] ) ? $attributes['paginationTextColor'] : '#333';
+			$pg_bg_color          = ! empty( $attributes['paginationBgColor'] ) ? $attributes['paginationBgColor'] : '#fff';
+			$pg_active_text       = ! empty( $attributes['paginationActiveTextColor'] ) ? $attributes['paginationActiveTextColor'] : '#fff';
+			$pg_active_bg         = ! empty( $attributes['paginationActiveBgColor'] ) ? $attributes['paginationActiveBgColor'] : '#c82333';
+			$show_text            = isset( $attributes['showPaginationText'] ) ? $attributes['showPaginationText'] : true;
+
+			$style_registry .= " .rcb-instance-{$unique_id} .rcb-pagination a.page-numbers { background-color: {$pg_bg_color} !important; color: {$pg_text_color} !important; border: 1px solid #ccc !important; padding: 10px 18px !important; text-decoration: none !important; display: inline-flex !important; align-items: center !important; justify-content: center !important; transition: all 0.2s ease !important; line-height: 1 !important; }";
+			$style_registry .= " .rcb-instance-{$unique_id} .rcb-pagination a.current.page-numbers { background-color: {$pg_active_bg} !important; color: {$pg_active_text} !important; border-color: {$pg_active_bg} !important; pointer-events: none !important; }";
+			$style_registry .= " .rcb-instance-{$unique_id} .rcb-pagination a.page-numbers:hover { opacity: 0.8 !important; }";
+
+			$loop_output .= sprintf( '<!-- RCB_DEBUG: paged=%d, max_pages=%d -->', $paged, $query->max_num_pages );
+			$loop_output .= sprintf(
+				'<div class="rcb-pagination" style="display: flex; gap: 10px; width: 100%% !important; justify-content: space-between; flex-wrap: wrap; align-items: center; margin-top: 40px; font-size: %s; grid-column: 1 / -1 !important;">',
+				esc_attr( $pagination_font_size )
+			);
+
+			$left_arrow  = '<svg width="1em" height="1em" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" style="display:block"><path d="M19 12H5M5 12L11 6M5 12L11 18" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+			$right_arrow = '<svg width="1em" height="1em" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" style="display:block"><path d="M5 12H19M19 12L13 6M19 12L13 18" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+
+			$prev_url     = get_pagenum_link( max( 1, $paged - 1 ) );
+			$prev_opacity = $paged > 1 ? '1' : '0.5';
+			$prev_pointer = $paged > 1 ? 'pointer' : 'not-allowed';
+			$loop_output .= sprintf(
+				'<a href="%s" class="rcb-pagination-prev page-numbers" style="cursor: %s; opacity: %s;">%s %s</a>',
+				esc_url( $prev_url ), $prev_pointer, $prev_opacity, $left_arrow, ( $show_text ? 'Previous' : '' )
+			);
+
+			$loop_output .= '<div style="display: flex; gap: 8px;">';
+			for ( $i = 1; $i <= $query->max_num_pages; $i++ ) {
+				$is_active   = ( intval( $paged ) == $i );
+				$url         = get_pagenum_link( $i );
+				$cur_bg      = $is_active ? $pg_active_bg : $pg_bg_color;
+				$cur_txt     = $is_active ? $pg_active_text : $pg_text_color;
+				$loop_output .= sprintf(
+					'<a href="%s" class="page-numbers %s" style="background-color: %s !important; color: %s !important;">%d</a>',
+					esc_url( $url ), $is_active ? 'current' : '',
+					esc_attr( $cur_bg ), esc_attr( $cur_txt ), $i
+				);
+			}
+			$loop_output .= '</div>';
+
+			$next_url     = get_pagenum_link( min( $query->max_num_pages, $paged + 1 ) );
+			$next_opacity = $paged < intval( $query->max_num_pages ) ? '1' : '0.5';
+			$next_pointer = $paged < intval( $query->max_num_pages ) ? 'pointer' : 'not-allowed';
+			$loop_output .= sprintf(
+				'<a href="%s" class="rcb-pagination-next page-numbers" style="cursor: %s; opacity: %s;">%s %s</a>',
+				esc_url( $next_url ), $next_pointer, $next_opacity, ( $show_text ? 'Next' : '' ), $right_arrow
+			);
+
+			$loop_output .= '</div>'; // End .rcb-pagination
+		}
+
+		$loop_output .= '</div>'; // End rcb-loop-wrapper
+		wp_reset_postdata();
+
+	} else {
+		$loop_output = '<p>' . __( 'No posts found.', 'reusable-component-builder' ) . '</p>';
+	}
+
+	$output = sprintf( '<div class="rcb-component-builder rcb-instance-%s">%s</div>', esc_attr( $unique_id ), $loop_output );
+
+	if ( ! empty( $style_registry ) ) {
+		$output = "<style>{$style_registry}</style>" . $output;
+	}
+
+	return $output;
+}
+
+/**
+ * Handler: Dynamic Meta Display
+ * Reads post meta keys defined in the template and renders them.
+ * Supports strings, arrays, and serialized ACF-style data.
+ */
+function rcb_render_meta_type( $attributes, $content, $template_id, $unique_id, $post ) {
+	if ( ! $post ) {
+		return '';
+	}
+
+	$structure_json = get_post_meta( $template_id, '_component_structure', true );
+	$structure_data = $structure_json ? json_decode( $structure_json, true ) : array();
+	$nodes          = isset( $structure_data['structure'] ) ? $structure_data['structure'] : array();
+	$content_data   = isset( $attributes['content'] ) ? $attributes['content'] : array();
+	$styles_data    = isset( $attributes['styles'] ) ? $attributes['styles'] : array();
+
+	$style_registry = '';
+	$output_html    = rcb_render_visual_nodes_with_visibility( $nodes, $content_data, $styles_data, 'meta', $post, array(), $content, $style_registry, $unique_id );
+
+	$id_to_show = ( $post instanceof WP_Post ) ? $post->ID : ( is_numeric( $post ) ? $post : 0 );
+	$output = sprintf( '<!-- RCB Meta Debug: Post ID %d, Template ID %d, Nodes: %d --><div class="rcb-component-builder rcb-meta-display rcb-instance-%s">%s</div>', $id_to_show, $template_id, count( $nodes ), esc_attr( $unique_id ), $output_html );
+
+	if ( ! empty( $style_registry ) ) {
+		$output = "<style>{$style_registry}</style>" . $output;
+	}
+
+	return $output;
+}
+/**
+ * Safely get post meta with an ACF fallback, returning as a string.
+ */
+function rcb_get_meta_value_with_fallback( $post_id, $meta_key ) {
+	$meta_value = '';
+	
+	// Prioritize ACF get_field for better compatibility with field labels and keys
+	if ( function_exists( 'get_field' ) ) {
+		$meta_value = get_field( $meta_key, $post_id );
+	}
+	
+	// Fallback to native WP meta
+	if ( empty( $meta_value ) ) {
+		$meta_value = get_post_meta( $post_id, $meta_key, true );
+	}
+
+	if ( is_array( $meta_value ) ) {
+		if ( isset( $meta_value['url'] ) ) return $meta_value['url'];
+		$meta_value = implode( ', ', array_filter( array_map( 'strval', $meta_value ) ) );
+	} elseif ( is_serialized( $meta_value ) ) {
+		$unserialized = maybe_unserialize( $meta_value );
+		$meta_value = is_array( $unserialized ) ? implode( ', ', array_filter( array_map( 'strval', $unserialized ) ) ) : strval( $unserialized );
+	} elseif ( is_object( $meta_value ) && ! method_exists( $meta_value, '__toString' ) ) {
+		$meta_value = '';
+	}
+	
+	$final_val = strval( $meta_value );
+	
+	if ( $final_val === '' ) {
+		return '';
+	}
+
+	return $final_val;
 }
 
 /**
@@ -190,50 +292,108 @@ function rcb_resolve_node_data( $node, $content_data, $mode, $post = null ) {
 	switch ( $type ) {
 		case 'heading':
 			$data['tag']  = isset( $node['headingTag'] ) ? $node['headingTag'] : 'h2';
-			$data['text'] = isset( $content_data[ $field ] ) ? $content_data[ $field ] : 'Heading Title';
-			if ( $mode === 'query' ) {
-				if ( $dynamic_source === 'post_title' && $post ) {
-					$data['text'] = $post->post_title;
-				} elseif ( $dynamic_source === 'custom_meta' && $post && ! empty( $dynamic_field ) ) {
-					$data['text'] = get_post_meta( $post->ID, $dynamic_field, true );
+			$manual_text  = isset( $content_data[ $field ] ) ? $content_data[ $field ] : '';
+			$data['text'] = $manual_text;
+
+			if ( empty( $data['text'] ) && ! empty( $dynamic_source ) ) {
+				$dynamic_val = '';
+				$lower_source = strtolower( $dynamic_source );
+				$post_id_to_use = ( $post instanceof WP_Post ) ? $post->ID : ( is_numeric( $post ) ? $post : get_the_ID() );
+				
+				if ( ( $lower_source === 'post_title' || strpos( $lower_source, 'title' ) !== false ) && $post ) {
+					$dynamic_val = ( $post instanceof WP_Post ) ? $post->post_title : get_the_title( $post_id_to_use );
+				} elseif ( ( strpos( $lower_source, 'meta' ) !== false ) && $post && ! empty( $dynamic_field ) ) {
+					$dynamic_val = rcb_get_meta_value_with_fallback( $post_id_to_use, $dynamic_field );
 				}
+				
+				if ( ! empty( $dynamic_val ) ) {
+					$data['text'] = $dynamic_val;
+				}
+			}
+			
+			if ( empty( $data['text'] ) ) {
+				$data['text'] = 'Heading Title';
 			}
 			break;
 
 		case 'text':
-			$data['text'] = isset( $content_data[ $field ] ) ? $content_data[ $field ] : 'Enter text here...';
-			if ( $mode === 'query' ) {
-				if ( $dynamic_source === 'post_excerpt' && $post ) {
-					$data['text'] = get_the_excerpt( $post );
-				} elseif ( $dynamic_source === 'post_content' && $post ) {
-					$data['text'] = apply_filters( 'the_content', $post->post_content );
-				} elseif ( $dynamic_source === 'custom_meta' && $post && ! empty( $dynamic_field ) ) {
-					$data['text'] = get_post_meta( $post->ID, $dynamic_field, true );
+			$manual_text  = isset( $content_data[ $field ] ) ? $content_data[ $field ] : '';
+			$data['text'] = $manual_text;
+
+			if ( empty( $data['text'] ) && ! empty( $dynamic_source ) ) {
+				$dynamic_val = '';
+				$lower_source = strtolower( $dynamic_source );
+				$post_id_to_use = ( $post instanceof WP_Post ) ? $post->ID : ( is_numeric( $post ) ? $post : get_the_ID() );
+
+				if ( ( $lower_source === 'post_title' || strpos( $lower_source, 'title' ) !== false ) && $post ) {
+					$dynamic_val = ( $post instanceof WP_Post ) ? $post->post_title : get_the_title( $post_id_to_use );
+				} elseif ( $lower_source === 'post_excerpt' && $post ) {
+					$dynamic_val = get_the_excerpt( $post_id_to_use );
+				} elseif ( $lower_source === 'post_content' && $post ) {
+					$dynamic_val = apply_filters( 'the_content', get_post_field( 'post_content', $post_id_to_use ) );
+				} elseif ( ( strpos( $lower_source, 'meta' ) !== false ) && $post && ! empty( $dynamic_field ) ) {
+					$dynamic_val = rcb_get_meta_value_with_fallback( $post_id_to_use, $dynamic_field );
 				}
+
+				if ( ! empty( $dynamic_val ) ) {
+					$data['text'] = $dynamic_val;
+				}
+			}
+
+			if ( empty( $data['text'] ) ) {
+				$data['text'] = 'Enter text here...';
 			}
 			break;
 
 		case 'image':
-			$data['img'] = isset( $content_data[ $field . '_url' ] ) ? $content_data[ $field . '_url' ] : 'https://via.placeholder.com/600x400?text=Image';
-			if ( $mode === 'query' ) {
-				if ( $dynamic_source === 'featured_image' && $post ) {
-					$data['img'] = get_the_post_thumbnail_url( $post, 'large' );
-				} elseif ( $dynamic_source === 'custom_meta' && $post && ! empty( $dynamic_field ) ) {
-					$data['img'] = get_post_meta( $post->ID, $dynamic_field, true );
+			$manual_img = isset( $content_data[ $field . '_url' ] ) ? $content_data[ $field . '_url' ] : '';
+			$data['img'] = $manual_img;
+
+			if ( empty( $data['img'] ) && ! empty( $dynamic_source ) ) {
+				$dynamic_img = '';
+				$lower_source = strtolower( $dynamic_source );
+				$post_id_to_use = ( $post instanceof WP_Post ) ? $post->ID : ( is_numeric( $post ) ? $post : get_the_ID() );
+
+				if ( $lower_source === 'featured_image' && $post ) {
+					$dynamic_img = get_the_post_thumbnail_url( $post_id_to_use, 'large' );
+				} elseif ( ( strpos( $lower_source, 'meta' ) !== false ) && $post && ! empty( $dynamic_field ) ) {
+					$dynamic_img = rcb_get_meta_value_with_fallback( $post_id_to_use, $dynamic_field );
 				}
+
+				if ( ! empty( $dynamic_img ) ) {
+					$data['img'] = $dynamic_img;
+				}
+			}
+
+			if ( empty( $data['img'] ) ) {
+				$data['img'] = 'https://via.placeholder.com/600x400?text=Image';
 			}
 			break;
 
 		case 'button':
-			$data['text'] = isset( $content_data[ $field ] ) ? $content_data[ $field ] : 'Learn More';
-			$data['url']  = isset( $content_data[ $field . '_url' ] ) ? $content_data[ $field . '_url' ] : '#';
-			if ( $mode === 'query' ) {
-				if ( ( $dynamic_source === 'permalink' || $dynamic_source === 'post_url' ) && $post ) {
-					$data['url'] = get_permalink( $post );
-				} elseif ( $dynamic_source === 'custom_meta' && $post && ! empty( $dynamic_field ) ) {
-					$data['url'] = get_post_meta( $post->ID, $dynamic_field, true );
+			$manual_text = isset( $content_data[ $field ] ) ? $content_data[ $field ] : '';
+			$manual_url  = isset( $content_data[ $field . '_url' ] ) ? $content_data[ $field . '_url' ] : '';
+
+			$data['text'] = $manual_text;
+			$data['url']  = $manual_url;
+
+			if ( ( empty( $data['text'] ) || empty( $data['url'] ) ) && ! empty( $dynamic_source ) ) {
+				$lower_source = strtolower( $dynamic_source );
+				$post_id_to_use = ( $post instanceof WP_Post ) ? $post->ID : ( is_numeric( $post ) ? $post : get_the_ID() );
+
+				if ( ( $lower_source === 'permalink' || $lower_source === 'post_url' || strpos( $lower_source, 'url' ) !== false ) && $post ) {
+					if ( empty( $data['url'] ) ) $data['url'] = get_permalink( $post_id_to_use );
+				} elseif ( ( strpos( $lower_source, 'meta' ) !== false ) && $post && ! empty( $dynamic_field ) ) {
+					$resolved_meta = rcb_get_meta_value_with_fallback( $post_id_to_use, $dynamic_field );
+					if ( ! empty( $resolved_meta ) ) {
+						if ( empty( $data['text'] ) ) $data['text'] = $resolved_meta;
+						if ( empty( $data['url'] ) )  $data['url']  = $resolved_meta;
+					}
 				}
 			}
+
+			if ( empty( $data['text'] ) ) $data['text'] = 'Learn More';
+			if ( empty( $data['url'] ) )  $data['url']  = '#';
 			break;
 	}
 
