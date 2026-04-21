@@ -19,29 +19,31 @@ const initRcbDynamicSlider = ( el ) => {
     if ( breakpointsRaw ) {
         try {
             const parsed = JSON.parse( breakpointsRaw );
-            // Map our specific keys (0 and 768) to Swiper breakpoints
-            // We use 0 for mobile, 768 for tablet, and default for desktop
+            // Standardize breakpoints: Mobile (0), Tablet (768), Desktop (1025)
             swiperBreakpoints = {
-                0: parsed[0] || parsed['0'] || { slidesPerView: 1, spaceBetween: 10 },
-                768: parsed[768] || parsed['768'] || { slidesPerView: Math.min(2, slidesPerView), spaceBetween: Math.min(20, spaceBetween) },
-                1025: { slidesPerView: slidesPerView, spaceBetween: spaceBetween }
+                0: { 
+                    slidesPerView: 1, 
+                    spaceBetween: 10 
+                },
+                768: { 
+                    slidesPerView: parsed[768]?.slidesPerView || Math.min(2, slidesPerView), 
+                    spaceBetween: Math.min(20, spaceBetween) 
+                },
+                1025: { 
+                    slidesPerView: slidesPerView, 
+                    spaceBetween: spaceBetween 
+                }
             };
-
-            // Prevent Swiper loop reset bug by removing redundant breakpoint props
-            Object.keys(swiperBreakpoints).forEach(key => {
-                if (swiperBreakpoints[key].slidesPerView === slidesPerView) {
-                    delete swiperBreakpoints[key].slidesPerView;
-                }
-                if (swiperBreakpoints[key].spaceBetween === spaceBetween) {
-                    delete swiperBreakpoints[key].spaceBetween;
-                }
-                if (Object.keys(swiperBreakpoints[key]).length === 0) {
-                    delete swiperBreakpoints[key];
-                }
-            });
         } catch ( e ) {
             console.error( 'RCB Dynamic Slider: Error parsing breakpoints', breakpointsRaw, e );
         }
+    } else {
+        // Fallback for no data-breakpoints
+        swiperBreakpoints = {
+            0: { slidesPerView: 1, spaceBetween: 10 },
+            768: { slidesPerView: Math.min(2, slidesPerView), spaceBetween: Math.min(20, spaceBetween) },
+            1025: { slidesPerView: slidesPerView, spaceBetween: spaceBetween }
+        };
     }
     
     const swiper = new Swiper( el, {

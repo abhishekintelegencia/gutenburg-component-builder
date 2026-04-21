@@ -86,6 +86,13 @@
             width: 100%;
             min-width: 300px;
             max-width: 90%;
+
+            @media (max-width: 767px) {
+                min-width: unset;
+                padding: 20px;
+                max-width: 100%;
+                width: calc(100% - 40px);
+            }
         }
 
         &.align-left { 
@@ -93,6 +100,12 @@
             margin-left: 60px;
             margin-right: auto;
             &.has-card { margin-left: 60px; }
+
+            @media (max-width: 767px) {
+                margin-left: auto;
+                margin-right: auto;
+                &.has-card { margin-left: auto; }
+            }
         }
         &.align-center { 
             text-align: center; 
@@ -104,6 +117,12 @@
             margin-right: 60px;
             margin-left: auto;
             &.has-card { margin-right: 60px; }
+
+            @media (max-width: 767px) {
+                margin-right: auto;
+                margin-left: auto;
+                &.has-card { margin-right: auto; }
+            }
         }
 
         .rcb-slide-avatar-wrapper {
@@ -132,6 +151,10 @@
             font-weight: var(--rcb-title-weight, 700);
             text-shadow: 0 2px 10px rgba(0,0,0,0.3);
             line-height: 1.2;
+
+            @media (max-width: 767px) {
+                font-size: clamp(24px, 8vw, 32px);
+            }
         }
 
         .rcb-slide-desc {
@@ -141,6 +164,10 @@
             font-weight: var(--rcb-desc-weight, 400);
             text-shadow: 0 1px 5px rgba(0,0,0,0.3);
             line-height: 1.6;
+
+            @media (max-width: 767px) {
+                font-size: 15px;
+            }
         }
 
         .rcb-slide-btn {
