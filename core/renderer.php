@@ -91,6 +91,7 @@ function rcb_render_visual_type( $attributes, $content, $template_id, $unique_id
 	$style_registry = ".rcb-instance-{$unique_id} *, .rcb-instance-{$unique_id} { box-sizing: border-box !important; position: relative; }\n" . 
 	                  ".rcb-instance-{$unique_id} { width: 100% !important; overflow-x: hidden !important; }\n" .
 	                  ".rcb-instance-{$unique_id} .rcb-image img { max-width: 100%; height: auto; display: block; }\n" . 
+	                  ".rcb-instance-{$unique_id} .rcb-tab-item.is-hidden { display: none !important; }\n" .
 	                  $style_registry;
 	$output = sprintf( '<div class="rcb-component-builder rcb-instance-%s">%s</div>', esc_attr( $unique_id ), $inner_output );
 
