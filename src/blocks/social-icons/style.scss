@@ -1,0 +1,93 @@
+.rcb-social-icons-wrapper {
+    display: flex;
+    flex-wrap: wrap;
+    list-style: none;
+    padding: 0;
+    margin: 0;
+
+    .rcb-social-item {
+        display: flex;
+        align-items: center;
+        text-decoration: none;
+        transition: all 0.3s ease;
+        gap: 10px;
+
+        .rcb-social-item-icon {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 1.8em;
+            height: 1.8em;
+            transition: all 0.3s ease;
+            
+            svg, img {
+                width: 1em;
+                height: 1em;
+            }
+        }
+
+        .rcb-social-item-label {
+            transition: all 0.3s ease;
+        }
+    }
+
+    // Visibility logic
+    &.rcb-style-icon {
+        .rcb-social-item-label {
+            display: none !important;
+        }
+    }
+
+    &.rcb-style-text {
+        .rcb-social-item-icon {
+            display: none !important;
+        }
+    }
+}
+
+// Editor-specific styles
+.rcb-social-icons-editor {
+    .rcb-social-icons-inner {
+        display: flex;
+        flex-wrap: wrap;
+        
+        // Ensure child blocks don't have default WP margins
+        .block-editor-block-list__layout {
+            display: flex;
+            flex-direction: row;
+            flex-wrap: wrap;
+            gap: inherit;
+            justify-content: inherit;
+        }
+    }
+
+    // Mirror frontend visibility in editor
+    &.rcb-style-icon {
+        .rcb-social-item-label {
+            display: none !important;
+        }
+    }
+
+    &.rcb-style-text {
+        .rcb-social-item-icon {
+            display: none !important;
+        }
+    }
+}
+
+// Sidebar list styling
+.rcb-social-icon-item-sidebar {
+    background: #f9f9f9;
+    border: 1px solid #e0e0e0 !important;
+    transition: border-color 0.2s ease;
+    
+    &:hover {
+        border-color: #007cba !important;
+    }
+}
+
+.rcb-custom-icon-upload {
+    .components-button {
+        justify-content: center;
+    }
+}

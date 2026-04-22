@@ -110,3 +110,148 @@ export const AdvancedTypographyControl = ({ label, value, fontWeight, textTransf
         </div>
     );
 };
+
+export const UnitInputControl = ({ value, onChange, units = ['px', 'em', 'rem', '%', 'vh', 'vw'] }) => {
+    const valStr = (value || '').toString();
+    const number = parseFloat(valStr) || 0;
+    const unit = valStr.match(/[a-z%]+$/i)?.[0] || 'px';
+
+    const containerStyle = {
+        display: 'flex',
+        alignItems: 'center',
+        border: '1px solid #e0e0e0',
+        borderRadius: '4px',
+        backgroundColor: '#fff',
+        overflow: 'hidden',
+        height: '30px',
+        width: '120px',
+        boxShadow: 'inset 0 1px 2px rgba(0,0,0,0.05)'
+    };
+
+    const inputStyle = {
+        border: 'none',
+        height: '100%',
+        width: '50px',
+        padding: '0 8px',
+        fontSize: '12px',
+        color: '#1e1e1e',
+        backgroundColor: 'transparent',
+        textAlign: 'center',
+        margin: '0',
+        appearance: 'textfield',
+        outline: 'none'
+    };
+
+    const dividerStyle = {
+        width: '1px',
+        height: '18px',
+        backgroundColor: '#e0e0e0'
+    };
+
+    const selectStyle = {
+        border: 'none',
+        height: '100%',
+        flex: 1,
+        padding: '0 4px',
+        fontSize: '11px',
+        fontWeight: '600',
+        color: '#757575',
+        backgroundColor: 'transparent',
+        cursor: 'pointer',
+        margin: '0',
+        outline: 'none',
+        appearance: 'none',
+        WebkitAppearance: 'none',
+        textAlign: 'center'
+    };
+
+    return (
+        <div className="rcb-unit-input-control" style={containerStyle}>
+            <input 
+                type="number" 
+                value={number} 
+                onChange={(e) => onChange(`${e.target.value}${unit}`)}
+                style={inputStyle}
+            />
+            <div style={dividerStyle}></div>
+            <div style={{ position: 'relative', flex: 1, display: 'flex', alignItems: 'center' }}>
+                <select 
+                    value={unit} 
+                    onChange={(e) => onChange(`${number}${e.target.value}`)}
+                    style={selectStyle}
+                >
+                    {units.map(u => (
+                        <option key={u} value={u}>{u.toUpperCase()}</option>
+                    ))}
+                </select>
+                <div style={{ position: 'absolute', right: '4px', pointerEvents: 'none', fontSize: '8px', color: '#999' }}>▼</div>
+            </div>
+        </div>
+    );
+};
+
+export const AdvancedRangeControl = ({ label, value, onChange, deviceMode, setDeviceMode, min = 0, max = 200, step = 1 }) => {
+    const val = getResponsiveValue(value, deviceMode);
+    const number = parseFloat(val) || 0;
+    const unit = val.toString().match(/[a-z%]+$/i)?.[0] || 'px';
+
+    return (
+        <ResponsiveControl label={label} deviceMode={deviceMode} setDeviceMode={setDeviceMode}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <div style={{ flex: 1 }}>
+                    <RangeControl
+                        value={number}
+                        onChange={(v) => onChange(`${v}${unit}`, true)}
+                        min={min}
+                        max={max}
+                        step={step}
+                        withInputField={false}
+                        __nextHasNoMarginBottom={true}
+                    />
+                </div>
+                <UnitInputControl
+                    value={val}
+                    onChange={(v) => onChange(v, true)}
+                />
+            </div>
+        </ResponsiveControl>
+    );
+};
+
+export const PreciseRangeControl = ({ label, value, onChange, deviceMode, setDeviceMode }) => {
+    const val = getResponsiveValue(value, deviceMode);
+    return (
+        <ResponsiveControl label={label} deviceMode={deviceMode} setDeviceMode={setDeviceMode}>
+            <UnitInputControl
+                value={val}
+                onChange={(v) => onChange(v, true)}
+            />
+        </ResponsiveControl>
+    );
+};
+
+export const AdvancedBoxControl = ({ label, value, onChange, deviceMode, setDeviceMode }) => {
+    const val = getResponsiveValue(value, deviceMode);
+    const box = parseBoxValue(val) || { top: '0px', right: '0px', bottom: '0px', left: '0px' };
+
+    const updateBox = (side, newVal) => {
+        const newBox = { ...box, [side]: newVal };
+        onChange(serializeBoxValue(newBox), true);
+    };
+
+    return (
+        <ResponsiveControl label={label} deviceMode={deviceMode} setDeviceMode={setDeviceMode}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                {['top', 'right', 'bottom', 'left'].map(side => (
+                    <div key={side}>
+                        <div style={{ fontSize: '9px', fontWeight: 700, textTransform: 'uppercase', marginBottom: '4px', color: '#666' }}>{side}</div>
+                        <UnitInputControl
+                            value={box[side]}
+                            onChange={(v) => updateBox(side, v)}
+                        />
+                    </div>
+                ))}
+            </div>
+        </ResponsiveControl>
+    );
+};
