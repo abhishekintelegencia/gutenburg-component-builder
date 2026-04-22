@@ -16,5 +16,7 @@ module.exports = {
 		'blocks/header/index': path.resolve( process.cwd(), 'src/blocks/header', 'index.js' ),
 		'blocks/advance-dynamic-slider/index': path.resolve( process.cwd(), 'src/blocks/advance-dynamic-slider', 'index.js' ),
 		'blocks/advance-dynamic-slider/view': path.resolve( process.cwd(), 'src/blocks/advance-dynamic-slider', 'view.js' ),
+		'blocks/social-icons/index': path.resolve( process.cwd(), 'src/blocks/social-icons', 'index.js' ),
+		'blocks/social-icons/social-icon-item/index': path.resolve( process.cwd(), 'src/blocks/social-icons/social-icon-item', 'index.js' ),
 	},
 };

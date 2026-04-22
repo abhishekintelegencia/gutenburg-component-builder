@@ -35,49 +35,55 @@ add_filter( 'block_categories_all', 'rcb_block_categories', 10, 2 );
 add_filter( 'block_categories', 'rcb_block_categories', 10, 2 ); // Backward compatibility
 
 // Initialize Blocks //
-function rcb_register_blocks()
-{
-	$blocks_dir = RCB_PLUGIN_DIR . 'build/blocks';
-	if ( is_dir( $blocks_dir ) ) {
-		$it = new DirectoryIterator( $blocks_dir );
-		foreach ( $it as $fileinfo ) {
-			if ( $fileinfo->isDir() && ! $fileinfo->isDot() ) {
-				$block_json = $fileinfo->getPathname() . '/block.json';
-				if ( file_exists( $block_json ) ) {
-					$metadata = json_decode( file_get_contents( $block_json ), true );
-					$args = array();
-					
-					// Handle dynamic rendering
-					if ( isset( $metadata['name'] ) ) {
-						if ( $metadata['name'] === 'reusable-component-builder/block' ) {
-							$args['render_callback'] = 'rcb_render_component_builder_block';
-						} elseif ( $metadata['name'] === 'rcb/header' ) {
-							$args['render_callback'] = function( $attributes ) {
-								ob_start();
-								include RCB_PLUGIN_DIR . 'src/blocks/header/render.php';
-								return ob_get_clean();
-							};
-						} elseif ( $metadata['name'] === 'rcb/advance-dynamic-slider' ) {
-							$args['render_callback'] = 'rcb_render_advance_dynamic_slider_block';
-						}
-					}
-					
-					register_block_type_from_metadata( $fileinfo->getPathname(), $args );
+/**
+ * Recursively register blocks from a directory.
+ */
+function rcb_register_blocks_recursive( $dir ) {
+	if ( ! is_dir( $dir ) ) return;
 
-					// Handle sub-blocks (like accordion-item)
-					$sub_it = new DirectoryIterator( $fileinfo->getPathname() );
-					foreach ( $sub_it as $sub_file ) {
-						if ( $sub_file->isDir() && ! $sub_file->isDot() ) {
-							$sub_json = $sub_file->getPathname() . '/block.json';
-							if ( file_exists( $sub_json ) ) {
-								register_block_type_from_metadata( $sub_file->getPathname() );
-							}
-						}
+	$it = new DirectoryIterator( $dir );
+	foreach ( $it as $fileinfo ) {
+		if ( $fileinfo->isDir() && ! $fileinfo->isDot() ) {
+			$path = $fileinfo->getPathname();
+			$block_json = $path . '/block.json';
+			
+			if ( file_exists( $block_json ) ) {
+				$metadata = json_decode( file_get_contents( $block_json ), true );
+				$args = array();
+
+				// 1. Check for explicit render.php in the block folder
+				// We look in src/blocks/... for the PHP file as build/ blocks might not have it
+				$relative_path = str_replace( RCB_PLUGIN_DIR . 'build/blocks/', '', $path );
+				$render_php = RCB_PLUGIN_DIR . 'src/blocks/' . $relative_path . '/render.php';
+
+				if ( file_exists( $render_php ) ) {
+					$args['render_callback'] = function( $attributes, $content ) use ( $render_php ) {
+						ob_start();
+						include $render_php;
+						return ob_get_clean();
+					};
+				}
+
+				// 2. Special hardcoded overrides/handlers
+				if ( isset( $metadata['name'] ) ) {
+					if ( $metadata['name'] === 'reusable-component-builder/block' ) {
+						$args['render_callback'] = 'rcb_render_component_builder_block';
+					} elseif ( $metadata['name'] === 'rcb/advance-dynamic-slider' ) {
+						$args['render_callback'] = 'rcb_render_advance_dynamic_slider_block';
 					}
 				}
+
+				register_block_type_from_metadata( $path, $args );
 			}
+
+			// Continue recursion for sub-blocks
+			rcb_register_blocks_recursive( $path );
 		}
 	}
+}
+
+function rcb_register_blocks() {
+	rcb_register_blocks_recursive( RCB_PLUGIN_DIR . 'build/blocks' );
 }
 add_action('init', 'rcb_register_blocks');
 

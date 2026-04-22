@@ -1,0 +1,44 @@
+{
+  "$schema": "https://schemas.wp.org/trunk/block.json",
+  "apiVersion": 3,
+  "name": "rcb/social-icon-item",
+  "version": "1.0.0",
+  "title": "Social Icon Item (RCB)",
+  "category": "rcb-components",
+  "parent": [
+    "rcb/social-icons"
+  ],
+  "attributes": {
+    "platform": {
+      "type": "string",
+      "default": "facebook"
+    },
+    "url": {
+      "type": "string",
+      "default": "#"
+    },
+    "label": {
+      "type": "string",
+      "default": "Facebook"
+    },
+    "customIcon": {
+      "type": "string",
+      "default": ""
+    }
+  },
+  "usesContext": [
+    "rcb/socialIconsStyle",
+    "rcb/socialIconsIconColor",
+    "rcb/socialIconsIconBgColor",
+    "rcb/socialIconsIconSize",
+    "rcb/socialIconsBorderRadius",
+    "rcb/socialIconsLabelColor",
+    "rcb/socialIconsLabelFontSize"
+  ],
+  "supports": {
+    "html": false,
+    "reusable": false
+  },
+  "textdomain": "reusable-component-builder",
+  "editorScript": "file:./index.js"
+}

@@ -1,0 +1,49 @@
+{
+    "$schema": "https://schemas.wp.org/trunk/block.json",
+    "apiVersion": 3,
+    "name": "rcb/social-icons",
+    "version": "1.0.0",
+    "title": "Social Icons (RCB)",
+    "category": "rcb-components",
+    "icon": "share",
+    "description": "Premium social media icons with customizable styles and hover effects.",
+    "attributes": {
+        "style": { "type": "string", "default": "icon" },
+        "alignment": { "type": "object", "default": { "desktop": "left" } },
+        "gap": { "type": "object", "default": { "desktop": "20px" } },
+        "iconSize": { "type": "object", "default": { "desktop": "24px" } },
+        "iconColor": { "type": "string", "default": "#334155" },
+        "iconHoverColor": { "type": "string", "default": "#1e293b" },
+        "iconBgColor": { "type": "string", "default": "transparent" },
+        "iconHoverBgColor": { "type": "string", "default": "transparent" },
+        "borderRadius": { "type": "string", "default": "0px" },
+        "showLabel": { "type": "boolean", "default": false },
+        "labelFontFamily": { "type": "string", "default": "inherit" },
+        "labelFontSize": { "type": "object", "default": { "desktop": "14px" } },
+        "labelFontWeight": { "type": "string", "default": "400" },
+        "labelColor": { "type": "string", "default": "#334155" },
+        "margin": { "type": "object", "default": { "desktop": "" } },
+        "padding": { "type": "object", "default": { "desktop": "" } },
+        "uniqueId": { "type": "string", "default": "" }
+    },
+    "providesContext": {
+        "rcb/socialIconsStyle": "style",
+        "rcb/socialIconsIconColor": "iconColor",
+        "rcb/socialIconsIconBgColor": "iconBgColor",
+        "rcb/socialIconsIconSize": "iconSize",
+        "rcb/socialIconsBorderRadius": "borderRadius",
+        "rcb/socialIconsLabelColor": "labelColor",
+        "rcb/socialIconsLabelFontSize": "labelFontSize"
+    },
+    "supports": {
+        "html": false,
+        "anchor": true,
+        "spacing": {
+            "margin": true,
+            "padding": true
+        }
+    },
+    "textdomain": "reusable-component-builder",
+    "editorScript": "file:./index.js",
+    "style": "file:./style-index.css"
+}
