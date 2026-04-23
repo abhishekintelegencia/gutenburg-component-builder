@@ -88,6 +88,11 @@ function rcb_render_visual_type( $attributes, $content, $template_id, $unique_id
 	$style_registry = '';
 	$inner_output   = rcb_render_visual_nodes_with_visibility( $nodes, $content_data, $styles_data, $mode, $post, $visibility, $content, $style_registry, $unique_id );
 
+	$style_registry = ".rcb-instance-{$unique_id} *, .rcb-instance-{$unique_id} { box-sizing: border-box !important; position: relative; }\n" . 
+	                  ".rcb-instance-{$unique_id} { width: 100% !important; overflow-x: hidden !important; }\n" .
+	                  ".rcb-instance-{$unique_id} .rcb-image img { max-width: 100%; height: auto; display: block; }\n" . 
+	                  ".rcb-instance-{$unique_id} .rcb-tab-item.is-hidden { display: none !important; }\n" .
+	                  $style_registry;
 	$output = sprintf( '<div class="rcb-component-builder rcb-instance-%s">%s</div>', esc_attr( $unique_id ), $inner_output );
 
 	if ( ! empty( $style_registry ) ) {
@@ -440,7 +445,7 @@ function rcb_render_visual_nodes_with_visibility( $nodes, $content_data, $styles
 
 	foreach ( $nodes as $node ) {
 		$type         = isset( $node['type'] ) ? $node['type'] : '';
-		$id           = isset( $node['id'] ) ? $node['id'] : '';
+		$id           = ( isset( $node['id'] ) && ! empty( $node['id'] ) ) ? $node['id'] : 'rcb-node-' . uniqid();
 		$field        = isset( $node['field'] ) ? $node['field'] : '';
 		$node_columns = isset( $node['columns'] ) ? intval( $node['columns'] ) : 1;
 		$allowed      = isset( $node['allowedSettings'] ) ? (array) $node['allowedSettings'] : array();
@@ -460,255 +465,180 @@ function rcb_render_visual_nodes_with_visibility( $nodes, $content_data, $styles
 		
 		// Map Context Data
 		$node_data = rcb_resolve_node_data( $node, $content_data, $mode, $post );
-		$final_styles  = array();
-		$has_responsive = false;
-
-		// Detect if any property is responsive (an array)
-		foreach ( $raw_styles as $val ) {
-			if ( is_array( $val ) ) {
-				$has_responsive = true;
-				break;
+		
+		// 1. Prepare Layout Defaults & Enforce Critical Properties
+		if ( $type === 'container' ) {
+			// Ensure display is set
+			if ( ! isset( $raw_styles['display'] ) && ! isset( $raw_styles['displayMode'] ) ) {
+				$raw_styles['display'] = 'grid';
 			}
-		}
-
-		if ( $has_responsive ) {
-			// Scope responsive CSS to the specific instance if provided
-			$selector = ( ! empty( $instance_id ) ) ? ".rcb-instance-{$instance_id} .{$id}" : ".{$id}";
-			$style_registry .= rcb_generate_responsive_css( $selector, $raw_styles );
-		}
-
-		// Standard styles - Map if they exist in raw_styles, regardless of allowedSettings
-		// Only map non-array values to inline styles
-		// IMPORTANT: For components like buttons to override theme defaults, 
-		// we often need these in the registry with !important too.
-		$registry_styles = array();
-		
-		if ( isset( $raw_styles['color'] ) ) {
-			$final_styles['color'] = $raw_styles['color'];
-			$registry_styles['color'] = $raw_styles['color'];
-		}
-		if ( isset( $raw_styles['backgroundColor'] ) ) {
-			$final_styles['backgroundColor'] = $raw_styles['backgroundColor'];
-			$registry_styles['backgroundColor'] = $raw_styles['backgroundColor'];
-		}
-		
-		if ( isset( $raw_styles['padding'] ) ) $final_styles['padding'] = $raw_styles['padding'];
-		if ( isset( $raw_styles['margin'] ) ) $final_styles['margin'] = $raw_styles['margin'];
-
-		if ( isset( $raw_styles['fontSize'] ) ) $final_styles['fontSize'] = $raw_styles['fontSize'];
-		if ( isset( $raw_styles['fontWeight'] ) ) $final_styles['fontWeight'] = $raw_styles['fontWeight'];
-		if ( isset( $raw_styles['lineHeight'] ) ) $final_styles['lineHeight'] = $raw_styles['lineHeight'];
-		if ( isset( $raw_styles['letterSpacing'] ) ) $final_styles['letterSpacing'] = $raw_styles['letterSpacing'];
-		if ( isset( $raw_styles['textTransform'] ) ) $final_styles['textTransform'] = $raw_styles['textTransform'];
-		if ( isset( $raw_styles['fontFamily'] ) ) $final_styles['fontFamily'] = $raw_styles['fontFamily'];
-
-		if ( isset( $raw_styles['borderRadius'] ) ) {
-			$final_styles['borderRadius'] = $raw_styles['borderRadius'];
-			$registry_styles['borderRadius'] = $raw_styles['borderRadius'];
-		}
-		if ( isset( $raw_styles['border'] ) ) $final_styles['border'] = $raw_styles['border'];
-		
-		if ( isset( $raw_styles['borderColor'] ) ) {
-			$registry_styles['borderColor'] = $raw_styles['borderColor'];
-		}
-		if ( isset( $raw_styles['borderWidthRem'] ) ) {
-			// Save directly as a fully formed string in registry to avoid standard logic breaking it
-			$registry_styles['borderWidth'] = $raw_styles['borderWidthRem'] . 'rem';
-			$registry_styles['borderStyle'] = 'solid';
-		}
-		
-		if ( ! empty( $registry_styles ) ) {
-			$selector = ( ! empty( $instance_id ) ) ? ".rcb-instance-{$instance_id} .{$id}" : ".{$id}";
-			foreach ( $registry_styles as $prop => $val ) {
-				$kebab = strtolower( preg_replace( '/([a-z])([A-Z])/', '$1-$2', $prop ) );
-				$suffix = ( in_array( $prop, array( 'fontSize', 'borderRadius' ) ) && is_numeric( $val ) ) ? 'px' : '';
-				$style_registry .= "{$selector} { {$kebab}: {$val}{$suffix} !important; }\n";
-			}
-		}
-
-		// Additional properties
-		$direct_props = array(
-			'width', 'height', 'textAlign', 'display', 'opacity', 'zIndex',
-			'position', 'top', 'left', 'right', 'bottom',
-			'overflow', 'objectFit', 'boxShadow', 'transition', 'cursor',
-			'justifyContent', 'alignItems', 'flexDirection', 'flexWrap', 'gap',
-			'gridTemplateColumns', 'gridGap', 'gridColumn', 'gridRow'
-		);
-
-		foreach ( $direct_props as $prop ) {
-			if ( isset( $raw_styles[ $prop ] ) ) {
-				$final_styles[ $prop ] = $raw_styles[ $prop ];
-			}
-		}
-
-		// Custom CSS Box
-		if ( isset( $raw_styles['customCssPairs'] ) && is_array( $raw_styles['customCssPairs'] ) ) {
-			foreach ( $raw_styles['customCssPairs'] as $pair ) {
-				if ( ! empty( $pair['key'] ) && ! empty( $pair['value'] ) ) {
-					$final_styles[ $pair['key'] ] = $pair['value'];
+			
+			// Resolve Grid Columns if in grid mode
+			$display_val = rcb_get_responsive_value( $raw_styles['displayMode'] ?? ( $raw_styles['display'] ?? 'grid' ), 'desktop' );
+			if ( $display_val === 'grid' ) {
+				if ( ! isset( $raw_styles['gridTemplateColumns'] ) || ( isset( $raw_styles['gridTemplateColumns'] ) && $raw_styles['gridTemplateColumns'] === 'custom' && empty( $raw_styles['customGridTemplate'] ) ) ) {
+					$raw_styles['gridTemplateColumns'] = "repeat({$node_columns}, 1fr)";
+				} elseif ( isset( $raw_styles['gridTemplateColumns'] ) && $raw_styles['gridTemplateColumns'] === 'custom' ) {
+					$raw_styles['gridTemplateColumns'] = $raw_styles['customGridTemplate'];
+				}
+				
+				if ( ! isset( $raw_styles['gap'] ) && ! isset( $raw_styles['gridGap'] ) && $node_columns > 1 ) {
+					$raw_styles['gap'] = '20px';
 				}
 			}
 		}
 
-		// Handle raw CSS string
-		if ( isset( $raw_styles['customStylesRaw'] ) && ! empty( $raw_styles['customStylesRaw'] ) ) {
-			$raw_rules = explode( ';', $raw_styles['customStylesRaw'] );
-			foreach ( $raw_rules as $rule ) {
-				$parts = explode( ':', $rule, 2 );
-				if ( count( $parts ) === 2 ) {
-					$key = trim( $parts[0] );
-					$val = trim( $parts[1] );
-					if ( ! empty( $key ) && ! empty( $val ) ) {
-						$final_styles[ $key ] = $val;
+		if ( $type === 'column' ) {
+			foreach ( array( 'desktop', 'tablet', 'mobile' ) as $dev ) {
+				$w = rcb_get_responsive_value( $raw_styles['customColumnWidth'] ?? '', $dev );
+				$u = rcb_get_responsive_value( $raw_styles['customColumnWidthUnit'] ?? '', $dev ) ?: '%';
+				
+				if ( $w ) {
+					$raw_styles['width'][$dev] = "{$w}{$u}";
+					$raw_styles['flex'][$dev]  = "0 1 {$w}{$u}";
+				} elseif ( $dev === 'mobile' ) {
+					// Force 100% on mobile if no width set
+					$raw_styles['flex'][$dev]  = "1 1 100%";
+					$raw_styles['maxWidth'][$dev] = "100%";
+					
+					// Normalize padding shorthand to allow precision horizontal capping
+					if ( isset( $raw_styles['padding'] ) ) {
+						$p_shorthand = $raw_styles['padding'];
+						foreach ( array( 'Top', 'Right', 'Bottom', 'Left' ) as $dir ) {
+							$k = 'padding' . $dir;
+							if ( ! isset( $raw_styles[ $k ] ) ) $raw_styles[ $k ] = $p_shorthand;
+						}
+						unset( $raw_styles['padding'] );
+					}
+
+					// Precision cap horizontal overflow while strictly preserving height
+					foreach ( array( 'paddingLeft', 'paddingRight' ) as $p_key ) {
+						if ( isset( $raw_styles[ $p_key ] ) ) {
+							$p_raw = is_array( $raw_styles[ $p_key ] ) ? ( $raw_styles[ $p_key ]['mobile'] ?? null ) : $raw_styles[ $p_key ];
+							if ( $p_raw !== null ) {
+								$p_num = floatval( preg_replace( '/[^0-9.]/', '', strval( $p_raw ) ) );
+								if ( $p_num > 40 ) {
+									if ( is_array( $raw_styles[ $p_key ] ) ) $raw_styles[ $p_key ]['mobile'] = 20;
+									else $raw_styles[ $p_key ] = array( 'desktop' => $raw_styles[ $p_key ], 'mobile' => 20 );
+								}
+							}
+						}
+					}
+
+					// Correct overflow and margins
+					if ( ! isset( $raw_styles['overflow'] ) ) $raw_styles['overflow'][$dev] = "hidden";
+					if ( ! isset( $raw_styles['margin'] ) )   $raw_styles['margin'][$dev]   = "0";
+				} else {
+					if ( ! isset( $raw_styles['flex'][$dev] ) && ! isset( $raw_styles['flex'] ) ) {
+						$raw_styles['flex'][$dev] = '1 1 0%';
 					}
 				}
 			}
 		}
 
-		// Background image capability for any element
-		if ( isset( $content_data[ $field . '_bg_url' ] ) && ! empty( $content_data[ $field . '_bg_url' ] ) ) {
-			$bg_url = esc_url( $content_data[ $field . '_bg_url' ] );
-			$final_styles['background-image']    = "url('{$bg_url}')";
-			$final_styles['background-size']     = isset( $raw_styles['backgroundSize'] ) ? $raw_styles['backgroundSize'] : 'cover';
-			$final_styles['background-position'] = isset( $raw_styles['backgroundPosition'] ) ? $raw_styles['backgroundPosition'] : 'center';
-			$final_styles['background-repeat']   = isset( $raw_styles['backgroundRepeat'] ) ? $raw_styles['backgroundRepeat'] : 'no-repeat';
-		}
-
-		// Handle Advanced Button Settings
 		if ( $type === 'button' ) {
-			// Padding X/Y only if standard padding is not set
-			if ( ! isset( $final_styles['padding'] ) && ( isset( $raw_styles['paddingX'] ) || isset( $raw_styles['paddingY'] ) ) ) {
+			// Padding X/Y logic
+			if ( ! isset( $raw_styles['padding'] ) && ( isset( $raw_styles['paddingX'] ) || isset( $raw_styles['paddingY'] ) ) ) {
 				$padding_x = isset( $raw_styles['paddingX'] ) ? floatval( $raw_styles['paddingX'] ) : 1;
 				$padding_y = isset( $raw_styles['paddingY'] ) ? floatval( $raw_styles['paddingY'] ) : 0.5;
-				$final_styles['padding'] = "{$padding_y}rem {$padding_x}rem";
+				$raw_styles['padding'] = "{$padding_y}rem {$padding_x}rem";
 			}
-
+			
 			// Text Size Presets
 			$size_map = array( 'S' => '12px', 'M' => '14px', 'L' => '16px', 'XL' => '20px', '1XL' => '24px', '2XL' => '32px' );
-			if ( ! isset( $final_styles['fontSize'] ) && isset( $raw_styles['textSizePreset'] ) && isset( $size_map[ $raw_styles['textSizePreset'] ] ) ) {
-				$final_styles['font-size'] = $size_map[ $raw_styles['textSizePreset'] ];
+			if ( ! isset( $raw_styles['fontSize'] ) && isset( $raw_styles['textSizePreset'] ) && isset( $size_map[ $raw_styles['textSizePreset'] ] ) ) {
+				$raw_styles['fontSize'] = $size_map[ $raw_styles['textSizePreset'] ];
 			}
 
-			// Add direct typography mapping for buttons if not already mapped
-			if ( ! isset( $final_styles['fontFamily'] ) && isset( $raw_styles['fontFamily'] ) ) $final_styles['fontFamily'] = $raw_styles['fontFamily'];
-			if ( ! isset( $final_styles['fontWeight'] ) && isset( $raw_styles['fontWeight'] ) ) $final_styles['fontWeight'] = $raw_styles['fontWeight'];
-			if ( ! isset( $final_styles['textTransform'] ) && isset( $raw_styles['textTransform'] ) ) $final_styles['textTransform'] = $raw_styles['textTransform'];
-			if ( ! isset( $final_styles['lineHeight'] ) && isset( $raw_styles['lineHeight'] ) ) $final_styles['lineHeight'] = $raw_styles['lineHeight'];
-			if ( ! isset( $final_styles['letterSpacing'] ) && isset( $raw_styles['letterSpacing'] ) ) $final_styles['letterSpacing'] = $raw_styles['letterSpacing'];
-			if ( ! isset( $final_styles['fontSize'] ) && isset( $raw_styles['fontSize'] ) ) $final_styles['fontSize'] = $raw_styles['fontSize'];
+			// Ensure display properties for button
+			if ( ! isset( $raw_styles['display'] ) ) $raw_styles['display'] = 'inline-flex';
+			if ( ! isset( $raw_styles['alignItems'] ) ) $raw_styles['alignItems'] = 'center';
+			if ( ! isset( $raw_styles['justifyContent'] ) ) $raw_styles['justifyContent'] = 'center';
+			if ( ! isset( $raw_styles['gap'] ) ) $raw_styles['gap'] = '8px';
+			if ( ! isset( $raw_styles['transition'] ) ) $raw_styles['transition'] = 'all 0.3s ease-in-out';
+			if ( ! isset( $raw_styles['textDecoration'] ) ) $raw_styles['textDecoration'] = 'none';
 
-			// Hover States
-			$hover_css = '';
-			if ( isset( $raw_styles['hoverBgColor'] ) && ! empty( $raw_styles['hoverBgColor'] ) ) {
-				$hover_css .= "background-color: {$raw_styles['hoverBgColor']} !important;";
-			}
-			if ( ( isset( $raw_styles['hoverTextColor'] ) && ! empty( $raw_styles['hoverTextColor'] ) ) || ( isset( $raw_styles['hoverColor'] ) && ! empty( $raw_styles['hoverColor'] ) ) ) {
-				$h_text_color = ! empty( $raw_styles['hoverColor'] ) ? $raw_styles['hoverColor'] : $raw_styles['hoverTextColor'];
-				$hover_css .= "color: {$h_text_color} !important;";
-			}
-			if ( ! empty( $raw_styles['hoverUnderline'] ) ) {
-				$hover_css .= "text-decoration: underline !important;";
-			} else {
-				$hover_css .= "text-decoration: none !important;";
-			}
-
-			if ( $hover_css ) {
-				$btn_selector = ( ! empty( $instance_id ) ) ? ".rcb-instance-{$instance_id} .{$id}:hover" : ".{$id}:hover";
-				$style_registry .= "{$btn_selector} { {$hover_css} }\n";
-			}
-			
-			// Icon Hover States
-			$icon_hover_css = '';
-			if ( isset( $raw_styles['iconHoverBgColor'] ) && ! empty( $raw_styles['iconHoverBgColor'] ) ) {
-				$icon_hover_css .= "background-color: {$raw_styles['iconHoverBgColor']} !important;";
-			}
-			if ( isset( $raw_styles['iconHoverColor'] ) && ! empty( $raw_styles['iconHoverColor'] ) ) {
-				$icon_hover_css .= "color: {$raw_styles['iconHoverColor']} !important;";
-			}
-			if ( isset( $raw_styles['iconHoverBorderColor'] ) && ! empty( $raw_styles['iconHoverBorderColor'] ) ) {
-				$icon_hover_css .= "border-color: {$raw_styles['iconHoverBorderColor']} !important;";
-			}
-			if ( $icon_hover_css ) {
-				$icon_selector = ( ! empty( $instance_id ) ) ? ".rcb-instance-{$instance_id} .{$id}:hover .rcb-button-icon" : ".{$id}:hover .rcb-button-icon";
-				$style_registry .= "{$icon_selector} { {$icon_hover_css} }\n";
-			}
-			
-			// Initial Icon Styles
-			$icon_init_css = '';
-			if ( isset( $raw_styles['iconColor'] ) && ! empty( $raw_styles['iconColor'] ) ) {
-				$icon_init_css .= "color: {$raw_styles['iconColor']} !important;";
-			}
-			if ( isset( $raw_styles['iconBgColor'] ) && ! empty( $raw_styles['iconBgColor'] ) ) {
-				$icon_init_css .= "background-color: {$raw_styles['iconBgColor']} !important;";
-			}
-			if ( isset( $raw_styles['iconBorderColor'] ) && ! empty( $raw_styles['iconBorderColor'] ) ) {
-				$icon_init_css .= "border-color: {$raw_styles['iconBorderColor']} !important;";
-			}
-			if ( isset( $raw_styles['iconSize'] ) && ! empty( $raw_styles['iconSize'] ) ) {
-				$i_sz = floatval( $raw_styles['iconSize'] );
-				$icon_init_css .= "font-size: {$i_sz}em !important;";
-			}
-
-			if ( $icon_init_css ) {
-				$icon_selector = ( ! empty( $instance_id ) ) ? ".rcb-instance-{$instance_id} .{$id} .rcb-button-icon" : ".{$id} .rcb-button-icon";
-				$style_registry .= "{$icon_selector} { {$icon_init_css} }\n";
-			}
-
-			// Display properties
-			$final_styles['display'] = 'inline-flex';
-			$final_styles['align-items'] = 'center';
-			$final_styles['justify-content'] = 'center';
-			$final_styles['gap'] = '8px';
-			$final_styles['text-decoration'] = 'none';
-			$final_styles['transition'] = 'all 0.3s ease-in-out';
-
-			if ( isset( $raw_styles['display'] ) ) {
-				$final_styles['display'] = $raw_styles['display'];
-			}
-			if ( isset( $raw_styles['flex'] ) ) {
-				$final_styles['flex'] = $raw_styles['flex'];
-			} elseif ( $node_columns > 0 ) {
-				$final_styles['flex'] = "1 1 0%"; // Default row distribution
-			}
-			
-			$a_self = rcb_get_responsive_value( isset( $raw_styles['alignSelf'] ) ? $raw_styles['alignSelf'] : '', 'desktop' );
-			if ( $a_self !== '' ) {
-				$final_styles['align-self'] = $a_self;
+			// Ensure borders show up (default to solid if width/color set)
+			if ( ! isset( $raw_styles['borderStyle'] ) && ( isset( $raw_styles['borderWidth'] ) || isset( $raw_styles['borderColor'] ) ) ) {
+				$raw_styles['borderStyle'] = 'solid';
 			}
 		}
 
-		if ( in_array( $type, array( 'text', 'heading' ) ) ) {
-			$final_styles['white-space'] = 'pre-wrap';
+		// 2. Generate Responsive CSS Registry (Aggressive !important)
+		$selector = ( ! empty( $instance_id ) ) ? ".rcb-instance-{$instance_id} .{$id}" : ".{$id}";
+		$style_registry .= rcb_generate_responsive_css( $selector, $raw_styles );
+
+		// 3. Specialized Registry Styles (Hover, Children)
+		if ( $type === 'button' ) {
+			$hover_css = '';
+			if ( isset( $raw_styles['hoverBgColor'] ) ) $hover_css .= "background-color: {$raw_styles['hoverBgColor']} !important;";
+			if ( isset( $raw_styles['hoverColor'] ) )   $hover_css .= "color: {$raw_styles['hoverColor']} !important;";
+			elseif ( isset( $raw_styles['hoverTextColor'] ) ) $hover_css .= "color: {$raw_styles['hoverTextColor']} !important;";
+			
+			if ( ! empty( $raw_styles['hoverUnderline'] ) ) $hover_css .= "text-decoration: underline !important;";
+			elseif ( isset( $raw_styles['hoverUnderline'] ) ) $hover_css .= "text-decoration: none !important;";
+
+			if ( $hover_css ) {
+				$style_registry .= "{$selector}:hover { {$hover_css} }\n";
+			}
+			
+			// Icon Styles
+			$icon_init_css = '';
+			if ( isset( $raw_styles['iconColor'] ) ) $icon_init_css .= "color: {$raw_styles['iconColor']} !important;";
+			if ( isset( $raw_styles['iconBgColor'] ) ) $icon_init_css .= "background-color: {$raw_styles['iconBgColor']} !important;";
+			if ( isset( $raw_styles['iconBorderColor'] ) ) $icon_init_css .= "border-color: {$raw_styles['iconBorderColor']} !important;";
+			
+			if ( $icon_init_css ) {
+				$i_sel = ( ! empty( $instance_id ) ) ? ".rcb-instance-{$instance_id} .{$id} .rcb-button-icon" : ".{$id} .rcb-button-icon";
+				$style_registry .= "{$i_sel} { {$icon_init_css} }\n";
+			}
+
+			$icon_hover_css = '';
+			if ( isset( $raw_styles['iconHoverBgColor'] ) ) $icon_hover_css .= "background-color: {$raw_styles['iconHoverBgColor']} !important;";
+			if ( isset( $raw_styles['iconHoverColor'] ) )   $icon_hover_css .= "color: {$raw_styles['iconHoverColor']} !important;";
+			if ( $icon_hover_css ) {
+				$i_sel = ( ! empty( $instance_id ) ) ? ".rcb-instance-{$instance_id} .{$id}:hover .rcb-button-icon" : ".{$id}:hover .rcb-button-icon";
+				$style_registry .= "{$i_sel} { {$icon_hover_css} }\n";
+			}
+		}
+
+		// 4. Fallback/Standard inline styles
+		$final_styles = array();
+		$direct_props = array(
+			'color', 'backgroundColor', 'padding', 'margin', 'fontSize', 'fontWeight', 
+			'lineHeight', 'letterSpacing', 'textTransform', 'fontFamily', 'borderRadius',
+			'border', 'borderColor', 'borderWidth', 'borderStyle', 'textAlign'
+		);
+		foreach ( $direct_props as $p ) {
+			if ( isset( $raw_styles[$p] ) && ! is_array( $raw_styles[$p] ) ) {
+				$final_styles[$p] = $raw_styles[$p];
+			}
+		}
+
+		// Background image capability for any element
+		$bg_url = '';
+		if ( isset( $content_data[ $field . '_bg_url' ] ) && ! empty( $content_data[ $field . '_bg_url' ] ) ) {
+			$bg_url = $content_data[ $field . '_bg_url' ];
+		} elseif ( isset( $content_data[ $field . '_backgroundImage' ] ) && ! empty( $content_data[ $field . '_backgroundImage' ] ) ) {
+			$bg_url = $content_data[ $field . '_backgroundImage' ];
+		}
+		
+		if ( $bg_url ) {
+			$bg_url = esc_url( $bg_url );
+			$bg_rules = "background-image: url('{$bg_url}') !important; background-size: " . ( $raw_styles['backgroundSize'] ?? 'cover' ) . " !important; background-position: " . ( $raw_styles['backgroundPosition'] ?? 'center' ) . " !important; background-repeat: " . ( $raw_styles['backgroundRepeat'] ?? 'no-repeat' ) . " !important;";
+			$style_registry .= "{$selector} { {$bg_rules} }\n";
+			$final_styles['background-image'] = "url('{$bg_url}')";
 		}
 
 		$style_attr = rcb_build_inline_style( $final_styles );
 
 		switch ( $type ) {
 			case 'container':
-				$container_styles = $final_styles;
-				
-				// Align with editor: implicitly set grid if columns > 1 or flex if specified
-				if ( $node_columns > 1 || ( isset( $container_styles['display'] ) && in_array( $container_styles['display'], array( 'grid', 'flex' ) ) ) ) {
-					if ( isset( $container_styles['display'] ) && $container_styles['display'] === 'flex' ) {
-						if ( ! isset( $container_styles['flexDirection'] ) ) $container_styles['flex-direction'] = 'row';
-						if ( ! isset( $container_styles['flexWrap'] ) ) $container_styles['flex-wrap'] = 'wrap';
-					} else {
-						$container_styles['display'] = 'grid';
-						if ( ! isset( $container_styles['gridTemplateColumns'] ) ) {
-							$container_styles['grid-template-columns'] = "repeat({$node_columns}, 1fr)";
-						}
-						if ( ! isset( $container_styles['gap'] ) && ! isset( $container_styles['gridGap'] ) && $node_columns > 1 ) {
-							$container_styles['gap'] = '20px';
-						}
-					}
-				}
-				
-				$container_style_attr = rcb_build_inline_style( $container_styles );
 				$children_html = '';
 				if ( ! empty( $node['children'] ) ) {
 					$children_html = rcb_render_visual_nodes_with_visibility( $node['children'], $content_data, $styles_data, $mode, $post, $visibility, $inner_blocks_content, $style_registry, $instance_id );
 				}
-				$html .= sprintf( '<div class="rcb-container %s" %s>%s</div>', esc_attr( $id ), $container_style_attr, $children_html );
+				$html .= sprintf( '<div class="rcb-container %s" %s>%s</div>', esc_attr( $id ), $style_attr, $children_html );
 				break;
 
 			case 'column':
@@ -718,6 +648,7 @@ function rcb_render_visual_nodes_with_visibility( $nodes, $content_data, $styles
 				}
 				$html .= sprintf( '<div class="rcb-column %s" %s>%s</div>', esc_attr( $id ), $style_attr, $children_html );
 				break;
+
 
 			case 'heading':
 				$tag         = $node_data['tag'];
@@ -753,6 +684,9 @@ function rcb_render_visual_nodes_with_visibility( $nodes, $content_data, $styles
 						esc_attr( $icon_style )
 					);
 				}
+
+				// Hover styles are handled via style registry
+				$style_attr = rcb_build_inline_style( $final_styles );
 
 				$html .= sprintf( 
 					'<div class="rcb-button-wrapper %s"><a href="%s" class="rcb-button %s" %s>%s%s</a></div>', 
@@ -1110,14 +1044,19 @@ function rcb_generate_responsive_css( $selector, $styles ) {
 		foreach ( $values as $device => $val ) {
 			if ( $val === '' ) continue;
 
+			// Property mapping for responsive CSS
+			$prop_name = $kebab;
+			if ( $prop_name === 'display-mode' ) $prop_name = 'display';
+			if ( $prop_name === 'flex-gap' || $prop_name === 'grid-gap' ) $prop_name = 'gap';
+
 			$suffix = "";
-			if ( in_array( $kebab, array( 'font-size', 'margin', 'padding', 'gap', 'border-width', 'letter-spacing' ) ) && is_numeric( $val ) ) {
+			if ( in_array( $prop_name, array( 'font-size', 'margin', 'padding', 'gap', 'border-width', 'letter-spacing', 'min-height', 'min-width', 'height', 'width', 'flex-basis' ) ) && is_numeric( $val ) ) {
 				$suffix = "px";
 			}
 
-			if ( $device === 'desktop' ) $desktop .= "{$kebab}:{$val}{$suffix};";
-			if ( $device === 'tablet' )  $tablet  .= "{$kebab}:{$val}{$suffix};";
-			if ( $device === 'mobile' )  $mobile  .= "{$kebab}:{$val}{$suffix};";
+			if ( $device === 'desktop' ) $desktop .= "{$prop_name}:{$val}{$suffix} !important;";
+			if ( $device === 'tablet' )  $tablet  .= "{$prop_name}:{$val}{$suffix} !important;";
+			if ( $device === 'mobile' )  $mobile  .= "{$prop_name}:{$val}{$suffix} !important;";
 		}
 	}
 

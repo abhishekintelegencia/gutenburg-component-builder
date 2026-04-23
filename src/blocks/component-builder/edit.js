@@ -484,15 +484,44 @@ const renderVisualStructure = (nodes, post, parentContext, context) => {
                 );
             case 'column':
                 const colStyles = { ...nodeStyles };
-                if (colStyles.customColumnWidth) {
+                
+                // Parity: Force 100% and cap horizontal padding on mobile (mirrors renderer.php)
+                if (deviceMode === 'mobile') {
+                    colStyles.width = '100%';
+                    colStyles.flex = '1 1 100%';
+                    colStyles.maxWidth = '100%';
+                    colStyles.boxSizing = 'border-box';
+                    colStyles.overflow = 'hidden';
+
+                    // Normalize padding shorthand
+                    if (colStyles.padding) {
+                        const pVal = colStyles.padding;
+                        if (!colStyles.paddingTop) colStyles.paddingTop = pVal;
+                        if (!colStyles.paddingRight) colStyles.paddingRight = pVal;
+                        if (!colStyles.paddingBottom) colStyles.paddingBottom = pVal;
+                        if (!colStyles.paddingLeft) colStyles.paddingLeft = pVal;
+                        delete colStyles.padding;
+                    }
+
+                    // Precision horizontal capping
+                    ['paddingLeft', 'paddingRight'].forEach(pKey => {
+                        if (colStyles[pKey]) {
+                            const valStr = colStyles[pKey].toString();
+                            const valNum = parseFloat(valStr.replace(/[^0-9.]/g, '')) || 0;
+                            if (valNum > 40) {
+                                colStyles[pKey] = '20px';
+                            }
+                        }
+                    });
+                } else if (colStyles.customColumnWidth) {
                     const unit = colStyles.customColumnWidthUnit || '%';
                     colStyles.width = `${colStyles.customColumnWidth}${unit}`;
                     colStyles.flex = `0 0 ${colStyles.width}`;
                 } else if (parentContext.isVerticalFlex) {
-                    colStyles.flex = '1 1 auto';
+                    colStyles.flex = colStyles.flex || '1 1 auto';
                     colStyles.width = '100%';
                 } else {
-                    colStyles.flex = '1 1 0%';
+                    colStyles.flex = colStyles.flex || '1 1 0%';
                 }
                 return (
                     <div key={i} className={`rcb-column ${node.id}`} style={colStyles}>
@@ -790,8 +819,16 @@ export default function Edit({ attributes, setAttributes, clientId }) {
         const currentStyle = { ...(styles[key] || {}) };
         
         if (isResponsive) {
+            let responsiveObj = {};
             const currentPropVal = currentStyle[prop];
-            const responsiveObj = (typeof currentPropVal === 'object' && currentPropVal !== null) ? { ...currentPropVal } : { desktop: currentPropVal || '' };
+            
+            if (typeof currentPropVal === 'object' && currentPropVal !== null) {
+                responsiveObj = { ...currentPropVal };
+            } else if (currentPropVal !== undefined && currentPropVal !== '') {
+                // Preserve legacy string values as desktop baseline
+                responsiveObj = { desktop: currentPropVal };
+            }
+            
             responsiveObj[deviceMode] = value;
             currentStyle[prop] = responsiveObj;
         } else {
@@ -817,6 +854,7 @@ export default function Edit({ attributes, setAttributes, clientId }) {
 ;
 
     const blockProps = useBlockProps({
+        className: `rcb-instance-${clientId}`,
         style: (() => {
             const rootStyles = styles['_root'] || {};
             const final = {};
@@ -878,6 +916,69 @@ export default function Edit({ attributes, setAttributes, clientId }) {
                     }
                     if (r(nodeStyle.iconBorderWidth)) {
                         css += `.rcb-instance-${clientId} .${node.id} .rcb-button-icon { border-width: ${r(nodeStyle.iconBorderWidth)}rem !important; border-style: solid !important; } `;
+                    }
+
+                    // Utility to ensure units for numeric values in style injection
+                    const withUnit = (val, defaultUnit = 'px') => {
+                        if (!val) return '';
+                        if (/^\d+(\.\d+)?$/.test(val.toString())) return `${val}${defaultUnit}`;
+                        return val;
+                    };
+
+                    // Layout property mapping for injected CSS
+                    const d = r(nodeStyle.displayMode);
+                    if (d) {
+                        css += `.rcb-instance-${clientId} .${node.id} { display: ${d} !important; } `;
+                    }
+                    if (r(nodeStyle.flexDirection)) {
+                        css += `.rcb-instance-${clientId} .${node.id} { flex-direction: ${r(nodeStyle.flexDirection)} !important; } `;
+                    }
+                    if (r(nodeStyle.justifyContent)) {
+                        css += `.rcb-instance-${clientId} .${node.id} { justify-content: ${r(nodeStyle.justifyContent)} !important; } `;
+                    }
+                    if (r(nodeStyle.alignItems)) {
+                        css += `.rcb-instance-${clientId} .${node.id} { align-items: ${r(nodeStyle.alignItems)} !important; } `;
+                    }
+                    if (r(nodeStyle.flexWrap)) {
+                        css += `.rcb-instance-${clientId} .${node.id} { flex-wrap: ${r(nodeStyle.flexWrap)} !important; } `;
+                    }
+                    const g = withUnit(r(nodeStyle.gridGap) || r(nodeStyle.flexGap) || r(nodeStyle.gap));
+                    if (g) {
+                        css += `.rcb-instance-${clientId} .${node.id} { gap: ${g} !important; } `;
+                    }
+                    if (r(nodeStyle.gridTemplateColumns)) {
+                        css += `.rcb-instance-${clientId} .${node.id} { grid-template-columns: ${r(nodeStyle.gridTemplateColumns)} !important; } `;
+                    }
+                    if (r(nodeStyle.minHeight)) {
+                        css += `.rcb-instance-${clientId} .${node.id} { min-height: ${withUnit(r(nodeStyle.minHeight))} !important; } `;
+                    } else if (node.type === 'container' || node.type === 'column' || node.type === 'image') {
+                        css += `.rcb-instance-${clientId} .${node.id} { min-height: 200px !important; } `;
+                    }
+
+                    // Global & Mobile Refinements
+                    css += `.wp-block-rcb-component-builder { height: auto !important; min-height: unset !important; overflow: visible !important; } `;
+                    css += `.rcb-instance-${clientId} { height: auto !important; min-height: unset !important; overflow: visible !important; } `;
+                    
+                    if (deviceMode === 'mobile') {
+                        if (node.type === 'column') {
+                            css += `.rcb-instance-${clientId} .${node.id} { width: 100% !important; flex: 0 0 100% !important; max-width: 100% !important; } `;
+                        }
+                        if (node.type === 'container' || node.type === 'column' || node.type === 'image') {
+                            css += `.rcb-instance-${clientId} .${node.id} { overflow: visible !important; } `;
+                        }
+                    }
+
+                    if (r(nodeStyle.minWidth)) {
+                        css += `.rcb-instance-${clientId} .${node.id} { min-width: ${withUnit(r(nodeStyle.minWidth))} !important; } `;
+                    }
+                    if (r(nodeStyle.flexBasis)) {
+                        css += `.rcb-instance-${clientId} .${node.id} { flex-basis: ${withUnit(r(nodeStyle.flexBasis))} !important; } `;
+                    }
+                    if (r(nodeStyle.flexGrow)) {
+                        css += `.rcb-instance-${clientId} .${node.id} { flex-grow: ${r(nodeStyle.flexGrow)} !important; } `;
+                    }
+                    if (r(nodeStyle.flexShrink)) {
+                        css += `.rcb-instance-${clientId} .${node.id} { flex-shrink: ${r(nodeStyle.flexShrink)} !important; } `;
                     }
                     return css;
                 }).join('\n')}
@@ -1043,7 +1144,7 @@ export default function Edit({ attributes, setAttributes, clientId }) {
                 )}
 
                 {/* CONTENT MAPPING - Only for Static Mode */}
-                {templateId > 0 && mode === 'static' && (
+                {templateId > 0 && (mode === 'static' || mode === 'visual') && (
                     <PanelBody title={`${templateName} Content`} initialOpen={true}>
                         {(() => {
                             const fieldsToRender = configurableFields.filter(node => node.type !== 'container' && node.type !== 'column');
@@ -1140,7 +1241,7 @@ export default function Edit({ attributes, setAttributes, clientId }) {
                                     {selectedStyleElement && configurableFields.filter(node => node.field === selectedStyleElement).map((fieldNode) => {
                                         // backgroundImage as a style control only makes sense for non-image nodes (image nodes use content upload)
                                         const defaultBgImage = fieldNode.type !== 'image';
-                                        const allowed = fieldNode.allowedSettings || { color: true, typography: true, spacing: true, borders: true, dimensions: fieldNode.type === 'image', backgroundImage: defaultBgImage };
+                                        const allowed = fieldNode.allowedSettings || { color: true, typography: true, spacing: true, borders: true, dimensions: (fieldNode.type === 'image' || fieldNode.type === 'container' || fieldNode.type === 'column'), backgroundImage: defaultBgImage };
                                         
                                         // Force button-specific settings only for buttons, and disable for others
                                         if (fieldNode.type === 'button') {
@@ -1279,18 +1380,18 @@ export default function Edit({ attributes, setAttributes, clientId }) {
                                     setDeviceMode={setDeviceMode}
                                 />
                             )}
-                            {allowed.spacing && (
+                             {allowed.spacing && (
                                 <>
                                     <ResponsiveControl label={__('Padding', 'reusable-component-builder')} deviceMode={deviceMode} setDeviceMode={setDeviceMode}>
                                         <BoxControl
-                                            values={parseBoxValue(getResponsiveValue((styles[fieldNode.field] && styles[fieldNode.field].padding) || ''))}
+                                            values={parseBoxValue(getResponsiveValue((styles[fieldNode.field] && styles[fieldNode.field].padding) || '', deviceMode))}
                                             onChange={(val) => updateStyle(fieldNode.field, 'padding', serializeBoxValue(val), true)}
                                             __nextHasNoMarginBottom={true}
                                         />
                                     </ResponsiveControl>
                                     <ResponsiveControl label={__('Margin', 'reusable-component-builder')} deviceMode={deviceMode} setDeviceMode={setDeviceMode}>
                                         <BoxControl
-                                            values={parseBoxValue(getResponsiveValue((styles[fieldNode.field] && styles[fieldNode.field].margin) || ''))}
+                                            values={parseBoxValue(getResponsiveValue((styles[fieldNode.field] && styles[fieldNode.field].margin) || '', deviceMode))}
                                             onChange={(val) => updateStyle(fieldNode.field, 'margin', serializeBoxValue(val), true)}
                                             __nextHasNoMarginBottom={true}
                                         />
@@ -1314,24 +1415,38 @@ export default function Edit({ attributes, setAttributes, clientId }) {
                                 <>
                                     <ResponsiveControl label={__('Width (e.g. 100%, 300px)', 'reusable-component-builder')} deviceMode={deviceMode} setDeviceMode={setDeviceMode}>
                                         <TextControl
-                                            value={getResponsiveValue(styles[fieldNode.field]?.[ 'width' ]) || ''}
+                                            value={getResponsiveValue(styles[fieldNode.field]?.[ 'width' ], deviceMode) || ''}
                                             onChange={(val) => updateStyle(fieldNode.field, 'width', val, true)}
                                             __nextHasNoMarginBottom={true}
                                         />
                                     </ResponsiveControl>
                                     <ResponsiveControl label={__('Height (e.g. auto, 200px)', 'reusable-component-builder')} deviceMode={deviceMode} setDeviceMode={setDeviceMode}>
                                         <TextControl
-                                            value={getResponsiveValue(styles[fieldNode.field]?.[ 'height' ]) || ''}
+                                            value={getResponsiveValue(styles[fieldNode.field]?.[ 'height' ], deviceMode) || ''}
                                             onChange={(val) => updateStyle(fieldNode.field, 'height', val, true)}
                                             __nextHasNoMarginBottom={true}
                                         />
                                     </ResponsiveControl>
-                                    <ResponsiveControl label={__('Min Height (e.g. 300px, 50vh)', 'reusable-component-builder')} deviceMode={deviceMode} setDeviceMode={setDeviceMode}>
-                                        <TextControl
-                                            value={getResponsiveValue(styles[fieldNode.field]?.[ 'minHeight' ]) || ''}
-                                            onChange={(val) => updateStyle(fieldNode.field, 'minHeight', val, true)}
-                                            __nextHasNoMarginBottom={true}
-                                        />
+                                    <ResponsiveControl label={__('Min Height', 'reusable-component-builder')} deviceMode={deviceMode} setDeviceMode={setDeviceMode}>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                            <div style={{ flex: 1 }}>
+                                                <RangeControl
+                                                    value={parseInt(getResponsiveValue(styles[fieldNode.field]?.['minHeight'], deviceMode)) || 0}
+                                                    onChange={(val) => updateStyle(fieldNode.field, 'minHeight', val ? `${val}px` : '', true)}
+                                                    min={0}
+                                                    max={1000}
+                                                    withInputField={false}
+                                                    __nextHasNoMarginBottom={true}
+                                                />
+                                            </div>
+                                            <TextControl
+                                                value={getResponsiveValue(styles[fieldNode.field]?.['minHeight'], deviceMode) || ''}
+                                                onChange={(val) => updateStyle(fieldNode.field, 'minHeight', val, true)}
+                                                style={{ width: '80px' }}
+                                                placeholder="e.g. 50vh"
+                                                __nextHasNoMarginBottom={true}
+                                            />
+                                        </div>
                                     </ResponsiveControl>
                                 </>
                             )}
@@ -1343,7 +1458,7 @@ export default function Edit({ attributes, setAttributes, clientId }) {
                                         <>
                                             <ResponsiveControl label={__('Display Mode', 'reusable-component-builder')} deviceMode={deviceMode} setDeviceMode={setDeviceMode}>
                                                 <ToggleGroupControl
-                                                    value={getResponsiveValue(styles[fieldNode.field]?.[ 'displayMode' ]) || 'grid'}
+                                                    value={getResponsiveValue(styles[fieldNode.field]?.[ 'displayMode' ], deviceMode) || 'grid'}
                                                     onChange={(val) => updateStyle(fieldNode.field, 'displayMode', val, true)}
                                                     isBlock
                                                     className="rcb-layout-icon-grid"
@@ -1356,7 +1471,7 @@ export default function Edit({ attributes, setAttributes, clientId }) {
 
                                             <ResponsiveControl label={__('Content Max Width (px)', 'reusable-component-builder')} deviceMode={deviceMode} setDeviceMode={setDeviceMode}>
                                                 <RangeControl
-                                                    value={parseInt(getResponsiveValue(styles[fieldNode.field]?.[ 'contentMaxWidth' ])) || 1200}
+                                                    value={parseInt(getResponsiveValue(styles[fieldNode.field]?.[ 'contentMaxWidth' ], deviceMode)) || 1200}
                                                     onChange={(val) => updateStyle(fieldNode.field, 'contentMaxWidth', val ? `${val}px` : '1200px', true)}
                                                     min={400}
                                                     max={2000}
@@ -1365,11 +1480,11 @@ export default function Edit({ attributes, setAttributes, clientId }) {
                                                 />
                                             </ResponsiveControl>
 
-                                            {(getResponsiveValue(styles[fieldNode.field]?.[ 'displayMode' ]) || 'grid') === 'grid' && (
+                                            {(getResponsiveValue(styles[fieldNode.field]?.[ 'displayMode' ], deviceMode) || 'grid') === 'grid' && (
                                                 <>
                                                     <SelectControl
                                                         label={__('Grid Template (Columns)', 'reusable-component-builder')}
-                                                        value={getResponsiveValue(styles[fieldNode.field]?.[ 'gridTemplateColumns' ]) || ''}
+                                                        value={getResponsiveValue(styles[fieldNode.field]?.[ 'gridTemplateColumns' ], deviceMode) || ''}
                                                         options={[
                                                             { label: __('Equal Columns', 'reusable-component-builder'), value: '' },
                                                             { label: __('50 / 50', 'reusable-component-builder'), value: '1fr 1fr' },
@@ -1381,17 +1496,17 @@ export default function Edit({ attributes, setAttributes, clientId }) {
                                                         ]}
                                                         onChange={(val) => updateStyle(fieldNode.field, 'gridTemplateColumns', val, true)}
                                                     />
-                                                    {(getResponsiveValue(styles[fieldNode.field]?.[ 'gridTemplateColumns' ]) === 'custom') && (
+                                                    {(getResponsiveValue(styles[fieldNode.field]?.[ 'gridTemplateColumns' ], deviceMode) === 'custom') && (
                                                         <TextControl
                                                             label={__('Custom Grid String', 'reusable-component-builder')}
-                                                            value={getResponsiveValue(styles[fieldNode.field]?.[ 'customGridTemplate' ]) || ''}
+                                                            value={getResponsiveValue(styles[fieldNode.field]?.[ 'customGridTemplate' ], deviceMode) || ''}
                                                             onChange={(val) => updateStyle(fieldNode.field, 'customGridTemplate', val, true)}
                                                         />
                                                     )}
                                                     
                                                     <ResponsiveControl label={__('Column Gap (px)', 'reusable-component-builder')} deviceMode={deviceMode} setDeviceMode={setDeviceMode}>
                                                         <RangeControl
-                                                            value={parseInt(getResponsiveValue(styles[fieldNode.field]?.[ 'gridGap' ])) || 20}
+                                                            value={parseInt(getResponsiveValue(styles[fieldNode.field]?.[ 'gridGap' ], deviceMode)) || 20}
                                                             onChange={(val) => updateStyle(fieldNode.field, 'gridGap', `${val}px`, true)}
                                                             min={0}
                                                             max={100}
@@ -1401,7 +1516,7 @@ export default function Edit({ attributes, setAttributes, clientId }) {
                                                     
                                                     <ResponsiveControl label={__('Row Gap (px)', 'reusable-component-builder')} deviceMode={deviceMode} setDeviceMode={setDeviceMode}>
                                                         <RangeControl
-                                                            value={parseInt(getResponsiveValue(styles[fieldNode.field]?.[ 'rowGap' ])) || 20}
+                                                            value={parseInt(getResponsiveValue(styles[fieldNode.field]?.[ 'rowGap' ], deviceMode)) || 20}
                                                             onChange={(val) => updateStyle(fieldNode.field, 'rowGap', `${val}px`, true)}
                                                             min={0}
                                                             max={100}
@@ -1411,11 +1526,11 @@ export default function Edit({ attributes, setAttributes, clientId }) {
                                                 </>
                                             )}
 
-                                            {(getResponsiveValue(styles[fieldNode.field]?.[ 'displayMode' ]) || 'grid') === 'flex' && (
+                                            {(getResponsiveValue(styles[fieldNode.field]?.[ 'displayMode' ], deviceMode) || 'grid') === 'flex' && (
                                                 <>
                                                     <ResponsiveControl label={__('Direction', 'reusable-component-builder')} deviceMode={deviceMode} setDeviceMode={setDeviceMode}>
                                                         <ToggleGroupControl
-                                                            value={getResponsiveValue(styles[fieldNode.field]?.[ 'flexDirection' ]) || 'row'}
+                                                            value={getResponsiveValue(styles[fieldNode.field]?.[ 'flexDirection' ], deviceMode) || 'row'}
                                                             onChange={(val) => updateStyle(fieldNode.field, 'flexDirection', val, true)}
                                                             isBlock
                                                             className="rcb-layout-icon-grid"
@@ -1430,7 +1545,7 @@ export default function Edit({ attributes, setAttributes, clientId }) {
 
                                                     <ResponsiveControl label={__('Horizontal Align', 'reusable-component-builder')} deviceMode={deviceMode} setDeviceMode={setDeviceMode}>
                                                         <ToggleGroupControl
-                                                            value={getResponsiveValue(styles[fieldNode.field]?.[ 'justifyContent' ]) || 'flex-start'}
+                                                            value={getResponsiveValue(styles[fieldNode.field]?.[ 'justifyContent' ], deviceMode) || 'flex-start'}
                                                             onChange={(val) => updateStyle(fieldNode.field, 'justifyContent', val, true)}
                                                             isBlock
                                                             className="rcb-layout-icon-grid"
@@ -1445,7 +1560,7 @@ export default function Edit({ attributes, setAttributes, clientId }) {
 
                                                     <ResponsiveControl label={__('Vertical Align', 'reusable-component-builder')} deviceMode={deviceMode} setDeviceMode={setDeviceMode}>
                                                         <ToggleGroupControl
-                                                            value={getResponsiveValue(styles[fieldNode.field]?.[ 'alignItems' ]) || 'stretch'}
+                                                            value={getResponsiveValue(styles[fieldNode.field]?.[ 'alignItems' ], deviceMode) || 'stretch'}
                                                             onChange={(val) => updateStyle(fieldNode.field, 'alignItems', val, true)}
                                                             isBlock
                                                             className="rcb-layout-icon-grid"
@@ -1460,7 +1575,7 @@ export default function Edit({ attributes, setAttributes, clientId }) {
                                                     
                                                     <ResponsiveControl label={__('Flex Gap (px)', 'reusable-component-builder')} deviceMode={deviceMode} setDeviceMode={setDeviceMode}>
                                                         <RangeControl
-                                                            value={parseInt(getResponsiveValue(styles[fieldNode.field]?.[ 'flexGap' ])) || 0}
+                                                            value={parseInt(getResponsiveValue(styles[fieldNode.field]?.[ 'flexGap' ], deviceMode)) || 0}
                                                             onChange={(val) => updateStyle(fieldNode.field, 'flexGap', val ? `${val}px` : '0px', true)}
                                                             min={0}
                                                             max={100}
@@ -1478,7 +1593,7 @@ export default function Edit({ attributes, setAttributes, clientId }) {
                                                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                                                     <div style={{ flex: 1 }}>
                                                         <RangeControl
-                                                            value={parseInt(getResponsiveValue(styles[fieldNode.field]?.[ 'customColumnWidth' ])) || 0}
+                                                            value={parseInt(getResponsiveValue(styles[fieldNode.field]?.[ 'customColumnWidth' ], deviceMode)) || 0}
                                                             onChange={(val) => updateStyle(fieldNode.field, 'customColumnWidth', val, true)}
                                                             min={0}
                                                             max={100}
@@ -1488,13 +1603,13 @@ export default function Edit({ attributes, setAttributes, clientId }) {
                                                     </div>
                                                     <TextControl
                                                         type="number"
-                                                        value={parseInt(getResponsiveValue(styles[fieldNode.field]?.[ 'customColumnWidth' ])) || ''}
+                                                        value={getResponsiveValue(styles[fieldNode.field]?.[ 'customColumnWidth' ], deviceMode) || ''}
                                                         onChange={(val) => updateStyle(fieldNode.field, 'customColumnWidth', val, true)}
                                                         style={{ width: '60px' }}
                                                         __nextHasNoMarginBottom={true}
                                                     />
                                                     <SelectControl
-                                                        value={getResponsiveValue(styles[fieldNode.field]?.[ 'customColumnWidthUnit' ]) || '%'}
+                                                        value={getResponsiveValue(styles[fieldNode.field]?.[ 'customColumnWidthUnit' ], deviceMode) || '%'}
                                                         options={[{ label: '%', value: '%' }, { label: 'PX', value: 'px' }, { label: 'VW', value: 'vw' }, { label: 'FR', value: 'fr' }]}
                                                         onChange={(val) => updateStyle(fieldNode.field, 'customColumnWidthUnit', val, true)}
                                                         style={{ width: '70px' }}
@@ -1505,7 +1620,7 @@ export default function Edit({ attributes, setAttributes, clientId }) {
                                             
                                             <ResponsiveControl label={__('Align Self (Vertical)', 'reusable-component-builder')} deviceMode={deviceMode} setDeviceMode={setDeviceMode}>
                                                 <ToggleGroupControl
-                                                    value={getResponsiveValue(styles[fieldNode.field]?.[ 'alignSelf' ]) || ''}
+                                                    value={getResponsiveValue(styles[fieldNode.field]?.[ 'alignSelf' ], deviceMode) || ''}
                                                     onChange={(val) => updateStyle(fieldNode.field, 'alignSelf', val, true)}
                                                     isBlock
                                                     className="rcb-layout-icon-grid"
@@ -1929,7 +2044,7 @@ export default function Edit({ attributes, setAttributes, clientId }) {
                                                 className={`rcb-instance rcb-instance-${uniqueId}${loopItemExtraClass ? ' ' + loopItemExtraClass : ''}`}
                                                 style={loopItemExtraStyle}
                                             >
-                                                {renderPreviewNodes(loopNodes, post)}
+                                                {renderPreviewNodes(loopNodes, post, { currentPostACF, uniqueId, deviceMode, clientId })}
                                             </div>
                                         ))}
                                         {pagination && totalPages > 1 && (() => {
@@ -1980,7 +2095,7 @@ export default function Edit({ attributes, setAttributes, clientId }) {
                                 ) : <div style={{padding: '20px', background: '#e0e0e0'}}>Loading posts...</div>
                             ) : (
                                 <div className={`rcb-instance rcb-instance-${clientId}`}>
-                                    {renderPreviewNodes(structureNodes)}
+                                    {renderPreviewNodes(structureNodes, null, { currentPostACF, uniqueId, deviceMode, clientId })}
                                 </div>
                             )
                         )}
