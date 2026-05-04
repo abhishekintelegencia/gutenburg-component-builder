@@ -539,10 +539,13 @@ const renderVisualStructure = (nodes, post, parentContext, context) => {
             case 'text':
                 return <div key={i} className={`rcb-text ${node.id}`} style={{...nodeStyles, whiteSpace: 'pre-wrap'}}>{nodeContent}</div>;
             case 'image':
-                if (url) {
+                if (url && url !== '') {
                     return <img key={i} src={url} className={`rcb-image ${node.id}`} alt={nodeContent} style={{...nodeStyles, display: 'block'}} />;
                 }
-                return node.dynamicSource ? null : <div key={i} className={`rcb-image-placeholder ${node.id}`} style={{...nodeStyles, background: '#ccc', minHeight: '100px', display: 'flex', alignItems: 'center', justifyContent: 'center'}}>Image Placeholder: {node.field}</div>;
+                // Always show a placeholder in the editor so the user can see where the image is
+                return <div key={i} className={`rcb-image-placeholder ${node.id}`} style={{...nodeStyles, background: '#f3f4f6', border: '1px dashed #d1d5db', minHeight: '100px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#6b7280', fontSize: '12px'}}>
+                    {node.dynamicSource ? `Dynamic: ${node.dynamicSource}` : `Image: ${node.field}`}
+                </div>;
             case 'button':
                 const btnStyles = { ...nodeStyles };
                 if (!nodeStyles.padding && (nodeStyles.paddingX !== undefined || nodeStyles.paddingY !== undefined)) {

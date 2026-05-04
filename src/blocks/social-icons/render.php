@@ -12,6 +12,19 @@ $alignment = $attributes['alignment'] ?? ['desktop' => 'left'];
 $gap = $attributes['gap'] ?? ['desktop' => '20px'];
 $borderRadius = $attributes['borderRadius'] ?? '0px';
 
+// Robustness: Ensure responsive attributes are arrays
+$iconSize = $attributes['iconSize'] ?? ['desktop' => '24px'];
+if ( ! is_array( $iconSize ) ) {
+    $iconSize = ['desktop' => $iconSize];
+}
+$attributes['iconSize'] = $iconSize;
+
+$labelFontSize = $attributes['labelFontSize'] ?? ['desktop' => '14px'];
+if ( ! is_array( $labelFontSize ) ) {
+    $labelFontSize = ['desktop' => $labelFontSize];
+}
+$attributes['labelFontSize'] = $labelFontSize;
+
 // Responsive Alignment Mapping
 $align_map = [];
 foreach ((array)$alignment as $device => $val) {

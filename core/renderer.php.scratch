@@ -1,0 +1,125 @@
+	// Default Data
+	$data = array(
+		'text'    => '',
+		'img'     => '',
+		'url'     => '',
+		'content' => '',
+		'debug'   => "Node: {$id} | Field: {$field} | Source: {$dynamic_source} | PostID: " . ($post ? (is_object($post) ? $post->ID : $post) : 'NONE')
+	);
+
+	switch ( $type ) {
+		case 'heading':
+			$manual_text  = isset( $content_data[ $field ] ) ? $content_data[ $field ] : '';
+			$data['text'] = $manual_text;
+
+			if ( empty( $data['text'] ) && ! empty( $dynamic_source ) ) {
+				$dynamic_val = '';
+				$lower_source = strtolower( $dynamic_source );
+				$post_id_to_use = ( $post instanceof WP_Post ) ? $post->ID : ( is_numeric( $post ) ? $post : get_the_ID() );
+
+				if ( ( $lower_source === 'post_title' || strpos( $lower_source, 'title' ) !== false ) && $post ) {
+					$dynamic_val = ( $post instanceof WP_Post ) ? $post->post_title : get_the_title( $post_id_to_use );
+				} elseif ( $lower_source === 'post_excerpt' && $post ) {
+					$dynamic_val = get_the_excerpt( $post_id_to_use );
+				} elseif ( ( strpos( $lower_source, 'meta' ) !== false ) && $post && ! empty( $dynamic_field ) ) {
+					$dynamic_val = rcb_get_meta_value_with_fallback( $post_id_to_use, $dynamic_field );
+				}
+
+				if ( ! empty( $dynamic_val ) ) {
+					$data['text'] = $dynamic_val;
+				}
+			}
+			
+			if ( empty( $data['text'] ) ) {
+				$data['text'] = 'Heading Title';
+			}
+			break;
+
+		case 'text':
+			$manual_text  = isset( $content_data[ $field ] ) ? $content_data[ $field ] : '';
+			$data['text'] = $manual_text;
+
+			if ( empty( $data['text'] ) && ! empty( $dynamic_source ) ) {
+				$dynamic_val = '';
+				$lower_source = strtolower( $dynamic_source );
+				$post_id_to_use = ( $post instanceof WP_Post ) ? $post->ID : ( is_numeric( $post ) ? $post : get_the_ID() );
+
+				if ( ( $lower_source === 'post_title' || strpos( $lower_source, 'title' ) !== false ) && $post ) {
+					$dynamic_val = ( $post instanceof WP_Post ) ? $post->post_title : get_the_title( $post_id_to_use );
+				} elseif ( $lower_source === 'post_excerpt' && $post ) {
+					$dynamic_val = get_the_excerpt( $post_id_to_use );
+				} elseif ( $lower_source === 'post_content' && $post ) {
+					$dynamic_val = apply_filters( 'the_content', get_post_field( 'post_content', $post_id_to_use ) );
+				} elseif ( ( strpos( $lower_source, 'meta' ) !== false ) && $post && ! empty( $dynamic_field ) ) {
+					$dynamic_val = rcb_get_meta_value_with_fallback( $post_id_to_use, $dynamic_field );
+				}
+
+				if ( ! empty( $dynamic_val ) ) {
+					$data['text'] = $dynamic_val;
+				}
+			}
+
+			if ( empty( $data['text'] ) ) {
+				$data['text'] = 'Enter text here...';
+			}
+			break;
+
+		case 'image':
+			$manual_img = isset( $content_data[ $field . '_url' ] ) ? $content_data[ $field . '_url' ] : '';
+			$data['img'] = $manual_img;
+
+			if ( empty( $data['img'] ) && ! empty( $dynamic_source ) ) {
+				$dynamic_img = '';
+				$lower_source = strtolower( $dynamic_source );
+				$post_id_to_use = ( $post instanceof WP_Post ) ? $post->ID : ( is_numeric( $post ) ? $post : get_the_ID() );
+
+				if ( $lower_source === 'featured_image' && $post ) {
+					$dynamic_img = get_the_post_thumbnail_url( $post_id_to_use, 'large' );
+					$data['debug'] .= " | FeaturedImageFound: " . ($dynamic_img ? 'YES' : 'NO');
+				} elseif ( ( strpos( $lower_source, 'meta' ) !== false ) && $post && ! empty( $dynamic_field ) ) {
+					$dynamic_img = rcb_get_meta_value_with_fallback( $post_id_to_use, $dynamic_field );
+					$data['debug'] .= " | MetaKey: {$dynamic_field} | MetaFound: " . ($dynamic_img ? 'YES' : 'NO');
+				}
+
+				if ( ! empty( $dynamic_img ) ) {
+					$data['img'] = $dynamic_img;
+				}
+			}
+
+			// Template static image fallback
+			if ( empty( $data['img'] ) && ! empty( $node['img'] ) ) {
+				$data['img'] = $node['img'];
+			}
+
+			if ( empty( $data['img'] ) ) {
+				$data['img'] = 'https://via.placeholder.com/600x400?text=Image';
+			}
+			$data['debug'] .= " | FinalURL: " . $data['img'];
+			break;
+
+		case 'button':
+			$manual_text = isset( $content_data[ $field ] ) ? $content_data[ $field ] : '';
+			$manual_url  = isset( $content_data[ $field . '_url' ] ) ? $content_data[ $field . '_url' ] : '';
+
+			$data['text'] = $manual_text;
+			$data['url']  = $manual_url;
+
+			if ( ( empty( $data['text'] ) || empty( $data['url'] ) ) && ! empty( $dynamic_source ) ) {
+				$post_id_to_use = ( $post instanceof WP_Post ) ? $post->ID : ( is_numeric( $post ) ? $post : get_the_ID() );
+				
+				if ( empty( $data['text'] ) ) {
+					if ( strtolower( $dynamic_source ) === 'post_title' ) {
+						$data['text'] = ( $post instanceof WP_Post ) ? $post->post_title : get_the_title( $post_id_to_use );
+					}
+				}
+				if ( empty( $data['url'] ) ) {
+					if ( strtolower( $dynamic_source ) === 'permalink' ) {
+						$data['url'] = get_permalink( $post_id_to_use );
+					}
+				}
+			}
+
+			if ( empty( $data['text'] ) ) $data['text'] = 'Read More';
+			if ( empty( $data['url'] ) )  $data['url']  = '#';
+			break;
+	}

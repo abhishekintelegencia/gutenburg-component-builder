@@ -172,8 +172,9 @@ function rcb_render_query_type( $attributes, $content, $template_id, $unique_id,
 			$query->the_post();
 			$current_post = get_post();
 
-			$post_output  = rcb_render_visual_nodes_with_visibility( $nodes, $content_data, $styles_data, 'query', $current_post, $visibility, $content, $style_registry, $unique_id . '-' . $current_post->ID );
-			$loop_output .= sprintf( '<div class="rcb-loop-item">%s</div>', $post_output );
+			$post_instance_id = $unique_id . '-' . $current_post->ID;
+			$post_output      = rcb_render_visual_nodes_with_visibility( $nodes, $content_data, $styles_data, 'query', $current_post, $visibility, $content, $style_registry, $post_instance_id );
+			$loop_output     .= sprintf( '<div class="rcb-loop-item rcb-instance-%s">%s</div>', esc_attr( $post_instance_id ), $post_output );
 		}
 
 		// Pagination
@@ -275,6 +276,7 @@ function rcb_render_meta_type( $attributes, $content, $template_id, $unique_id, 
 
 	return $output;
 }
+
 /**
  * Safely get post meta with an ACF fallback, returning as a string.
  */
@@ -320,10 +322,10 @@ function rcb_resolve_node_data( $node, $content_data, $mode, $post = null ) {
 	$dynamic_field  = isset( $node['dynamicField'] ) ? $node['dynamicField'] : '';
 	
 	$data = array(
-		'text' => '',
-		'url'  => '',
-		'img'  => '',
-		'tag'  => 'div',
+		'text'    => '',
+		'url'     => '',
+		'img'     => '',
+		'tag'     => 'div',
 	);
 
 	switch ( $type ) {
@@ -336,13 +338,15 @@ function rcb_resolve_node_data( $node, $content_data, $mode, $post = null ) {
 				$dynamic_val = '';
 				$lower_source = strtolower( $dynamic_source );
 				$post_id_to_use = ( $post instanceof WP_Post ) ? $post->ID : ( is_numeric( $post ) ? $post : get_the_ID() );
-				
+
 				if ( ( $lower_source === 'post_title' || strpos( $lower_source, 'title' ) !== false ) && $post ) {
 					$dynamic_val = ( $post instanceof WP_Post ) ? $post->post_title : get_the_title( $post_id_to_use );
+				} elseif ( $lower_source === 'post_excerpt' && $post ) {
+					$dynamic_val = get_the_excerpt( $post_id_to_use );
 				} elseif ( ( strpos( $lower_source, 'meta' ) !== false ) && $post && ! empty( $dynamic_field ) ) {
 					$dynamic_val = rcb_get_meta_value_with_fallback( $post_id_to_use, $dynamic_field );
 				}
-				
+
 				if ( ! empty( $dynamic_val ) ) {
 					$data['text'] = $dynamic_val;
 				}
@@ -400,6 +404,11 @@ function rcb_resolve_node_data( $node, $content_data, $mode, $post = null ) {
 				if ( ! empty( $dynamic_img ) ) {
 					$data['img'] = $dynamic_img;
 				}
+			}
+
+			// Template static image fallback
+			if ( empty( $data['img'] ) && ! empty( $node['img'] ) ) {
+				$data['img'] = $node['img'];
 			}
 
 			if ( empty( $data['img'] ) ) {
@@ -467,74 +476,7 @@ function rcb_render_visual_nodes_with_visibility( $nodes, $content_data, $styles
 		$node_data = rcb_resolve_node_data( $node, $content_data, $mode, $post );
 		
 		// 1. Prepare Layout Defaults & Enforce Critical Properties
-		if ( $type === 'container' ) {
-			// Ensure display is set
-			if ( ! isset( $raw_styles['display'] ) && ! isset( $raw_styles['displayMode'] ) ) {
-				$raw_styles['display'] = 'grid';
-			}
-			
-			// Resolve Grid Columns if in grid mode
-			$display_val = rcb_get_responsive_value( $raw_styles['displayMode'] ?? ( $raw_styles['display'] ?? 'grid' ), 'desktop' );
-			if ( $display_val === 'grid' ) {
-				if ( ! isset( $raw_styles['gridTemplateColumns'] ) || ( isset( $raw_styles['gridTemplateColumns'] ) && $raw_styles['gridTemplateColumns'] === 'custom' && empty( $raw_styles['customGridTemplate'] ) ) ) {
-					$raw_styles['gridTemplateColumns'] = "repeat({$node_columns}, 1fr)";
-				} elseif ( isset( $raw_styles['gridTemplateColumns'] ) && $raw_styles['gridTemplateColumns'] === 'custom' ) {
-					$raw_styles['gridTemplateColumns'] = $raw_styles['customGridTemplate'];
-				}
-				
-				if ( ! isset( $raw_styles['gap'] ) && ! isset( $raw_styles['gridGap'] ) && $node_columns > 1 ) {
-					$raw_styles['gap'] = '20px';
-				}
-			}
-		}
-
-		if ( $type === 'column' ) {
-			foreach ( array( 'desktop', 'tablet', 'mobile' ) as $dev ) {
-				$w = rcb_get_responsive_value( $raw_styles['customColumnWidth'] ?? '', $dev );
-				$u = rcb_get_responsive_value( $raw_styles['customColumnWidthUnit'] ?? '', $dev ) ?: '%';
-				
-				if ( $w ) {
-					$raw_styles['width'][$dev] = "{$w}{$u}";
-					$raw_styles['flex'][$dev]  = "0 1 {$w}{$u}";
-				} elseif ( $dev === 'mobile' ) {
-					// Force 100% on mobile if no width set
-					$raw_styles['flex'][$dev]  = "1 1 100%";
-					$raw_styles['maxWidth'][$dev] = "100%";
-					
-					// Normalize padding shorthand to allow precision horizontal capping
-					if ( isset( $raw_styles['padding'] ) ) {
-						$p_shorthand = $raw_styles['padding'];
-						foreach ( array( 'Top', 'Right', 'Bottom', 'Left' ) as $dir ) {
-							$k = 'padding' . $dir;
-							if ( ! isset( $raw_styles[ $k ] ) ) $raw_styles[ $k ] = $p_shorthand;
-						}
-						unset( $raw_styles['padding'] );
-					}
-
-					// Precision cap horizontal overflow while strictly preserving height
-					foreach ( array( 'paddingLeft', 'paddingRight' ) as $p_key ) {
-						if ( isset( $raw_styles[ $p_key ] ) ) {
-							$p_raw = is_array( $raw_styles[ $p_key ] ) ? ( $raw_styles[ $p_key ]['mobile'] ?? null ) : $raw_styles[ $p_key ];
-							if ( $p_raw !== null ) {
-								$p_num = floatval( preg_replace( '/[^0-9.]/', '', strval( $p_raw ) ) );
-								if ( $p_num > 40 ) {
-									if ( is_array( $raw_styles[ $p_key ] ) ) $raw_styles[ $p_key ]['mobile'] = 20;
-									else $raw_styles[ $p_key ] = array( 'desktop' => $raw_styles[ $p_key ], 'mobile' => 20 );
-								}
-							}
-						}
-					}
-
-					// Correct overflow and margins
-					if ( ! isset( $raw_styles['overflow'] ) ) $raw_styles['overflow'][$dev] = "hidden";
-					if ( ! isset( $raw_styles['margin'] ) )   $raw_styles['margin'][$dev]   = "0";
-				} else {
-					if ( ! isset( $raw_styles['flex'][$dev] ) && ! isset( $raw_styles['flex'] ) ) {
-						$raw_styles['flex'][$dev] = '1 1 0%';
-					}
-				}
-			}
-		}
+		$final_styles = array();
 
 		if ( $type === 'button' ) {
 			// Padding X/Y logic
@@ -564,6 +506,18 @@ function rcb_render_visual_nodes_with_visibility( $nodes, $content_data, $styles
 			}
 		}
 
+		if ( $type === 'column' ) {
+			foreach ( array( 'desktop', 'tablet', 'mobile' ) as $dev ) {
+				$w = rcb_get_responsive_value( $raw_styles['customColumnWidth'] ?? '', $dev );
+				$u = rcb_get_responsive_value( $raw_styles['customColumnWidthUnit'] ?? '', $dev ) ?: '%';
+				
+				if ( $w ) {
+					$raw_styles['width'][$dev] = "{$w}{$u}";
+					$raw_styles['flex'][$dev]  = "0 1 {$w}{$u}";
+				}
+			}
+		}
+
 		// 2. Generate Responsive CSS Registry (Aggressive !important)
 		$selector = ( ! empty( $instance_id ) ) ? ".rcb-instance-{$instance_id} .{$id}" : ".{$id}";
 		$style_registry .= rcb_generate_responsive_css( $selector, $raw_styles );
@@ -571,47 +525,91 @@ function rcb_render_visual_nodes_with_visibility( $nodes, $content_data, $styles
 		// 3. Specialized Registry Styles (Hover, Children)
 		if ( $type === 'button' ) {
 			$hover_css = '';
-			if ( isset( $raw_styles['hoverBgColor'] ) ) $hover_css .= "background-color: {$raw_styles['hoverBgColor']} !important;";
-			if ( isset( $raw_styles['hoverColor'] ) )   $hover_css .= "color: {$raw_styles['hoverColor']} !important;";
-			elseif ( isset( $raw_styles['hoverTextColor'] ) ) $hover_css .= "color: {$raw_styles['hoverTextColor']} !important;";
 			
-			if ( ! empty( $raw_styles['hoverUnderline'] ) ) $hover_css .= "text-decoration: underline !important;";
-			elseif ( isset( $raw_styles['hoverUnderline'] ) ) $hover_css .= "text-decoration: none !important;";
+			// Background Hover
+			$h_bg = $raw_styles['hoverBgColor'] ?? ( $raw_styles['hoverBackgroundColor'] ?? '' );
+			if ( ! empty( $h_bg ) ) {
+				$hover_css .= "background-color: {$h_bg} !important;";
+			}
+			
+			// Text Color Hover
+			$h_color = $raw_styles['hoverColor'] ?? ( $raw_styles['hoverTextColor'] ?? '' );
+			if ( ! empty( $h_color ) ) {
+				$hover_css .= "color: {$h_color} !important;";
+			}
 
-			if ( $hover_css ) {
+			// Border Hover
+			$h_border_color = $raw_styles['hoverBorderColor'] ?? ( $raw_styles['borderColorHover'] ?? '' );
+			if ( ! empty( $h_border_color ) ) {
+				$hover_css .= "border-color: {$h_border_color} !important;";
+				$hover_css .= "border-style: solid !important;";
+			}
+			$h_border_width = $raw_styles['hoverBorderWidth'] ?? '';
+			if ( ! empty( $h_border_width ) ) {
+				$h_bw = is_numeric($h_border_width) ? "{$h_border_width}px" : $h_border_width;
+				$hover_css .= "border-width: {$h_bw} !important;";
+			}
+			
+			if ( ! empty( $raw_styles['hoverUnderline'] ) ) {
+				$hover_css .= "text-decoration: underline !important;";
+			} elseif ( isset( $raw_styles['hoverUnderline'] ) ) {
+				$hover_css .= "text-decoration: none !important;";
+			}
+
+			if ( ! empty( $hover_css ) ) {
 				$style_registry .= "{$selector}:hover { {$hover_css} }\n";
 			}
 			
-			// Icon Styles
+			// Icon Styles & Hover
 			$icon_init_css = '';
-			if ( isset( $raw_styles['iconColor'] ) ) $icon_init_css .= "color: {$raw_styles['iconColor']} !important;";
-			if ( isset( $raw_styles['iconBgColor'] ) ) $icon_init_css .= "background-color: {$raw_styles['iconBgColor']} !important;";
-			if ( isset( $raw_styles['iconBorderColor'] ) ) $icon_init_css .= "border-color: {$raw_styles['iconBorderColor']} !important;";
+			if ( ! empty( $raw_styles['iconColor'] ) )   $icon_init_css .= "color: {$raw_styles['iconColor']} !important;";
+			if ( ! empty( $raw_styles['iconBgColor'] ) ) $icon_init_css .= "background-color: {$raw_styles['iconBgColor']} !important;";
 			
-			if ( $icon_init_css ) {
+			if ( ! empty( $icon_init_css ) ) {
 				$i_sel = ( ! empty( $instance_id ) ) ? ".rcb-instance-{$instance_id} .{$id} .rcb-button-icon" : ".{$id} .rcb-button-icon";
 				$style_registry .= "{$i_sel} { {$icon_init_css} }\n";
 			}
 
 			$icon_hover_css = '';
-			if ( isset( $raw_styles['iconHoverBgColor'] ) ) $icon_hover_css .= "background-color: {$raw_styles['iconHoverBgColor']} !important;";
-			if ( isset( $raw_styles['iconHoverColor'] ) )   $icon_hover_css .= "color: {$raw_styles['iconHoverColor']} !important;";
-			if ( $icon_hover_css ) {
-				$i_sel = ( ! empty( $instance_id ) ) ? ".rcb-instance-{$instance_id} .{$id}:hover .rcb-button-icon" : ".{$id}:hover .rcb-button-icon";
-				$style_registry .= "{$i_sel} { {$icon_hover_css} }\n";
+			$ih_bg = $raw_styles['iconHoverBgColor'] ?? '';
+			if ( ! empty( $ih_bg ) ) $icon_hover_css .= "background-color: {$ih_bg} !important;";
+			
+			$ih_color = $raw_styles['iconHoverColor'] ?? '';
+			if ( ! empty( $ih_color ) ) $icon_hover_css .= "color: {$ih_color} !important;";
+			
+			if ( ! empty( $icon_hover_css ) ) {
+				$ih_sel = ( ! empty( $instance_id ) ) ? ".rcb-instance-{$instance_id} .{$id}:hover .rcb-button-icon" : ".{$id}:hover .rcb-button-icon";
+				$style_registry .= "{$ih_sel} { {$icon_hover_css} }\n";
 			}
 		}
 
 		// 4. Fallback/Standard inline styles
-		$final_styles = array();
 		$direct_props = array(
 			'color', 'backgroundColor', 'padding', 'margin', 'fontSize', 'fontWeight', 
 			'lineHeight', 'letterSpacing', 'textTransform', 'fontFamily', 'borderRadius',
-			'border', 'borderColor', 'borderWidth', 'borderStyle', 'textAlign'
+			'border', 'borderColor', 'borderWidth', 'borderStyle', 'textAlign',
+			'display', 'gridTemplateColumns', 'gap', 'flexDirection', 'flexWrap', 
+			'justifyContent', 'alignItems', 'flex', 'width', 'height', 'minHeight', 'maxWidth', 'overflow'
 		);
 		foreach ( $direct_props as $p ) {
-			if ( isset( $raw_styles[$p] ) && ! is_array( $raw_styles[$p] ) ) {
-				$final_styles[$p] = $raw_styles[$p];
+			$val = isset( $raw_styles[$p] ) ? $raw_styles[$p] : '';
+			if ( $val !== '' && ! is_array( $val ) ) {
+				// Special: Avoid inline styles for hoverable button props to allow registry overrides
+				if ( $type === 'button' && in_array( $p, array( 'backgroundColor', 'color', 'borderColor', 'borderWidth', 'borderStyle' ) ) ) {
+					continue;
+				}
+				$final_styles[$p] = $val;
+			}
+		}
+
+		// Enforce Layout Grid for multi-column containers
+		if ( $type === 'container' && $node_columns > 1 ) {
+			$final_styles['display'] = 'grid';
+			if ( ! isset($final_styles['grid-template-columns']) && ! isset($final_styles['gridTemplateColumns']) ) {
+				$final_styles['grid-template-columns'] = "repeat({$node_columns}, 1fr)";
+			}
+			if ( empty($final_styles['gap']) ) {
+				$final_styles['gap'] = '20px';
 			}
 		}
 
@@ -625,20 +623,22 @@ function rcb_render_visual_nodes_with_visibility( $nodes, $content_data, $styles
 		
 		if ( $bg_url ) {
 			$bg_url = esc_url( $bg_url );
-			$bg_rules = "background-image: url('{$bg_url}') !important; background-size: " . ( $raw_styles['backgroundSize'] ?? 'cover' ) . " !important; background-position: " . ( $raw_styles['backgroundPosition'] ?? 'center' ) . " !important; background-repeat: " . ( $raw_styles['backgroundRepeat'] ?? 'no-repeat' ) . " !important;";
+			$bg_rules = "background-image: url('{$bg_url}') !important; background-size: cover !important; background-position: center !important; background-repeat: no-repeat !important;";
 			$style_registry .= "{$selector} { {$bg_rules} }\n";
 			$final_styles['background-image'] = "url('{$bg_url}')";
 		}
 
-		$style_attr = rcb_build_inline_style( $final_styles );
+		$style_attr = rcb_build_inline_style( $final_styles, $type );
 
+		// 5. Final Dispatch
+		$node_html = "<!-- RCB Node: {$id} | Type: {$type} | Columns: {$node_columns} | Instance: {$instance_id} -->\n";
 		switch ( $type ) {
 			case 'container':
 				$children_html = '';
 				if ( ! empty( $node['children'] ) ) {
 					$children_html = rcb_render_visual_nodes_with_visibility( $node['children'], $content_data, $styles_data, $mode, $post, $visibility, $inner_blocks_content, $style_registry, $instance_id );
 				}
-				$html .= sprintf( '<div class="rcb-container %s" %s>%s</div>', esc_attr( $id ), $style_attr, $children_html );
+				$node_html .= sprintf( '<div class="rcb-container %s" %s>%s</div>', esc_attr( $id ), $style_attr, $children_html );
 				break;
 
 			case 'column':
@@ -646,30 +646,29 @@ function rcb_render_visual_nodes_with_visibility( $nodes, $content_data, $styles
 				if ( ! empty( $node['children'] ) ) {
 					$children_html = rcb_render_visual_nodes_with_visibility( $node['children'], $content_data, $styles_data, $mode, $post, $visibility, $inner_blocks_content, $style_registry, $instance_id );
 				}
-				$html .= sprintf( '<div class="rcb-column %s" %s>%s</div>', esc_attr( $id ), $style_attr, $children_html );
+				$node_html .= sprintf( '<div class="rcb-column %s" %s>%s</div>', esc_attr( $id ), $style_attr, $children_html );
 				break;
-
 
 			case 'heading':
 				$tag         = $node_data['tag'];
 				$text_val    = $node_data['text'];
-				$html .= sprintf( '<%s class="rcb-heading %s" %s>%s</%s>', esc_attr( $tag ), esc_attr( $id ), $style_attr, wp_kses_post( $text_val ), esc_attr( $tag ) );
+				$node_html .= sprintf( '<%s class="rcb-heading %s" %s>%s</%s>', esc_attr( $tag ), esc_attr( $id ), $style_attr, wp_kses_post( $text_val ), esc_attr( $tag ) );
 				break;
 
 			case 'text':
 				$text_val    = $node_data['text'];
-				$html .= sprintf( '<div class="rcb-text %s" %s>%s</div>', esc_attr( $id ), $style_attr, wp_kses_post( $text_val ) );
+				$node_html .= sprintf( '<div class="rcb-text %s" %s>%s</div>', esc_attr( $id ), $style_attr, wp_kses_post( $text_val ) );
 				break;
 
 			case 'image':
 				$img_url     = $node_data['img'];
-				$html .= sprintf( '<div class="rcb-image %s" %s><img src="%s" alt="" /></div>', esc_attr( $id ), $style_attr, esc_url( $img_url ) );
+				$node_html .= sprintf( '<div class="rcb-image %s" %s><img src="%s" alt="" style="width:100%% !important; height:auto !important; display:block !important; min-height:inherit !important; object-fit:cover !important;" /></div>', esc_attr( $id ), $style_attr, esc_url( $img_url ) );
 				break;
 
 			case 'button':
 				$btn_text    = $node_data['text'];
 				$btn_url     = $node_data['url'];
-
+				
 				$icon_mode = isset( $content_data[ $field . '_icon_mode' ] ) ? $content_data[ $field . '_icon_mode' ] : 'Default';
 				$icon_size = isset( $raw_styles['iconSize'] ) ? floatval( $raw_styles['iconSize'] ) : 1.25;
 				$icon_html = '';
@@ -677,7 +676,7 @@ function rcb_render_visual_nodes_with_visibility( $nodes, $content_data, $styles
 				if ( $icon_mode !== 'Default' ) {
 					$icon_style = "display: inline-flex; align-items: center; justify-content: center; border-radius: 50%; font-size: {$icon_size}em; line-height: 1; transition: all 0.3s ease-in-out;";
 					if ( $icon_mode === 'Icon with Bg' ) {
-						$icon_style .= "margin-left: 4px; width: " . ($icon_size * 1.875) . "em; height: " . ($icon_size * 1.875) . "em; border-width: " . (isset($raw_styles['iconBorderWidth']) ? $raw_styles['iconBorderWidth'] : 0.1) . "rem; border-style: solid;";
+						$icon_style .= "margin-left: 10px; width: 2.2em; height: 2.2em;";
 					}
 					$icon_html = sprintf(
 						'<span class="rcb-button-icon" style="%s"><svg width="1em" height="1em" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" style="display: block;"><path d="M5 12H19M19 12L13 6M19 12L13 18" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></span>',
@@ -685,32 +684,25 @@ function rcb_render_visual_nodes_with_visibility( $nodes, $content_data, $styles
 					);
 				}
 
-				// Hover styles are handled via style registry
-				$style_attr = rcb_build_inline_style( $final_styles );
-
-				$html .= sprintf( 
+				$node_html = sprintf( 
 					'<div class="rcb-button-wrapper %s"><a href="%s" class="rcb-button %s" %s>%s%s</a></div>', 
 					esc_attr( $id . '-wrapper' ),
 					esc_url( $btn_url ), 
 					esc_attr( $id ), 
 					$style_attr, 
-					esc_html( $btn_text ), 
-					$icon_html 
+					esc_html( $btn_text ),
+					$icon_html
 				);
 				break;
 
 			case 'innerblocks':
-				$html .= sprintf( '<div class="rcb-inner-blocks %s" %s>%s</div>', esc_attr( $id ), $style_attr, $inner_blocks_content );
+				$node_html = sprintf( '<div class="rcb-inner-blocks %s" %s>%s</div>', esc_attr( $id ), $style_attr, $inner_blocks_content );
 				break;
 			
 			case 'testimonial':
 				$avatar_url = isset( $content_data[ $field . '_avatar_url' ] ) ? $content_data[ $field . '_avatar_url' ] : '';
 				$rating = isset( $content_data[ $field . '_rating' ] ) ? intval( $content_data[ $field . '_rating' ] ) : 5;
 				$rating_color = isset( $raw_styles['ratingColor'] ) ? $raw_styles['ratingColor'] : '#facc15';
-				
-				if ( ( $mode === 'query' ) && $post ) {
-					// Optionally pull avatar from dynamic source if needed
-				}
 				
 				$testimonial_html = '';
 				if ( ! empty( $avatar_url ) ) {
@@ -732,9 +724,11 @@ function rcb_render_visual_nodes_with_visibility( $nodes, $content_data, $styles
 				}
 				$testimonial_html .= '<div class="rcb-testimonial-rating">' . $stars . '</div>';
 				
-				$html .= sprintf( '<div class="rcb-testimonial %s" %s>%s</div>', esc_attr( $id ), $style_attr, $testimonial_html );
+				$node_html = sprintf( '<div class="rcb-testimonial %s" %s>%s</div>', esc_attr( $id ), $style_attr, $testimonial_html );
 				break;
 		}
+		
+		$html .= $node_html;
 	}
 
 	return $html;
@@ -780,30 +774,6 @@ function rcb_render_advance_dynamic_slider_block( $attributes, $content ) {
 	$btn_border_radius = isset( $attributes['btnBorderRadius'] ) ? intval( $attributes['btnBorderRadius'] ) : 4;
 	$btn_font_size = isset( $attributes['btnFontSize'] ) ? intval( $attributes['btnFontSize'] ) : 16;
 
-	// Swiper Settings
-	$arrows = isset( $attributes['arrows'] ) ? $attributes['arrows'] : true;
-	$dots = isset( $attributes['dots'] ) ? $attributes['dots'] : true;
-	$autoplay = isset( $attributes['autoplay'] ) ? $attributes['autoplay'] : false;
-	$autoplay_delay = isset( $attributes['autoplayDelay'] ) ? intval( $attributes['autoplayDelay'] ) : 3000;
-	$loop = isset( $attributes['loop'] ) ? $attributes['loop'] : true;
-	$effect = isset( $attributes['effect'] ) ? $attributes['effect'] : 'slide';
-	
-	// Helper to extract responsive values
-	$get_v = function($val, $device = 'desktop') {
-		if ( is_array($val) ) return isset($val[$device]) ? $val[$device] : '';
-		if ( is_object($val) ) {
-			$arr = (array) $val;
-			return isset($arr[$device]) ? $arr[$device] : (isset($arr['desktop']) ? $arr['desktop'] : '');
-		}
-		return $val;
-	};
-
-	$slides_per_view = $get_v( isset( $attributes['slidesPerView'] ) ? $attributes['slidesPerView'] : 1 );
-	$space_between = $get_v( isset( $attributes['spaceBetween'] ) ? $attributes['spaceBetween'] : 0 );
-	$height = $get_v( isset( $attributes['height'] ) ? $attributes['height'] : '500px' );
-	$arrow_color = isset( $attributes['arrowColor'] ) ? $attributes['arrowColor'] : '#ffffff';
-	$dot_color = isset( $attributes['dotColor'] ) ? $attributes['dotColor'] : '#3b82f6';
-
 	$args = array(
 		'post_type' => $post_type,
 		'posts_per_page' => $posts_per_page,
@@ -823,34 +793,8 @@ function rcb_render_advance_dynamic_slider_block( $attributes, $content ) {
 	$query = new WP_Query( $args );
 	$final_output = '';
 	
-	// Generate Responsive CSS
-	$resp_styles = array();
-	$resp_attrs = array(
-		'height' => '.rcb-instance-' . $unique_id,
-		'contentPadding' => '.rcb-instance-' . $unique_id . ' .rcb-slide-content',
-		'titleFontSize' => '.rcb-instance-' . $unique_id . ' .rcb-slide-title',
-		'descFontSize' => '.rcb-instance-' . $unique_id . ' .rcb-slide-desc',
-		'btnFontSize' => '.rcb-instance-' . $unique_id . ' .rcb-slide-btn',
-	);
-
-	foreach ($resp_attrs as $attr => $sel) {
-		if (isset($attributes[$attr])) {
-			if (!isset($resp_styles[$sel])) $resp_styles[$sel] = array();
-			$resp_styles[$sel][($attr === 'contentPadding' ? 'padding' : ($attr === 'titleFontSize' || $attr === 'descFontSize' || $attr === 'btnFontSize' ? 'fontSize' : $attr))] = $attributes[$attr];
-		}
-	}
-
-	$style_registry = "";
-	foreach ($resp_styles as $sel => $stls) {
-		$style_registry .= rcb_generate_responsive_css($sel, $stls);
-	}
-
-	// Add non-responsive vars
-	$style_registry .= "
-		.rcb-instance-{$unique_id} { 
-			--rcb-arrow-color: {$arrow_color}; 
-			--rcb-dot-color: {$dot_color}; 
-		}
+	// Registry
+	$style_registry = "
 		.rcb-instance-{$unique_id} .rcb-slide-content { 
 			--rcb-content-bg: {$content_bg_color}; 
 			--rcb-content-radius: {$content_border_radius}px; 
@@ -870,130 +814,60 @@ function rcb_render_advance_dynamic_slider_block( $attributes, $content ) {
 		}
 	";
 
-	// Breakpoints for Swiper
-	$breakpoints = array();
-	if (isset($attributes['slidesPerView']) || isset($attributes['spaceBetween'])) {
-		$spv = isset($attributes['slidesPerView']) ? (array)$attributes['slidesPerView'] : array('desktop' => 1);
-		$gap = isset($attributes['spaceBetween']) ? (array)$attributes['spaceBetween'] : array('desktop' => 0);
-		
-		$breakpoints[768] = array(
-			'slidesPerView' => isset($spv['tablet']) ? intval($spv['tablet']) : (isset($spv['desktop']) ? intval($spv['desktop']) : 1),
-			'spaceBetween' => isset($gap['tablet']) ? intval($gap['tablet']) : (isset($gap['desktop']) ? intval($gap['desktop']) : 0),
-		);
-		$breakpoints[0] = array(
-			'slidesPerView' => isset($spv['mobile']) ? intval($spv['mobile']) : (isset($spv['tablet']) ? intval($spv['tablet']) : (isset($spv['desktop']) ? intval($spv['desktop']) : 1)),
-			'spaceBetween' => isset($gap['mobile']) ? intval($gap['mobile']) : (isset($gap['tablet']) ? intval($gap['tablet']) : (isset($gap['desktop']) ? intval($gap['desktop']) : 0)),
-		);
-	}
-
 	if ( $query->have_posts() ) {
 		$final_output .= sprintf(
-			'<div class="rcb-slider swiper rcb-dynamic-slider rcb-instance-%s" 
-				data-arrows="%s" data-dots="%s" data-autoplay="%s" 
-				data-autoplay-delay="%d" data-loop="%s" data-effect="%s" 
-				data-slides-per-view="%d" data-space-between="%d"
-				data-breakpoints=\'%s\'
-				style="--rcb-arrow-color: %s; --rcb-dot-color: %s;">',
-			esc_attr( $unique_id ),
-			$arrows ? 'true' : 'false',
-			$dots ? 'true' : 'false',
-			$autoplay ? 'true' : 'false',
-			$autoplay_delay,
-			$loop ? 'true' : 'false',
-			esc_attr( $effect ),
-			$slides_per_view,
-			$space_between,
-			esc_attr( json_encode( $breakpoints ) ),
-			esc_attr( $arrow_color ),
-			esc_attr( $dot_color )
+			'<div class="rcb-slider swiper rcb-dynamic-slider rcb-instance-%s">',
+			esc_attr( $unique_id )
 		);
 
 		$final_output .= '<div class="swiper-wrapper">';
 
-		$posts = $query->posts;
-		$post_count = count( $posts );
-		
-		// To ensure the slider always looks full and loop works correctly, 
-		// Swiper 11 Loop works best with at least 3 slides total.
-		$repeats = 1;
-		if ( $post_count > 0 ) {
-			// Increase safety margin for Swiper 11 loop mode to prevent it from silently disabling loop and breaking arrows/autoslide
-			$min_required = max( 6, $slides_per_view * 4 );
-			if ( $post_count < $min_required ) {
-				$repeats = ceil( $min_required / $post_count );
-			}
-		}
-		// Max safety cap on repeats
-		$repeats = min( $repeats, 10 );
-
-		for ( $i = 0; $i < $repeats; $i++ ) {
-			foreach ( $posts as $post_obj ) {
-				$p_id = $post_obj->ID;
-				$p_title = get_the_title( $p_id );
-				$p_excerpt = has_excerpt( $p_id ) ? get_the_excerpt( $p_id ) : wp_trim_words( $post_obj->post_content, 20 );
-				$p_permalink = get_permalink( $p_id );
-				$media_url = get_the_post_thumbnail_url( $p_id, 'large' );
-				
+		while ( $query->have_posts() ) {
+			$query->the_post();
+			$p_id = get_the_ID();
+			$media_url = get_the_post_thumbnail_url( $p_id, 'large' );
+			
+			$final_output .= sprintf(
+				'<div class="swiper-slide rcb-slide-item v-align-%s" style="background-image: %s; background-color: %s; background-size:cover; background-position:center; position:relative; overflow:hidden;">',
+				esc_attr( $vertical_alignment ),
+				( $bg_type === 'image' && $media_url ) ? "url('{$media_url}')" : "none",
+				( $bg_type === 'color' || ( $bg_type === 'image' && ! $media_url ) ) ? esc_attr( $bg_color ) : 'transparent'
+			);
+			
+			if ( $bg_type === 'image' && $media_url ) {
 				$final_output .= sprintf(
-					'<div class="swiper-slide rcb-slide-item v-align-%s" style="background-image: %s; background-color: %s; background-size:cover; background-position:center; position:relative; overflow:hidden;">',
-					esc_attr( $vertical_alignment ),
-					( $bg_type === 'image' && $media_url ) ? "url('{$media_url}')" : "none",
-					( $bg_type === 'color' || ( $bg_type === 'image' && ! $media_url ) ) ? esc_attr( $bg_color ) : 'transparent'
+					'<div class="rcb-slide-overlay" style="background-color: %s; opacity: %s; position:absolute; top:0; left:0; width:100%%; height:100%%; z-index:1;"></div>',
+					esc_attr( $overlay_color ),
+					esc_attr( $overlay_opacity )
 				);
-				
-				if ( $bg_type === 'image' && $media_url ) {
-					$final_output .= sprintf(
-						'<div class="rcb-slide-overlay" style="background-color: %s; opacity: %s; position:absolute; top:0; left:0; width:100%%; height:100%%; z-index:1;"></div>',
-						esc_attr( $overlay_color ),
-						esc_attr( $overlay_opacity )
-					);
-				}
-				
-				$final_output .= sprintf(
-					'<div class="rcb-slide-content align-%s %s" style="position:relative; z-index:2;">',
-					esc_attr( $content_alignment ),
-					$show_content_bg ? 'has-card' : ''
-				);
-				
-				if ( $show_title ) {
-					$final_output .= sprintf(
-						'<h2 class="rcb-slide-title">%s</h2>',
-						esc_html( $p_title )
-					);
-				}
-				
-				if ( $show_desc ) {
-					$final_output .= sprintf(
-						'<div class="rcb-slide-desc">%s</div>',
-						esc_html( $p_excerpt )
-					);
-				}
-				
-				if ( $show_btn ) {
-					$final_output .= sprintf(
-						'<div class="rcb-slide-btn-wrapper"><a href="%s" class="rcb-slide-btn">%s</a></div>',
-						esc_url( $p_permalink ),
-						esc_html( $btn_text )
-					);
-				}
-				
-				$final_output .= '</div>'; // .rcb-slide-content
-				$final_output .= '</div>'; // .rcb-slide-item
 			}
+			
+			$final_output .= sprintf(
+				'<div class="rcb-slide-content align-%s %s" style="position:relative; z-index:2;">',
+				esc_attr( $content_alignment ),
+				$show_content_bg ? 'has-card' : ''
+			);
+			
+			if ( $show_title ) {
+				$final_output .= sprintf( '<h2 class="rcb-slide-title">%s</h2>', get_the_title() );
+			}
+			
+			if ( $show_desc ) {
+				$final_output .= sprintf( '<div class="rcb-slide-desc">%s</div>', get_the_excerpt() );
+			}
+			
+			if ( $show_btn ) {
+				$final_output .= sprintf(
+					'<div class="rcb-slide-btn-wrapper"><a href="%s" class="rcb-slide-btn">%s</a></div>',
+					get_permalink(),
+					esc_html( $btn_text )
+				);
+			}
+			
+			$final_output .= '</div></div>';
 		}
 
-		$final_output .= '</div>'; // .swiper-wrapper
-
-		if ( $arrows ) {
-			$final_output .= '<div class="swiper-button-next"></div>';
-			$final_output .= '<div class="swiper-button-prev"></div>';
-		}
-		if ( $dots ) {
-			$final_output .= '<div class="swiper-pagination"></div>';
-		}
-
-		$final_output .= '</div>'; // .swiper
-
+		$final_output .= '</div></div>';
 		wp_reset_postdata();
 	}
 
@@ -1004,23 +878,27 @@ function rcb_render_advance_dynamic_slider_block( $attributes, $content ) {
 	return $final_output;
 }
 
-/**
- * Register taxonomies rest routes manually if needed (already handled by show_in_rest)
- */
+function rcb_build_inline_style( $data, $node_type = '' ) {
+	if ( empty( $data ) ) return '';
+	$styles = array();
+	foreach ( $data as $prop => $val ) {
+		if ( $val === '' || is_array( $val ) ) continue;
 
-function rcb_build_inline_style( $styles ) {
-	$style_str = '';
-	foreach ( $styles as $prop => $val ) {
-		if ( is_array( $val ) ) {
-			continue;
+		$kebab = strtolower( preg_replace( '/([a-z])([A-Z])/', '$1-$2', $prop ) );
+		$clean_val = str_ireplace( ' !important', '', strval( $val ) );
+		
+		$suffix = "";
+		if ( in_array( $kebab, array( 'font-size', 'margin', 'padding', 'gap', 'border-width', 'letter-spacing', 'min-height', 'min-width', 'height', 'width', 'flex-basis' ) ) && is_numeric( $clean_val ) ) {
+			$suffix = "px";
 		}
-		if ( $val !== '' ) {
-			// Convert camelCase to kebab-case
-			$kebab = strtolower( preg_replace( '/([a-z])([A-Z])/', '$1-$2', $prop ) );
-			$style_str .= "{$kebab}:{$val};";
+		if ( $kebab === 'line-height' && is_numeric( $clean_val ) && floatval( $clean_val ) > 5 ) {
+			$suffix = "px";
 		}
+
+		$styles[] = "{$kebab}:{$clean_val}{$suffix} !important";
 	}
-	return $style_str ? 'style="' . esc_attr( $style_str ) . '"' : '';
+	
+	return ( ! empty( $styles ) ) ? 'style="' . esc_attr( implode( '; ', $styles ) ) . ';"' : '';
 }
 
 function rcb_get_responsive_value( $val, $device = 'desktop' ) {
@@ -1044,19 +922,24 @@ function rcb_generate_responsive_css( $selector, $styles ) {
 		foreach ( $values as $device => $val ) {
 			if ( $val === '' ) continue;
 
-			// Property mapping for responsive CSS
 			$prop_name = $kebab;
 			if ( $prop_name === 'display-mode' ) $prop_name = 'display';
 			if ( $prop_name === 'flex-gap' || $prop_name === 'grid-gap' ) $prop_name = 'gap';
 
+			$clean_val = str_ireplace( ' !important', '', strval( $val ) );
+
 			$suffix = "";
-			if ( in_array( $prop_name, array( 'font-size', 'margin', 'padding', 'gap', 'border-width', 'letter-spacing', 'min-height', 'min-width', 'height', 'width', 'flex-basis' ) ) && is_numeric( $val ) ) {
+			if ( in_array( $prop_name, array( 'font-size', 'margin', 'padding', 'gap', 'border-width', 'letter-spacing', 'min-height', 'min-width', 'height', 'width', 'flex-basis' ) ) && is_numeric( $clean_val ) ) {
+				$suffix = "px";
+			}
+			
+			if ( $prop_name === 'line-height' && is_numeric( $clean_val ) && floatval( $clean_val ) > 5 ) {
 				$suffix = "px";
 			}
 
-			if ( $device === 'desktop' ) $desktop .= "{$prop_name}:{$val}{$suffix} !important;";
-			if ( $device === 'tablet' )  $tablet  .= "{$prop_name}:{$val}{$suffix} !important;";
-			if ( $device === 'mobile' )  $mobile  .= "{$prop_name}:{$val}{$suffix} !important;";
+			if ( $device === 'desktop' ) $desktop .= "{$prop_name}:{$clean_val}{$suffix} !important;";
+			if ( $device === 'tablet' )  $tablet  .= "{$prop_name}:{$clean_val}{$suffix} !important;";
+			if ( $device === 'mobile' )  $mobile  .= "{$prop_name}:{$clean_val}{$suffix} !important;";
 		}
 	}
 
@@ -1067,6 +950,3 @@ function rcb_generate_responsive_css( $selector, $styles ) {
 	
 	return $out;
 }
-
-
-
