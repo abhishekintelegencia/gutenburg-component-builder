@@ -7,7 +7,7 @@
     background: #fff;
     box-shadow: 0 5px 15px rgba(0,0,0,0.05);
     border-radius: 4px;
-    overflow: hidden;
+    /* Removed overflow: hidden to prevent clipping of wrapped columns */
 
     &.rcb-preview-desktop {
         width: 100%;

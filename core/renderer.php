@@ -165,7 +165,7 @@ function rcb_render_query_type( $attributes, $content, $template_id, $unique_id,
 			esc_attr( $layout_class ),
 			$columns,
 			esc_attr( $attr_json ),
-			esc_attr( $wrapper_style )
+			esc_attr( $wrapper_style . ' display: grid !important;' )
 		);
 
 		while ( $query->have_posts() ) {
@@ -662,7 +662,7 @@ function rcb_render_visual_nodes_with_visibility( $nodes, $content_data, $styles
 
 			case 'image':
 				$img_url     = $node_data['img'];
-				$node_html .= sprintf( '<div class="rcb-image %s" %s><img src="%s" alt="" style="width:100%% !important; height:auto !important; display:block !important; min-height:inherit !important; object-fit:cover !important;" /></div>', esc_attr( $id ), $style_attr, esc_url( $img_url ) );
+				$node_html .= sprintf( '<div class="rcb-image %s" %s style="overflow:hidden !important;"><img src="%s" alt="" style="width:100%% !important; height:auto !important; display:block !important; min-height:inherit !important; object-fit:cover !important;" /></div>', esc_attr( $id ), $style_attr, esc_url( $img_url ) );
 				break;
 
 			case 'button':
@@ -684,9 +684,15 @@ function rcb_render_visual_nodes_with_visibility( $nodes, $content_data, $styles
 					);
 				}
 
-				$node_html = sprintf( 
-					'<div class="rcb-button-wrapper %s"><a href="%s" class="rcb-button %s" %s>%s%s</a></div>', 
+				$wrapper_style = '';
+				if ( ! empty( $raw_styles['textAlign'] ) ) {
+					$wrapper_style = sprintf( 'style="text-align: %s !important; width: 100%% !important; display: block !important;"', esc_attr( $raw_styles['textAlign'] ) );
+				}
+
+				$node_html .= sprintf( 
+					'<div class="rcb-button-wrapper %s" %s><a href="%s" class="rcb-button %s" %s>%s%s</a></div>', 
 					esc_attr( $id . '-wrapper' ),
+					$wrapper_style,
 					esc_url( $btn_url ), 
 					esc_attr( $id ), 
 					$style_attr, 
@@ -696,7 +702,7 @@ function rcb_render_visual_nodes_with_visibility( $nodes, $content_data, $styles
 				break;
 
 			case 'innerblocks':
-				$node_html = sprintf( '<div class="rcb-inner-blocks %s" %s>%s</div>', esc_attr( $id ), $style_attr, $inner_blocks_content );
+				$node_html .= sprintf( '<div class="rcb-inner-blocks %s" %s>%s</div>', esc_attr( $id ), $style_attr, $inner_blocks_content );
 				break;
 			
 			case 'testimonial':
