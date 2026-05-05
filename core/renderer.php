@@ -588,28 +588,44 @@ function rcb_render_visual_nodes_with_visibility( $nodes, $content_data, $styles
 			'color', 'backgroundColor', 'padding', 'margin', 'fontSize', 'fontWeight', 
 			'lineHeight', 'letterSpacing', 'textTransform', 'fontFamily', 'borderRadius',
 			'border', 'borderColor', 'borderWidth', 'borderStyle', 'textAlign',
-			'display', 'gridTemplateColumns', 'gap', 'flexDirection', 'flexWrap', 
-			'justifyContent', 'alignItems', 'flex', 'width', 'height', 'minHeight', 'maxWidth', 'overflow'
+			'display', 'displayMode', 'gridTemplateColumns', 'gap', 'flexGap', 'gridGap',
+			'flexDirection', 'flexWrap', 'justifyContent', 'alignItems', 'rowGap',
+			'flex', 'width', 'height', 'minHeight', 'maxWidth', 'overflow'
 		);
 		foreach ( $direct_props as $p ) {
 			$val = isset( $raw_styles[$p] ) ? $raw_styles[$p] : '';
-			if ( $val !== '' && ! is_array( $val ) ) {
+			
+			// Resolve responsive array to desktop value for inline fallback
+			if ( is_array( $val ) ) {
+				$val = $val['desktop'] ?? '';
+			}
+
+			if ( $val !== '' ) {
+				// Map special keys
+				$mapped_p = $p;
+				if ( $p === 'displayMode' ) $mapped_p = 'display';
+				if ( $p === 'flexGap' || $p === 'gridGap' ) $mapped_p = 'gap';
+
 				// Special: Avoid inline styles for hoverable button props to allow registry overrides
 				if ( $type === 'button' && in_array( $p, array( 'backgroundColor', 'color', 'borderColor', 'borderWidth', 'borderStyle' ) ) ) {
 					continue;
 				}
-				$final_styles[$p] = $val;
+				$final_styles[$mapped_p] = $val;
 			}
 		}
 
-		// Enforce Layout Grid for multi-column containers
+		// Enforce Layout Grid for multi-column containers ONLY if no user-defined layout mode exists
 		if ( $type === 'container' && $node_columns > 1 ) {
-			$final_styles['display'] = 'grid';
-			if ( ! isset($final_styles['grid-template-columns']) && ! isset($final_styles['gridTemplateColumns']) ) {
-				$final_styles['grid-template-columns'] = "repeat({$node_columns}, 1fr)";
-			}
-			if ( empty($final_styles['gap']) ) {
-				$final_styles['gap'] = '20px';
+			$has_layout_mode = isset( $final_styles['display'] ) || isset( $raw_styles['display'] ) || isset( $raw_styles['displayMode'] );
+			
+			if ( ! $has_layout_mode ) {
+				$final_styles['display'] = 'grid';
+				if ( ! isset($final_styles['grid-template-columns']) && ! isset($final_styles['gridTemplateColumns']) ) {
+					$final_styles['grid-template-columns'] = "repeat({$node_columns}, 1fr)";
+				}
+				if ( empty($final_styles['gap']) ) {
+					$final_styles['gap'] = '20px';
+				}
 			}
 		}
 
