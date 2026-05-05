@@ -614,16 +614,19 @@ function rcb_render_visual_nodes_with_visibility( $nodes, $content_data, $styles
 			}
 		}
 
-		// Enforce Layout Grid for multi-column containers ONLY if no user-defined layout mode exists
+		// Enforce Layout Grid for multi-column containers
 		if ( $type === 'container' && $node_columns > 1 ) {
-			$has_layout_mode = isset( $final_styles['display'] ) || isset( $raw_styles['display'] ) || isset( $raw_styles['displayMode'] );
+			$current_display = $final_styles['display'] ?? '';
 			
-			if ( ! $has_layout_mode ) {
-				$final_styles['display'] = 'grid';
-				if ( ! isset($final_styles['grid-template-columns']) && ! isset($final_styles['gridTemplateColumns']) ) {
+			// If no display mode is set, or it is explicitly set to 'grid', ensure columns exist
+			if ( empty( $current_display ) || $current_display === 'grid' ) {
+				if ( empty( $current_display ) ) {
+					$final_styles['display'] = 'grid';
+				}
+				if ( ! isset( $final_styles['grid-template-columns'] ) && ! isset( $final_styles['gridTemplateColumns'] ) ) {
 					$final_styles['grid-template-columns'] = "repeat({$node_columns}, 1fr)";
 				}
-				if ( empty($final_styles['gap']) ) {
+				if ( empty( $final_styles['gap'] ) ) {
 					$final_styles['gap'] = '20px';
 				}
 			}
