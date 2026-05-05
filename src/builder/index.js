@@ -446,6 +446,9 @@ const App = () => {
         if (!node.field && node.type === 'container') {
             node.field = generateId('container');
         }
+        if (node.type === 'container' && !node.columns) {
+            node.columns = 1;
+        }
         if (node.children) {
             node.children = node.children.map(c => mapLegacyNodes(c));
         }
@@ -520,7 +523,7 @@ const App = () => {
                         buttonSettings: type === 'button',
                         iconSettings: type === 'button',
                     },
-                    ...(type === 'container' || type === 'column' ? { children: [] } : {})
+                    ...(type === 'container' || type === 'column' ? { children: [], columns: 1 } : {})
                 };
                 const newChildren = position === 'top' ? [newNode, ...(node.children || [])] : [...(node.children || []), newNode];
                 return { ...node, children: newChildren };

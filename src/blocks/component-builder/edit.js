@@ -459,23 +459,23 @@ const renderVisualStructure = (nodes, post, parentContext, context) => {
         switch (node.type) {
             case 'container':
                 const containerStyles = { ...nodeStyles };
-                if (node.columns > 1 || containerStyles.display === 'grid' || containerStyles.display === 'flex') {
-                    if (containerStyles.display === 'flex') {
-                        containerStyles.flexDirection = containerStyles.flexDirection || 'row';
-                        containerStyles.flexWrap = containerStyles.flexWrap || 'wrap';
-                        containerStyles.justifyContent = containerStyles.justifyContent || 'flex-start';
-                        containerStyles.alignItems = containerStyles.alignItems || 'stretch';
-                    } else {
-                        containerStyles.display = 'grid';
-                        containerStyles.gridTemplateColumns = (containerStyles.gridTemplateColumns === 'custom' ? containerStyles.customGridTemplate : containerStyles.gridTemplateColumns) || `repeat(${node.columns || 1}, 1fr)`;
-                        if (containerStyles.gap || containerStyles.rowGap) {
-                            containerStyles.columnGap = containerStyles.gap || '20px';
-                            containerStyles.rowGap = containerStyles.rowGap || containerStyles.gap || '20px';
-                        } else if (node.columns > 1) {
-                            containerStyles.gap = '20px';
-                        }
+                
+                // Parity with renderer.php: Enforce grid for multi-column containers
+                if ( (node.columns || 1) > 1 ) {
+                    containerStyles.display = 'grid';
+                    if ( ! containerStyles.gridTemplateColumns ) {
+                        containerStyles.gridTemplateColumns = `repeat(${node.columns}, 1fr)`;
                     }
+                    if ( ! containerStyles.gap && ! containerStyles.gridGap ) {
+                        containerStyles.gap = '20px';
+                    }
+                } else if ( containerStyles.display === 'flex' ) {
+                    containerStyles.flexDirection = containerStyles.flexDirection || 'row';
+                    containerStyles.flexWrap = containerStyles.flexWrap || 'wrap';
+                    containerStyles.justifyContent = containerStyles.justifyContent || 'flex-start';
+                    containerStyles.alignItems = containerStyles.alignItems || 'stretch';
                 }
+                
                 const isVerticalFlex = containerStyles.display === 'flex' && containerStyles.flexDirection && containerStyles.flexDirection.includes('column');
                 return (
                     <div key={i} className={`rcb-container ${node.id}`} style={containerStyles}>
@@ -539,10 +539,13 @@ const renderVisualStructure = (nodes, post, parentContext, context) => {
             case 'text':
                 return <div key={i} className={`rcb-text ${node.id}`} style={{...nodeStyles, whiteSpace: 'pre-wrap'}}>{nodeContent}</div>;
             case 'image':
-                if (url) {
+                if (url && url !== '') {
                     return <img key={i} src={url} className={`rcb-image ${node.id}`} alt={nodeContent} style={{...nodeStyles, display: 'block'}} />;
                 }
-                return node.dynamicSource ? null : <div key={i} className={`rcb-image-placeholder ${node.id}`} style={{...nodeStyles, background: '#ccc', minHeight: '100px', display: 'flex', alignItems: 'center', justifyContent: 'center'}}>Image Placeholder: {node.field}</div>;
+                // Always show a placeholder in the editor so the user can see where the image is
+                return <div key={i} className={`rcb-image-placeholder ${node.id}`} style={{...nodeStyles, background: '#f3f4f6', border: '1px dashed #d1d5db', minHeight: '100px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#6b7280', fontSize: '12px'}}>
+                    {node.dynamicSource ? `Dynamic: ${node.dynamicSource}` : `Image: ${node.field}`}
+                </div>;
             case 'button':
                 const btnStyles = { ...nodeStyles };
                 if (!nodeStyles.padding && (nodeStyles.paddingX !== undefined || nodeStyles.paddingY !== undefined)) {
@@ -948,6 +951,16 @@ export default function Edit({ attributes, setAttributes, clientId }) {
                     }
                     if (r(nodeStyle.gridTemplateColumns)) {
                         css += `.rcb-instance-${clientId} .${node.id} { grid-template-columns: ${r(nodeStyle.gridTemplateColumns)} !important; } `;
+                    } else if (node.type === 'container' && (node.columns || 1) > 1) {
+                        const cols = node.columns || 1;
+                        css += `.rcb-instance-${clientId} .${node.id} { display: grid !important; grid-template-columns: repeat(${cols}, minmax(0, 1fr)) !important; gap: 20px !important; } `;
+                    }
+                    
+                    if (node.type === 'column') {
+                        css += `.rcb-instance-${clientId} .${node.id} { width: 100% !important; max-width: 100% !important; } `;
+                    }
+                    if (node.type === 'image') {
+                        css += `.rcb-instance-${clientId} .${node.id} { width: 100% !important; height: auto !important; object-fit: cover; } `;
                     }
                     if (r(nodeStyle.minHeight)) {
                         css += `.rcb-instance-${clientId} .${node.id} { min-height: ${withUnit(r(nodeStyle.minHeight))} !important; } `;
@@ -1951,7 +1964,7 @@ export default function Edit({ attributes, setAttributes, clientId }) {
                 //   - Use Container's appearance styles on each loop item
                 //   - Render only Container's children inside each loop item
                 const firstNode = structureNodes && structureNodes[0];
-                const rootIsContainer = firstNode && firstNode.type === 'container' && mode === 'query';
+                const rootIsContainer = firstNode && firstNode.type === 'container';
 
                 let wrapperStyle = {};
                 let loopItemExtraStyle = {};
@@ -2094,9 +2107,14 @@ export default function Edit({ attributes, setAttributes, clientId }) {
                                     </>
                                 ) : <div style={{padding: '20px', background: '#e0e0e0'}}>Loading posts...</div>
                             ) : (
-                                <div className={`rcb-instance rcb-instance-${clientId}`}>
-                                    {renderPreviewNodes(structureNodes, null, { currentPostACF, uniqueId, deviceMode, clientId })}
-                                </div>
+                                /* In static mode, if root is container, we render loopNodes directly to match frontend parity */
+                                rootIsContainer ? (
+                                    renderPreviewNodes(loopNodes, null, { currentPostACF, uniqueId, deviceMode, clientId })
+                                ) : (
+                                    <div className={`rcb-instance rcb-instance-${clientId}`}>
+                                        {renderPreviewNodes(structureNodes, null, { currentPostACF, uniqueId, deviceMode, clientId })}
+                                    </div>
+                                )
                             )
                         )}
                     </div>
