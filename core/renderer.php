@@ -387,7 +387,7 @@ function rcb_resolve_node_data( $node, $content_data, $mode, $post = null ) {
 			break;
 
 		case 'image':
-			$manual_img = isset( $content_data[ $field . '_url' ] ) ? $content_data[ $field . '_url' ] : '';
+			$manual_img = isset( $content_data[ $field . '_url' ] ) ? $content_data[ $field . '_url' ] : (isset($content_data[$field]) ? $content_data[$field] : '');
 			$data['img'] = $manual_img;
 
 			if ( empty( $data['img'] ) && ! empty( $dynamic_source ) ) {
@@ -457,6 +457,17 @@ function rcb_render_visual_nodes_with_visibility( $nodes, $content_data, $styles
 		$id           = ( isset( $node['id'] ) && ! empty( $node['id'] ) ) ? $node['id'] : 'rcb-node-' . uniqid();
 		$field        = isset( $node['field'] ) ? $node['field'] : '';
 		$node_columns = isset( $node['columns'] ) ? intval( $node['columns'] ) : 1;
+
+		// Smart Column Detection: If it's a container, verify the actual number of child columns
+		if ( $type === 'container' && ! empty( $node['children'] ) ) {
+			$actual_cols = 0;
+			foreach ( $node['children'] as $child ) {
+				if ( ( $child['type'] ?? '' ) === 'column' ) $actual_cols++;
+			}
+			if ( $actual_cols > $node_columns ) {
+				$node_columns = $actual_cols;
+			}
+		}
 		$allowed      = isset( $node['allowedSettings'] ) ? (array) $node['allowedSettings'] : array();
 		
 		$dynamic_source = isset( $node['dynamicSource'] ) ? $node['dynamicSource'] : '';
@@ -616,19 +627,11 @@ function rcb_render_visual_nodes_with_visibility( $nodes, $content_data, $styles
 
 		// Enforce Layout Grid for multi-column containers
 		if ( $type === 'container' && $node_columns > 1 ) {
-			$current_display = $final_styles['display'] ?? '';
+			$final_styles['display'] = 'grid';
+			$final_styles['grid-template-columns'] = "repeat({$node_columns}, 1fr)";
 			
-			// If no display mode is set, or it is explicitly set to 'grid', ensure columns exist
-			if ( empty( $current_display ) || $current_display === 'grid' ) {
-				if ( empty( $current_display ) ) {
-					$final_styles['display'] = 'grid';
-				}
-				if ( ! isset( $final_styles['grid-template-columns'] ) && ! isset( $final_styles['gridTemplateColumns'] ) ) {
-					$final_styles['grid-template-columns'] = "repeat({$node_columns}, 1fr)";
-				}
-				if ( empty( $final_styles['gap'] ) ) {
-					$final_styles['gap'] = '20px';
-				}
+			if ( empty( $final_styles['gap'] ) ) {
+				$final_styles['gap'] = '20px';
 			}
 		}
 
