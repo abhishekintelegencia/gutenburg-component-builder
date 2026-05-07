@@ -315,48 +315,7 @@ const renderVisualStructure = (nodes, post, parentContext, context) => {
         const rawStyles = { ...(styles[node.field] || {}) };
         const nodeStyles = {};
         
-        // Resolve all properties (including responsive ones)
-        Object.keys(rawStyles).forEach(prop => {
-            if (prop !== 'customCssPairs' && prop !== 'customStylesRaw') {
-                const val = getResponsiveValue(rawStyles[prop], deviceMode);
-                
-                // Map internal names to valid CSS/React properties
-                if (prop === 'displayMode') {
-                    nodeStyles.display = val;
-                } else if (prop === 'contentMaxWidth') {
-                    if (val) {
-                        nodeStyles.maxWidth = val;
-                        nodeStyles.marginLeft = 'auto';
-                        nodeStyles.marginRight = 'auto';
-                        nodeStyles.width = '100%';
-                    }
-                } else if (prop === 'flexGap' || prop === 'gridGap') {
-                    nodeStyles.gap = val;
-                } else if (prop === 'rowGap') {
-                    nodeStyles.rowGap = val;
-                } else {
-                    nodeStyles[prop] = val;
-                }
-            }
-        });
-
-        // Parse raw CSS string if present
-        if (rawStyles.customStylesRaw) {
-            const rules = rawStyles.customStylesRaw.split(';').filter(Boolean);
-            rules.forEach(rule => {
-                const [key, ...valueParts] = rule.split(':');
-                if (key && valueParts.length) {
-                    const styleKey = key.trim().replace(/-([a-z])/g, (_, c) => c.toUpperCase());
-                    const styleValue = valueParts.join(':').trim();
-                    nodeStyles[styleKey] = styleValue;
-                }
-            });
-        }
-
-        // Explicitly ensure typography values are correctly typed and fallback for preview
-        if (nodeStyles.fontWeight) {
-            nodeStyles.fontWeight = nodeStyles.fontWeight.toString();
-        }
+        // CustomStylesRaw parsed directly to CSS registry if needed, but for now we skip inline.
         
         // Background image implementation for any node type
         if (content[`${node.field}_bg_url`]) {
@@ -459,23 +418,6 @@ const renderVisualStructure = (nodes, post, parentContext, context) => {
         switch (node.type) {
             case 'container':
                 const containerStyles = { ...nodeStyles };
-                
-                // Parity with renderer.php: Enforce grid for multi-column containers
-                if ( (node.columns || 1) > 1 ) {
-                    containerStyles.display = 'grid';
-                    if ( ! containerStyles.gridTemplateColumns ) {
-                        containerStyles.gridTemplateColumns = `repeat(${node.columns}, 1fr)`;
-                    }
-                    if ( ! containerStyles.gap && ! containerStyles.gridGap ) {
-                        containerStyles.gap = '20px';
-                    }
-                } else if ( containerStyles.display === 'flex' ) {
-                    containerStyles.flexDirection = containerStyles.flexDirection || 'row';
-                    containerStyles.flexWrap = containerStyles.flexWrap || 'wrap';
-                    containerStyles.justifyContent = containerStyles.justifyContent || 'flex-start';
-                    containerStyles.alignItems = containerStyles.alignItems || 'stretch';
-                }
-                
                 const isVerticalFlex = containerStyles.display === 'flex' && containerStyles.flexDirection && containerStyles.flexDirection.includes('column');
                 return (
                     <div key={i} className={`rcb-container ${node.id}`} style={containerStyles}>
@@ -484,45 +426,6 @@ const renderVisualStructure = (nodes, post, parentContext, context) => {
                 );
             case 'column':
                 const colStyles = { ...nodeStyles };
-                
-                // Parity: Force 100% and cap horizontal padding on mobile (mirrors renderer.php)
-                if (deviceMode === 'mobile') {
-                    colStyles.width = '100%';
-                    colStyles.flex = '1 1 100%';
-                    colStyles.maxWidth = '100%';
-                    colStyles.boxSizing = 'border-box';
-                    colStyles.overflow = 'hidden';
-
-                    // Normalize padding shorthand
-                    if (colStyles.padding) {
-                        const pVal = colStyles.padding;
-                        if (!colStyles.paddingTop) colStyles.paddingTop = pVal;
-                        if (!colStyles.paddingRight) colStyles.paddingRight = pVal;
-                        if (!colStyles.paddingBottom) colStyles.paddingBottom = pVal;
-                        if (!colStyles.paddingLeft) colStyles.paddingLeft = pVal;
-                        delete colStyles.padding;
-                    }
-
-                    // Precision horizontal capping
-                    ['paddingLeft', 'paddingRight'].forEach(pKey => {
-                        if (colStyles[pKey]) {
-                            const valStr = colStyles[pKey].toString();
-                            const valNum = parseFloat(valStr.replace(/[^0-9.]/g, '')) || 0;
-                            if (valNum > 40) {
-                                colStyles[pKey] = '20px';
-                            }
-                        }
-                    });
-                } else if (colStyles.customColumnWidth) {
-                    const unit = colStyles.customColumnWidthUnit || '%';
-                    colStyles.width = `${colStyles.customColumnWidth}${unit}`;
-                    colStyles.flex = `0 0 ${colStyles.width}`;
-                } else if (parentContext.isVerticalFlex) {
-                    colStyles.flex = colStyles.flex || '1 1 auto';
-                    colStyles.width = '100%';
-                } else {
-                    colStyles.flex = colStyles.flex || '1 1 0%';
-                }
                 return (
                     <div key={i} className={`rcb-column ${node.id}`} style={colStyles}>
                         {node.children && renderVisualStructure(node.children, post, {}, context)}
@@ -548,27 +451,6 @@ const renderVisualStructure = (nodes, post, parentContext, context) => {
                 </div>;
             case 'button':
                 const btnStyles = { ...nodeStyles };
-                if (!nodeStyles.padding && (nodeStyles.paddingX !== undefined || nodeStyles.paddingY !== undefined)) {
-                    const px = nodeStyles.paddingX !== undefined ? `${nodeStyles.paddingX}rem` : '1rem';
-                    const py = nodeStyles.paddingY !== undefined ? `${nodeStyles.paddingY}rem` : '0.5rem';
-                    btnStyles.padding = `${py} ${px}`;
-                }
-
-                // Handle Advanced Button Settings (match renderer.php)
-                if (!btnStyles.borderRadius && nodeStyles.borderRadiusRem) {
-                    btnStyles.borderRadius = `${nodeStyles.borderRadiusRem}rem`;
-                }
-                if (!btnStyles.border && nodeStyles.borderWidthRem) {
-                    btnStyles.borderWidth = `${nodeStyles.borderWidthRem}rem`;
-                    if (!btnStyles.borderStyle) btnStyles.borderStyle = 'solid';
-                }
-
-                // Strip color/bg/border/radius props from inline style — the global <style> block handles these
-                // with !important for proper specificity in the editor (inline styles always win otherwise)
-                delete btnStyles.color;
-                delete btnStyles.backgroundColor;
-                delete btnStyles.borderColor;
-                delete btnStyles.borderRadius;
 
                 const alignMap = { 'start': 'flex-start', 'center': 'center', 'end': 'flex-end', 'default': 'flex-start', 'left': 'flex-start', 'right': 'flex-end' };
                 const wrapperStyles = { 
@@ -599,19 +481,7 @@ const renderVisualStructure = (nodes, post, parentContext, context) => {
                 
                 return (
                     <div key={i} style={wrapperStyles} className="rcb-button-wrapper">
-                        <style>{`
-                            .rcb-instance-${clientId} .rcb-button-wrapper .rcb-button.${node.id}:hover {
-                                ${nodeStyles.hoverColor ? `color: ${nodeStyles.hoverColor} !important;` : ''}
-                                ${nodeStyles.hoverBgColor ? `background-color: ${nodeStyles.hoverBgColor} !important;` : ''}
-                                ${nodeStyles.hoverBorderColor ? `border-color: ${nodeStyles.hoverBorderColor} !important;` : ''}
-                                ${nodeStyles.hoverUnderline ? 'text-decoration: underline !important;' : ''}
-                            }
-                            .rcb-instance-${clientId} .rcb-button-wrapper .rcb-button.${node.id}:hover .rcb-button-icon {
-                                ${nodeStyles.iconHoverBgColor ? `background-color: ${nodeStyles.iconHoverBgColor} !important;` : ''}
-                                ${nodeStyles.iconHoverColor ? `color: ${nodeStyles.iconHoverColor} !important;` : ''}
-                                ${nodeStyles.iconHoverBorderColor ? `border-color: ${nodeStyles.iconHoverBorderColor} !important;` : ''}
-                            }
-                        `}</style>
+
                         <a 
                             href={url || '#'} 
                             className={`rcb-button ${node.id}`} 
@@ -876,125 +746,130 @@ export default function Edit({ attributes, setAttributes, clientId }) {
         <div { ...blockProps }>
             {/* Take 3: Dynamic Style Injection for Editor Specificity */}
             <style>
-                {configurableFields.map(node => {
-                    const nodeStyle = styles[node.field] || {};
-                    let css = '';
-                    const r = (val) => getResponsiveValue(val, deviceMode);
+                {(() => {
+                    let desktopCss = '';
+                    let tabletCss = '';
+                    let mobileCss = '';
 
-                    if (r(nodeStyle.fontWeight)) {
-                        css += `.rcb-instance-${clientId} .${node.id} { font-weight: ${r(nodeStyle.fontWeight)} !important; } `;
-                    }
-                    if (r(nodeStyle.lineHeight)) {
-                        css += `.rcb-instance-${clientId} .${node.id} { line-height: ${r(nodeStyle.lineHeight)} !important; } `;
-                    }
-                    if (r(nodeStyle.letterSpacing)) {
-                        css += `.rcb-instance-${clientId} .${node.id} { letter-spacing: ${r(nodeStyle.letterSpacing)} !important; } `;
-                    }
-                    if (r(nodeStyle.color)) {
-                        css += `.rcb-instance-${clientId} .${node.id} { color: ${r(nodeStyle.color)} !important; } `;
-                    }
-                    if (r(nodeStyle.backgroundColor)) {
-                        css += `.rcb-instance-${clientId} .${node.id} { background-color: ${r(nodeStyle.backgroundColor)} !important; } `;
-                    }
-                    if (r(nodeStyle.borderColor)) {
-                        css += `.rcb-instance-${clientId} .${node.id} { border-color: ${r(nodeStyle.borderColor)} !important; } `;
-                    }
-                    // border-radius: support both the generic borderRadius and the advanced borderRadiusRem
-                    const _radius = r(nodeStyle.borderRadius) || (r(nodeStyle.borderRadiusRem) ? `${r(nodeStyle.borderRadiusRem)}rem` : '');
-                    if (_radius) {
-                        css += `.rcb-instance-${clientId} .${node.id} { border-radius: ${_radius} !important; } `;
-                    }
-                    if (r(nodeStyle.borderWidthRem)) {
-                        css += `.rcb-instance-${clientId} .${node.id} { border-width: ${r(nodeStyle.borderWidthRem)}rem !important; border-style: solid !important; } `;
-                    }
-                    // Icon Styles with High Specificity
-                    if (r(nodeStyle.iconColor)) {
-                        css += `.rcb-instance-${clientId} .${node.id} .rcb-button-icon { color: ${r(nodeStyle.iconColor)} !important; } `;
-                    }
-                    if (r(nodeStyle.iconBgColor)) {
-                        css += `.rcb-instance-${clientId} .${node.id} .rcb-button-icon { background-color: ${r(nodeStyle.iconBgColor)} !important; } `;
-                    }
-                    if (r(nodeStyle.iconBorderColor)) {
-                        css += `.rcb-instance-${clientId} .${node.id} .rcb-button-icon { border-color: ${r(nodeStyle.iconBorderColor)} !important; } `;
-                    }
-                    if (r(nodeStyle.iconBorderWidth)) {
-                        css += `.rcb-instance-${clientId} .${node.id} .rcb-button-icon { border-width: ${r(nodeStyle.iconBorderWidth)}rem !important; border-style: solid !important; } `;
-                    }
+                    configurableFields.forEach(node => {
+                        const nodeStyle = styles[node.field] || {};
+                        const selectorBase = `.rcb-instance-${clientId} .${node.id}`;
+                        
+                        let dStr = '';
+                        let tStr = '';
+                        let mStr = '';
 
-                    // Utility to ensure units for numeric values in style injection
-                    const withUnit = (val, defaultUnit = 'px') => {
-                        if (!val) return '';
-                        if (/^\d+(\.\d+)?$/.test(val.toString())) return `${val}${defaultUnit}`;
-                        return val;
-                    };
-
-                    // Layout property mapping for injected CSS
-                    const d = r(nodeStyle.displayMode);
-                    if (d) {
-                        css += `.rcb-instance-${clientId} .${node.id} { display: ${d} !important; } `;
-                    }
-                    if (r(nodeStyle.flexDirection)) {
-                        css += `.rcb-instance-${clientId} .${node.id} { flex-direction: ${r(nodeStyle.flexDirection)} !important; } `;
-                    }
-                    if (r(nodeStyle.justifyContent)) {
-                        css += `.rcb-instance-${clientId} .${node.id} { justify-content: ${r(nodeStyle.justifyContent)} !important; } `;
-                    }
-                    if (r(nodeStyle.alignItems)) {
-                        css += `.rcb-instance-${clientId} .${node.id} { align-items: ${r(nodeStyle.alignItems)} !important; } `;
-                    }
-                    if (r(nodeStyle.flexWrap)) {
-                        css += `.rcb-instance-${clientId} .${node.id} { flex-wrap: ${r(nodeStyle.flexWrap)} !important; } `;
-                    }
-                    const g = withUnit(r(nodeStyle.gridGap) || r(nodeStyle.flexGap) || r(nodeStyle.gap));
-                    if (g) {
-                        css += `.rcb-instance-${clientId} .${node.id} { gap: ${g} !important; } `;
-                    }
-                    if (r(nodeStyle.gridTemplateColumns)) {
-                        css += `.rcb-instance-${clientId} .${node.id} { grid-template-columns: ${r(nodeStyle.gridTemplateColumns)} !important; } `;
-                    } else if (node.type === 'container' && (node.columns || 1) > 1) {
-                        const cols = node.columns || 1;
-                        css += `.rcb-instance-${clientId} .${node.id} { display: grid !important; grid-template-columns: repeat(${cols}, minmax(0, 1fr)) !important; gap: 20px !important; } `;
-                    }
-                    
-                    if (node.type === 'column') {
-                        css += `.rcb-instance-${clientId} .${node.id} { width: 100% !important; max-width: 100% !important; } `;
-                    }
-                    if (node.type === 'image') {
-                        css += `.rcb-instance-${clientId} .${node.id} { width: 100% !important; height: auto !important; object-fit: cover; } `;
-                    }
-                    if (r(nodeStyle.minHeight)) {
-                        css += `.rcb-instance-${clientId} .${node.id} { min-height: ${withUnit(r(nodeStyle.minHeight))} !important; } `;
-                    } else if (node.type === 'container' || node.type === 'column' || node.type === 'image') {
-                        css += `.rcb-instance-${clientId} .${node.id} { min-height: 200px !important; } `;
-                    }
-
-                    // Global & Mobile Refinements
-                    css += `.wp-block-rcb-component-builder { height: auto !important; min-height: unset !important; overflow: visible !important; } `;
-                    css += `.rcb-instance-${clientId} { height: auto !important; min-height: unset !important; overflow: visible !important; } `;
-                    
-                    if (deviceMode === 'mobile') {
+                        // Enforce Mobile 100% Column
                         if (node.type === 'column') {
-                            css += `.rcb-instance-${clientId} .${node.id} { width: 100% !important; flex: 0 0 100% !important; max-width: 100% !important; } `;
-                        }
-                        if (node.type === 'container' || node.type === 'column' || node.type === 'image') {
-                            css += `.rcb-instance-${clientId} .${node.id} { overflow: visible !important; } `;
-                        }
-                    }
+                            let wD = nodeStyle.customColumnWidth && (typeof nodeStyle.customColumnWidth === 'object' ? nodeStyle.customColumnWidth.desktop : nodeStyle.customColumnWidth);
+                            let wT = nodeStyle.customColumnWidth && typeof nodeStyle.customColumnWidth === 'object' ? nodeStyle.customColumnWidth.tablet : undefined;
+                            let wM = nodeStyle.customColumnWidth && typeof nodeStyle.customColumnWidth === 'object' ? nodeStyle.customColumnWidth.mobile : undefined;
+                            
+                            let uD = nodeStyle.customColumnWidthUnit && (typeof nodeStyle.customColumnWidthUnit === 'object' ? nodeStyle.customColumnWidthUnit.desktop : nodeStyle.customColumnWidthUnit) || '%';
+                            let uT = nodeStyle.customColumnWidthUnit && typeof nodeStyle.customColumnWidthUnit === 'object' ? nodeStyle.customColumnWidthUnit.tablet : uD;
+                            let uM = nodeStyle.customColumnWidthUnit && typeof nodeStyle.customColumnWidthUnit === 'object' ? nodeStyle.customColumnWidthUnit.mobile : uT;
 
-                    if (r(nodeStyle.minWidth)) {
-                        css += `.rcb-instance-${clientId} .${node.id} { min-width: ${withUnit(r(nodeStyle.minWidth))} !important; } `;
-                    }
-                    if (r(nodeStyle.flexBasis)) {
-                        css += `.rcb-instance-${clientId} .${node.id} { flex-basis: ${withUnit(r(nodeStyle.flexBasis))} !important; } `;
-                    }
-                    if (r(nodeStyle.flexGrow)) {
-                        css += `.rcb-instance-${clientId} .${node.id} { flex-grow: ${r(nodeStyle.flexGrow)} !important; } `;
-                    }
-                    if (r(nodeStyle.flexShrink)) {
-                        css += `.rcb-instance-${clientId} .${node.id} { flex-shrink: ${r(nodeStyle.flexShrink)} !important; } `;
-                    }
-                    return css;
-                }).join('\n')}
+                            if (wD) dStr += `width: ${wD}${uD} !important; flex: 0 1 ${wD}${uD} !important;`;
+                            if (wT) tStr += `width: ${wT}${uT} !important; flex: 0 1 ${wT}${uT} !important;`;
+                            if (wM) mStr += `width: ${wM}${uM} !important; flex: 0 1 ${wM}${uM} !important;`;
+
+                            if (!wM) {
+                                mStr += `width: 100% !important; flex: 1 1 100% !important; max-width: 100% !important; overflow: visible !important;`;
+                            }
+                        }
+                        
+                        // Enforce Grid for Containers
+                        if (node.type === 'container' && (node.columns || 1) > 1) {
+                            if (!nodeStyle.display) dStr += `display: grid !important;`;
+                            if (!nodeStyle.gridTemplateColumns) dStr += `grid-template-columns: repeat(${node.columns}, 1fr) !important;`;
+                            if (!nodeStyle.gap && !nodeStyle.gridGap) dStr += `gap: 20px !important;`;
+                        }
+
+                        // Specific editor fallbacks
+                        if (node.type === 'column') {
+                            dStr += `width: 100% !important; max-width: 100% !important;`;
+                        }
+                        if (node.type === 'image') {
+                            dStr += `width: 100% !important; height: auto !important; object-fit: cover;`;
+                        }
+                        if (!nodeStyle.minHeight && (node.type === 'container' || node.type === 'column' || node.type === 'image')) {
+                            dStr += `min-height: 200px !important;`;
+                        }
+
+                        Object.keys(nodeStyle).forEach(prop => {
+                            if (prop === 'customCssPairs' || prop === 'customStylesRaw') return;
+                            
+                            const rawVal = nodeStyle[prop];
+                            const values = (typeof rawVal === 'object' && rawVal !== null) ? rawVal : { desktop: rawVal };
+                            
+                            let propName = prop.replace(/([A-Z])/g, "-$1").toLowerCase();
+                            if (propName === 'display-mode') propName = 'display';
+                            if (propName === 'flex-gap' || propName === 'grid-gap') propName = 'gap';
+                            if (propName === 'border-radius-rem') propName = 'border-radius';
+                            if (propName === 'border-width-rem') propName = 'border-width';
+
+                            // Map hover properties to actual CSS
+                            let isHover = false;
+                            if (propName.startsWith('hover-')) {
+                                propName = propName.replace('hover-', '');
+                                if (propName === 'underline') {
+                                    propName = 'text-decoration';
+                                    values.desktop = values.desktop ? 'underline' : 'none';
+                                }
+                                isHover = true;
+                            } else if (propName.startsWith('icon-hover-')) {
+                                propName = propName.replace('icon-hover-', '');
+                                isHover = 'icon';
+                            } else if (propName.startsWith('icon-')) {
+                                propName = propName.replace('icon-', '');
+                                isHover = 'icon-base';
+                            }
+
+                            ['desktop', 'tablet', 'mobile'].forEach(dev => {
+                                let val = values[dev];
+                                if (val === undefined || val === '') return;
+                                
+                                let cleanVal = String(val).replace(/ !important/gi, '');
+                                let suffix = '';
+                                if (['font-size', 'margin', 'padding', 'gap', 'border-width', 'letter-spacing', 'min-height', 'min-width', 'height', 'width', 'flex-basis'].includes(propName) && !isNaN(cleanVal)) {
+                                    suffix = 'px';
+                                }
+                                if (propName === 'line-height' && !isNaN(cleanVal) && parseFloat(cleanVal) > 5) {
+                                    suffix = 'px';
+                                }
+                                if (prop === 'borderRadiusRem' || prop === 'borderWidthRem' || prop === 'iconBorderWidth') {
+                                    suffix = 'rem';
+                                    if (prop === 'borderWidthRem' || prop === 'iconBorderWidth') cleanVal += `${suffix} !important; border-style: solid`;
+                                }
+
+                                const rule = `${propName}: ${cleanVal}${suffix} !important; `;
+                                
+                                let ruleWrapped = rule;
+                                if (isHover === true) {
+                                    ruleWrapped = `} .rcb-instance-${clientId} .rcb-button-wrapper .rcb-button.${node.id}:hover { ${rule}`;
+                                } else if (isHover === 'icon') {
+                                    ruleWrapped = `} .rcb-instance-${clientId} .rcb-button-wrapper .rcb-button.${node.id}:hover .rcb-button-icon { ${rule}`;
+                                } else if (isHover === 'icon-base') {
+                                    ruleWrapped = `} .rcb-instance-${clientId} .${node.id} .rcb-button-icon { ${rule}`;
+                                }
+
+                                if (dev === 'desktop') dStr += ruleWrapped;
+                                if (dev === 'tablet') tStr += ruleWrapped;
+                                if (dev === 'mobile') mStr += ruleWrapped;
+                            });
+                        });
+                        
+                        if (dStr) desktopCss += `${selectorBase} { ${dStr} }\n`;
+                        if (tStr) tabletCss += `.rcb-instance-${clientId} .rcb-preview-tablet .${node.id}, .rcb-instance-${clientId} .rcb-preview-mobile .${node.id} { ${tStr} }\n`;
+                        if (mStr) mobileCss += `.rcb-instance-${clientId} .rcb-preview-mobile .${node.id} { ${mStr} }\n`;
+                    });
+
+                    // Global Refinements
+                    desktopCss += `.wp-block-rcb-component-builder { height: auto !important; min-height: unset !important; overflow: visible !important; } `;
+                    desktopCss += `.rcb-instance-${clientId} { height: auto !important; min-height: unset !important; overflow: visible !important; } `;
+
+                    return desktopCss + tabletCss + mobileCss;
+                })()}
             </style>
             
                         <BlockControls group="block">
