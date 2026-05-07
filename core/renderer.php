@@ -387,7 +387,7 @@ function rcb_resolve_node_data( $node, $content_data, $mode, $post = null ) {
 			break;
 
 		case 'image':
-			$manual_img = isset( $content_data[ $field . '_url' ] ) ? $content_data[ $field . '_url' ] : '';
+			$manual_img = isset( $content_data[ $field . '_url' ] ) ? $content_data[ $field . '_url' ] : (isset($content_data[$field]) ? $content_data[$field] : '');
 			$data['img'] = $manual_img;
 
 			if ( empty( $data['img'] ) && ! empty( $dynamic_source ) ) {
@@ -457,6 +457,17 @@ function rcb_render_visual_nodes_with_visibility( $nodes, $content_data, $styles
 		$id           = ( isset( $node['id'] ) && ! empty( $node['id'] ) ) ? $node['id'] : 'rcb-node-' . uniqid();
 		$field        = isset( $node['field'] ) ? $node['field'] : '';
 		$node_columns = isset( $node['columns'] ) ? intval( $node['columns'] ) : 1;
+
+		// Smart Column Detection: If it's a container, verify the actual number of child columns
+		if ( $type === 'container' && ! empty( $node['children'] ) ) {
+			$actual_cols = 0;
+			foreach ( $node['children'] as $child ) {
+				if ( ( $child['type'] ?? '' ) === 'column' ) $actual_cols++;
+			}
+			if ( $actual_cols > $node_columns ) {
+				$node_columns = $actual_cols;
+			}
+		}
 		$allowed      = isset( $node['allowedSettings'] ) ? (array) $node['allowedSettings'] : array();
 		
 		$dynamic_source = isset( $node['dynamicSource'] ) ? $node['dynamicSource'] : '';
@@ -616,19 +627,11 @@ function rcb_render_visual_nodes_with_visibility( $nodes, $content_data, $styles
 
 		// Enforce Layout Grid for multi-column containers
 		if ( $type === 'container' && $node_columns > 1 ) {
-			$current_display = $final_styles['display'] ?? '';
+			$final_styles['display'] = 'grid';
+			$final_styles['grid-template-columns'] = "repeat({$node_columns}, 1fr)";
 			
-			// If no display mode is set, or it is explicitly set to 'grid', ensure columns exist
-			if ( empty( $current_display ) || $current_display === 'grid' ) {
-				if ( empty( $current_display ) ) {
-					$final_styles['display'] = 'grid';
-				}
-				if ( ! isset( $final_styles['grid-template-columns'] ) && ! isset( $final_styles['gridTemplateColumns'] ) ) {
-					$final_styles['grid-template-columns'] = "repeat({$node_columns}, 1fr)";
-				}
-				if ( empty( $final_styles['gap'] ) ) {
-					$final_styles['gap'] = '20px';
-				}
+			if ( empty( $final_styles['gap'] ) ) {
+				$final_styles['gap'] = '20px';
 			}
 		}
 
@@ -798,6 +801,8 @@ function rcb_render_advance_dynamic_slider_block( $attributes, $content ) {
 	$btn_bg_color = isset( $attributes['btnBgColor'] ) ? $attributes['btnBgColor'] : '#3b82f6';
 	$btn_border_radius = isset( $attributes['btnBorderRadius'] ) ? intval( $attributes['btnBorderRadius'] ) : 4;
 	$btn_font_size = isset( $attributes['btnFontSize'] ) ? intval( $attributes['btnFontSize'] ) : 16;
+	$arrow_color = isset( $attributes['arrowColor'] ) ? $attributes['arrowColor'] : '#ffffff';
+	$dot_color = isset( $attributes['dotColor'] ) ? $attributes['dotColor'] : '#ffffff';
 
 	$args = array(
 		'post_type' => $post_type,
@@ -837,12 +842,27 @@ function rcb_render_advance_dynamic_slider_block( $attributes, $content ) {
 			--rcb-btn-bg: {$btn_bg_color}; 
 			--rcb-btn-radius: {$btn_border_radius}px; 
 		}
+		.rcb-instance-{$unique_id} .swiper-button-next,
+		.rcb-instance-{$unique_id} .swiper-button-prev {
+			color: {$arrow_color} !important;
+		}
+		.rcb-instance-{$unique_id} .swiper-pagination-bullet-active {
+			background: {$dot_color} !important;
+		}
 	";
 
 	if ( $query->have_posts() ) {
 		$final_output .= sprintf(
-			'<div class="rcb-slider swiper rcb-dynamic-slider rcb-instance-%s">',
-			esc_attr( $unique_id )
+			'<div class="rcb-slider swiper rcb-dynamic-slider rcb-instance-%s" data-arrows="%s" data-dots="%s" data-autoplay="%s" data-autoplay-delay="%d" data-loop="%s" data-effect="%s" data-slides-per-view="%s" data-space-between="%s">',
+			esc_attr( $unique_id ),
+			( isset($attributes['arrows']) && $attributes['arrows'] ) ? 'true' : 'false',
+			( isset($attributes['dots']) && $attributes['dots'] ) ? 'true' : 'false',
+			( isset($attributes['autoplay']) && $attributes['autoplay'] ) ? 'true' : 'false',
+			isset($attributes['autoplayDelay']) ? intval($attributes['autoplayDelay']) : 3000,
+			( isset($attributes['loop']) && $attributes['loop'] ) ? 'true' : 'false',
+			isset($attributes['effect']) ? esc_attr($attributes['effect']) : 'slide',
+			esc_attr( rcb_get_responsive_value($attributes['slidesPerView'] ?? 1, 'desktop') ),
+			esc_attr( rcb_get_responsive_value($attributes['spaceBetween'] ?? 0, 'desktop') )
 		);
 
 		$final_output .= '<div class="swiper-wrapper">';
@@ -892,7 +912,17 @@ function rcb_render_advance_dynamic_slider_block( $attributes, $content ) {
 			$final_output .= '</div></div>';
 		}
 
-		$final_output .= '</div></div>';
+		$final_output .= '</div>'; // End swiper-wrapper
+
+		if ( isset($attributes['arrows']) && $attributes['arrows'] ) {
+			$final_output .= '<div class="swiper-button-next"></div>';
+			$final_output .= '<div class="swiper-button-prev"></div>';
+		}
+		if ( isset($attributes['dots']) && $attributes['dots'] ) {
+			$final_output .= '<div class="swiper-pagination"></div>';
+		}
+
+		$final_output .= '</div>'; // End swiper
 		wp_reset_postdata();
 	}
 
