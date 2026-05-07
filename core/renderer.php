@@ -527,6 +527,26 @@ function rcb_render_visual_nodes_with_visibility( $nodes, $content_data, $styles
 					$raw_styles['flex'][$dev]  = "0 1 {$w}{$u}";
 				}
 			}
+			
+			// Enforce 100% width on mobile by default if not set
+			if ( !isset( $raw_styles['width']['mobile'] ) ) {
+				$raw_styles['width']['mobile'] = '100%';
+				$raw_styles['flex']['mobile'] = '1 1 100%';
+				$raw_styles['maxWidth']['mobile'] = '100%';
+			}
+		}
+
+		// Enforce Layout Grid for multi-column containers
+		if ( $type === 'container' && $node_columns > 1 ) {
+			if ( !isset($raw_styles['display']) ) {
+				$raw_styles['display'] = 'grid';
+			}
+			if ( !isset($raw_styles['gridTemplateColumns']) ) {
+				$raw_styles['gridTemplateColumns'] = "repeat({$node_columns}, 1fr)";
+			}
+			if ( !isset($raw_styles['gap']) && !isset($raw_styles['gridGap']) ) {
+				$raw_styles['gap'] = '20px';
+			}
 		}
 
 		// 2. Generate Responsive CSS Registry (Aggressive !important)
@@ -594,47 +614,6 @@ function rcb_render_visual_nodes_with_visibility( $nodes, $content_data, $styles
 			}
 		}
 
-		// 4. Fallback/Standard inline styles
-		$direct_props = array(
-			'color', 'backgroundColor', 'padding', 'margin', 'fontSize', 'fontWeight', 
-			'lineHeight', 'letterSpacing', 'textTransform', 'fontFamily', 'borderRadius',
-			'border', 'borderColor', 'borderWidth', 'borderStyle', 'textAlign',
-			'display', 'displayMode', 'gridTemplateColumns', 'gap', 'flexGap', 'gridGap',
-			'flexDirection', 'flexWrap', 'justifyContent', 'alignItems', 'rowGap',
-			'flex', 'width', 'height', 'minHeight', 'maxWidth', 'overflow'
-		);
-		foreach ( $direct_props as $p ) {
-			$val = isset( $raw_styles[$p] ) ? $raw_styles[$p] : '';
-			
-			// Resolve responsive array to desktop value for inline fallback
-			if ( is_array( $val ) ) {
-				$val = $val['desktop'] ?? '';
-			}
-
-			if ( $val !== '' ) {
-				// Map special keys
-				$mapped_p = $p;
-				if ( $p === 'displayMode' ) $mapped_p = 'display';
-				if ( $p === 'flexGap' || $p === 'gridGap' ) $mapped_p = 'gap';
-
-				// Special: Avoid inline styles for hoverable button props to allow registry overrides
-				if ( $type === 'button' && in_array( $p, array( 'backgroundColor', 'color', 'borderColor', 'borderWidth', 'borderStyle' ) ) ) {
-					continue;
-				}
-				$final_styles[$mapped_p] = $val;
-			}
-		}
-
-		// Enforce Layout Grid for multi-column containers
-		if ( $type === 'container' && $node_columns > 1 ) {
-			$final_styles['display'] = 'grid';
-			$final_styles['grid-template-columns'] = "repeat({$node_columns}, 1fr)";
-			
-			if ( empty( $final_styles['gap'] ) ) {
-				$final_styles['gap'] = '20px';
-			}
-		}
-
 		// Background image capability for any element
 		$bg_url = '';
 		if ( isset( $content_data[ $field . '_bg_url' ] ) && ! empty( $content_data[ $field . '_bg_url' ] ) ) {
@@ -647,10 +626,9 @@ function rcb_render_visual_nodes_with_visibility( $nodes, $content_data, $styles
 			$bg_url = esc_url( $bg_url );
 			$bg_rules = "background-image: url('{$bg_url}') !important; background-size: cover !important; background-position: center !important; background-repeat: no-repeat !important;";
 			$style_registry .= "{$selector} { {$bg_rules} }\n";
-			$final_styles['background-image'] = "url('{$bg_url}')";
 		}
 
-		$style_attr = rcb_build_inline_style( $final_styles, $type );
+		$style_attr = '';
 
 		// 5. Final Dispatch
 		$node_html = "<!-- RCB Node: {$id} | Type: {$type} | Columns: {$node_columns} | Instance: {$instance_id} -->\n";
