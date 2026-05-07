@@ -801,6 +801,8 @@ function rcb_render_advance_dynamic_slider_block( $attributes, $content ) {
 	$btn_bg_color = isset( $attributes['btnBgColor'] ) ? $attributes['btnBgColor'] : '#3b82f6';
 	$btn_border_radius = isset( $attributes['btnBorderRadius'] ) ? intval( $attributes['btnBorderRadius'] ) : 4;
 	$btn_font_size = isset( $attributes['btnFontSize'] ) ? intval( $attributes['btnFontSize'] ) : 16;
+	$arrow_color = isset( $attributes['arrowColor'] ) ? $attributes['arrowColor'] : '#ffffff';
+	$dot_color = isset( $attributes['dotColor'] ) ? $attributes['dotColor'] : '#ffffff';
 
 	$args = array(
 		'post_type' => $post_type,
@@ -840,12 +842,27 @@ function rcb_render_advance_dynamic_slider_block( $attributes, $content ) {
 			--rcb-btn-bg: {$btn_bg_color}; 
 			--rcb-btn-radius: {$btn_border_radius}px; 
 		}
+		.rcb-instance-{$unique_id} .swiper-button-next,
+		.rcb-instance-{$unique_id} .swiper-button-prev {
+			color: {$arrow_color} !important;
+		}
+		.rcb-instance-{$unique_id} .swiper-pagination-bullet-active {
+			background: {$dot_color} !important;
+		}
 	";
 
 	if ( $query->have_posts() ) {
 		$final_output .= sprintf(
-			'<div class="rcb-slider swiper rcb-dynamic-slider rcb-instance-%s">',
-			esc_attr( $unique_id )
+			'<div class="rcb-slider swiper rcb-dynamic-slider rcb-instance-%s" data-arrows="%s" data-dots="%s" data-autoplay="%s" data-autoplay-delay="%d" data-loop="%s" data-effect="%s" data-slides-per-view="%s" data-space-between="%s">',
+			esc_attr( $unique_id ),
+			( isset($attributes['arrows']) && $attributes['arrows'] ) ? 'true' : 'false',
+			( isset($attributes['dots']) && $attributes['dots'] ) ? 'true' : 'false',
+			( isset($attributes['autoplay']) && $attributes['autoplay'] ) ? 'true' : 'false',
+			isset($attributes['autoplayDelay']) ? intval($attributes['autoplayDelay']) : 3000,
+			( isset($attributes['loop']) && $attributes['loop'] ) ? 'true' : 'false',
+			isset($attributes['effect']) ? esc_attr($attributes['effect']) : 'slide',
+			esc_attr( rcb_get_responsive_value($attributes['slidesPerView'] ?? 1, 'desktop') ),
+			esc_attr( rcb_get_responsive_value($attributes['spaceBetween'] ?? 0, 'desktop') )
 		);
 
 		$final_output .= '<div class="swiper-wrapper">';
@@ -895,7 +912,17 @@ function rcb_render_advance_dynamic_slider_block( $attributes, $content ) {
 			$final_output .= '</div></div>';
 		}
 
-		$final_output .= '</div></div>';
+		$final_output .= '</div>'; // End swiper-wrapper
+
+		if ( isset($attributes['arrows']) && $attributes['arrows'] ) {
+			$final_output .= '<div class="swiper-button-next"></div>';
+			$final_output .= '<div class="swiper-button-prev"></div>';
+		}
+		if ( isset($attributes['dots']) && $attributes['dots'] ) {
+			$final_output .= '<div class="swiper-pagination"></div>';
+		}
+
+		$final_output .= '</div>'; // End swiper
 		wp_reset_postdata();
 	}
 
