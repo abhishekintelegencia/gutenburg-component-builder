@@ -596,6 +596,15 @@ function rcb_render_visual_nodes_with_visibility( $nodes, $content_data, $styles
 			if ( ! empty( $raw_styles['iconColor'] ) )   $icon_init_css .= "color: {$raw_styles['iconColor']} !important;";
 			if ( ! empty( $raw_styles['iconBgColor'] ) ) $icon_init_css .= "background-color: {$raw_styles['iconBgColor']} !important;";
 			
+			if ( ! empty( $raw_styles['iconBorderColor'] ) ) {
+				$icon_init_css .= "border-color: {$raw_styles['iconBorderColor']} !important; border-style: solid !important;";
+			}
+			$i_border_width = $raw_styles['iconBorderWidth'] ?? '';
+			if ( $i_border_width !== '' ) {
+				$i_bw = is_numeric( $i_border_width ) ? "{$i_border_width}rem" : $i_border_width;
+				$icon_init_css .= "border-width: {$i_bw} !important;";
+			}
+			
 			if ( ! empty( $icon_init_css ) ) {
 				$i_sel = ( ! empty( $instance_id ) ) ? ".rcb-instance-{$instance_id} .{$id} .rcb-button-icon" : ".{$id} .rcb-button-icon";
 				$style_registry .= "{$i_sel} { {$icon_init_css} }\n";
@@ -607,6 +616,11 @@ function rcb_render_visual_nodes_with_visibility( $nodes, $content_data, $styles
 			
 			$ih_color = $raw_styles['iconHoverColor'] ?? '';
 			if ( ! empty( $ih_color ) ) $icon_hover_css .= "color: {$ih_color} !important;";
+			
+			$ih_border_color = $raw_styles['iconHoverBorderColor'] ?? '';
+			if ( ! empty( $ih_border_color ) ) {
+				$icon_hover_css .= "border-color: {$ih_border_color} !important; border-style: solid !important;";
+			}
 			
 			if ( ! empty( $icon_hover_css ) ) {
 				$ih_sel = ( ! empty( $instance_id ) ) ? ".rcb-instance-{$instance_id} .{$id}:hover .rcb-button-icon" : ".{$id}:hover .rcb-button-icon";
