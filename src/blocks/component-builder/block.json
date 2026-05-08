@@ -9,9 +9,10 @@
   "description": "Dynamic component block from a selected template.",
   "supports": {
     "html": false,
-    "align": true
+    "align": ["wide", "full"]
   },
   "attributes": {
+    "align": { "type": "string", "default": "full" },
     "templateId": { "type": "number", "default": 0 },
     "content": { "type": "object", "default": {} },
     "styles": { "type": "object", "default": {} },

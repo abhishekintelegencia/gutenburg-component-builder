@@ -63,13 +63,13 @@ $styles = [
         'display' => ($style === 'text' ? 'none' : 'flex') . ' !important',
         'align-items' => 'center !important',
         'justify-content' => 'center !important',
-        'width' => '44px !important',
-        'height' => '44px !important',
+        'width' => '1.8em !important',
+        'height' => '1.8em !important',
         'line-height' => '1 !important',
     ],
     '#' . $unique_id . ' .rcb-social-item-icon svg' => [
-        'width' => ($attributes['iconSize']['desktop'] ?? '24px') . ' !important',
-        'height' => ($attributes['iconSize']['desktop'] ?? '24px') . ' !important',
+        'width' => '1em !important',
+        'height' => '1em !important',
         'display' => 'block !important',
     ],
     // Item Hover

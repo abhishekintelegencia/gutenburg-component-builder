@@ -469,11 +469,11 @@ const renderVisualStructure = (nodes, post, parentContext, context) => {
                     borderRadius: '50%',
                     fontSize: `${iconSize}em`,
                     lineHeight: 1,
-                    marginLeft: iconMode === 'Icon with Bg' ? '4px' : '0',
+                    marginLeft: iconMode === 'Icon with Bg' ? '10px' : '0',
                     transition: 'all 0.3s ease-in-out',
                     ...(iconMode === 'Icon with Bg' ? {
-                        width: `${iconSize * 1.875}em`,
-                        height: `${iconSize * 1.875}em`,
+                        width: '2.2em',
+                        height: '2.2em',
                         borderWidth: `${nodeStyles.iconBorderWidth || 0.1}rem`,
                         borderStyle: 'solid',
                     } : {}),
@@ -754,46 +754,15 @@ export default function Edit({ attributes, setAttributes, clientId }) {
                     configurableFields.forEach(node => {
                         const nodeStyle = styles[node.field] || {};
                         const selectorBase = `.rcb-instance-${clientId} .${node.id}`;
-                        
-                        let dStr = '';
-                        let tStr = '';
-                        let mStr = '';
+                        const rulesMap = {
+                            desktop: { base: [], hover: [], icon: [], iconHover: [] },
+                            tablet: { base: [], hover: [], icon: [], iconHover: [] },
+                            mobile: { base: [], hover: [], icon: [], iconHover: [] }
+                        };
 
-                        // Enforce Mobile 100% Column
-                        if (node.type === 'column') {
-                            let wD = nodeStyle.customColumnWidth && (typeof nodeStyle.customColumnWidth === 'object' ? nodeStyle.customColumnWidth.desktop : nodeStyle.customColumnWidth);
-                            let wT = nodeStyle.customColumnWidth && typeof nodeStyle.customColumnWidth === 'object' ? nodeStyle.customColumnWidth.tablet : undefined;
-                            let wM = nodeStyle.customColumnWidth && typeof nodeStyle.customColumnWidth === 'object' ? nodeStyle.customColumnWidth.mobile : undefined;
-                            
-                            let uD = nodeStyle.customColumnWidthUnit && (typeof nodeStyle.customColumnWidthUnit === 'object' ? nodeStyle.customColumnWidthUnit.desktop : nodeStyle.customColumnWidthUnit) || '%';
-                            let uT = nodeStyle.customColumnWidthUnit && typeof nodeStyle.customColumnWidthUnit === 'object' ? nodeStyle.customColumnWidthUnit.tablet : uD;
-                            let uM = nodeStyle.customColumnWidthUnit && typeof nodeStyle.customColumnWidthUnit === 'object' ? nodeStyle.customColumnWidthUnit.mobile : uT;
-
-                            if (wD) dStr += `width: ${wD}${uD} !important; flex: 0 1 ${wD}${uD} !important;`;
-                            if (wT) tStr += `width: ${wT}${uT} !important; flex: 0 1 ${wT}${uT} !important;`;
-                            if (wM) mStr += `width: ${wM}${uM} !important; flex: 0 1 ${wM}${uM} !important;`;
-
-                            if (!wM) {
-                                mStr += `width: 100% !important; flex: 1 1 100% !important; max-width: 100% !important; overflow: visible !important;`;
-                            }
-                        }
-                        
-                        // Enforce Grid for Containers
-                        if (node.type === 'container' && (node.columns || 1) > 1) {
-                            if (!nodeStyle.display) dStr += `display: grid !important;`;
-                            if (!nodeStyle.gridTemplateColumns) dStr += `grid-template-columns: repeat(${node.columns}, 1fr) !important;`;
-                            if (!nodeStyle.gap && !nodeStyle.gridGap) dStr += `gap: 20px !important;`;
-                        }
-
-                        // Specific editor fallbacks
-                        if (node.type === 'column') {
-                            dStr += `width: 100% !important; max-width: 100% !important;`;
-                        }
-                        if (node.type === 'image') {
-                            dStr += `width: 100% !important; height: auto !important; object-fit: cover;`;
-                        }
+                        // Always ensure a fallback min-height for empty layout containers in editor
                         if (!nodeStyle.minHeight && (node.type === 'container' || node.type === 'column' || node.type === 'image')) {
-                            dStr += `min-height: 200px !important;`;
+                            rulesMap.desktop.base.push(`min-height: 200px !important;`);
                         }
 
                         Object.keys(nodeStyle).forEach(prop => {
@@ -803,27 +772,34 @@ export default function Edit({ attributes, setAttributes, clientId }) {
                             const values = (typeof rawVal === 'object' && rawVal !== null) ? rawVal : { desktop: rawVal };
                             
                             let propName = prop.replace(/([A-Z])/g, "-$1").toLowerCase();
-                            if (propName === 'display-mode') propName = 'display';
-                            if (propName === 'flex-gap' || propName === 'grid-gap') propName = 'gap';
                             if (propName === 'border-radius-rem') propName = 'border-radius';
                             if (propName === 'border-width-rem') propName = 'border-width';
-
-                            // Map hover properties to actual CSS
-                            let isHover = false;
+                            if (propName === 'display-mode') propName = 'display';
+                            if (propName === 'flex-gap' || propName === 'grid-gap') propName = 'gap';
+                            
+                            let targetList = 'base';
                             if (propName.startsWith('hover-')) {
                                 propName = propName.replace('hover-', '');
-                                if (propName === 'underline') {
-                                    propName = 'text-decoration';
-                                    values.desktop = values.desktop ? 'underline' : 'none';
-                                }
-                                isHover = true;
+                                if (propName === 'bg-color' || propName === 'background-color') propName = 'background-color';
+                                if (propName === 'text-color') propName = 'color';
+                                targetList = 'hover';
                             } else if (propName.startsWith('icon-hover-')) {
                                 propName = propName.replace('icon-hover-', '');
-                                isHover = 'icon';
+                                if (propName === 'bg-color' || propName === 'background-color') propName = 'background-color';
+                                if (propName === 'text-color') propName = 'color';
+                                targetList = 'iconHover';
                             } else if (propName.startsWith('icon-')) {
                                 propName = propName.replace('icon-', '');
-                                isHover = 'icon-base';
+                                if (propName === 'bg-color' || propName === 'background-color') propName = 'background-color';
+                                if (propName === 'text-color') propName = 'color';
+                                targetList = 'icon';
                             }
+
+                             // Property Cleanup Pass
+                            if (propName === 'bg-color' || propName === 'background-color') propName = 'background-color';
+                            if (propName === 'text-color' || propName === 'font-color') propName = 'color';
+                            if (propName === 'border-radius-rem') propName = 'border-radius';
+                            if (propName === 'border-width-rem') propName = 'border-width';
 
                             ['desktop', 'tablet', 'mobile'].forEach(dev => {
                                 let val = values[dev];
@@ -831,7 +807,7 @@ export default function Edit({ attributes, setAttributes, clientId }) {
                                 
                                 let cleanVal = String(val).replace(/ !important/gi, '');
                                 let suffix = '';
-                                if (['font-size', 'margin', 'padding', 'gap', 'border-width', 'letter-spacing', 'min-height', 'min-width', 'height', 'width', 'flex-basis'].includes(propName) && !isNaN(cleanVal)) {
+                                if (['font-size', 'margin', 'padding', 'gap', 'border-width', 'border-radius', 'letter-spacing', 'min-height', 'min-width', 'height', 'width', 'flex-basis'].includes(propName) && !isNaN(cleanVal)) {
                                     suffix = 'px';
                                 }
                                 if (propName === 'line-height' && !isNaN(cleanVal) && parseFloat(cleanVal) > 5) {
@@ -839,29 +815,42 @@ export default function Edit({ attributes, setAttributes, clientId }) {
                                 }
                                 if (prop === 'borderRadiusRem' || prop === 'borderWidthRem' || prop === 'iconBorderWidth') {
                                     suffix = 'rem';
-                                    if (prop === 'borderWidthRem' || prop === 'iconBorderWidth') cleanVal += `${suffix} !important; border-style: solid`;
                                 }
-
-                                const rule = `${propName}: ${cleanVal}${suffix} !important; `;
                                 
-                                let ruleWrapped = rule;
-                                if (isHover === true) {
-                                    ruleWrapped = `} .rcb-instance-${clientId} .rcb-button-wrapper .rcb-button.${node.id}:hover { ${rule}`;
-                                } else if (isHover === 'icon') {
-                                    ruleWrapped = `} .rcb-instance-${clientId} .rcb-button-wrapper .rcb-button.${node.id}:hover .rcb-button-icon { ${rule}`;
-                                } else if (isHover === 'icon-base') {
-                                    ruleWrapped = `} .rcb-instance-${clientId} .${node.id} .rcb-button-icon { ${rule}`;
+                                if (propName === 'border-width' || propName === 'border-color') {
+                                    cleanVal += `${suffix} !important; border-style: solid`;
+                                    suffix = ''; // prevent double suffix
                                 }
 
-                                if (dev === 'desktop') dStr += ruleWrapped;
-                                if (dev === 'tablet') tStr += ruleWrapped;
-                                if (dev === 'mobile') mStr += ruleWrapped;
+                                const rule = `${propName}: ${cleanVal}${suffix} !important;`;
+                                rulesMap[dev][targetList].push(rule);
                             });
                         });
                         
-                        if (dStr) desktopCss += `${selectorBase} { ${dStr} }\n`;
-                        if (tStr) tabletCss += `.rcb-instance-${clientId} .rcb-preview-tablet .${node.id}, .rcb-instance-${clientId} .rcb-preview-mobile .${node.id} { ${tStr} }\n`;
-                        if (mStr) mobileCss += `.rcb-instance-${clientId} .rcb-preview-mobile .${node.id} { ${mStr} }\n`;
+                        ['desktop', 'tablet', 'mobile'].forEach(dev => {
+                            let cssStr = '';
+                            
+                            const selBase = dev === 'desktop' ? selectorBase : 
+                                            (dev === 'tablet' ? `.rcb-instance-${clientId} .rcb-preview-tablet .${node.id}, .rcb-instance-${clientId} .rcb-preview-mobile .${node.id}` : 
+                                                                `.rcb-instance-${clientId} .rcb-preview-mobile .${node.id}`);
+                                                                
+                            if (rulesMap[dev].base.length > 0) {
+                                cssStr += `${selBase} { ${rulesMap[dev].base.join(' ')} }\n`;
+                            }
+                            if (rulesMap[dev].hover.length > 0) {
+                                cssStr += `${selBase}:hover { ${rulesMap[dev].hover.join(' ')} }\n`;
+                            }
+                            if (rulesMap[dev].icon.length > 0) {
+                                cssStr += `${selBase} .rcb-button-icon { ${rulesMap[dev].icon.join(' ')} }\n`;
+                            }
+                            if (rulesMap[dev].iconHover.length > 0) {
+                                cssStr += `${selBase}:hover .rcb-button-icon { ${rulesMap[dev].iconHover.join(' ')} }\n`;
+                            }
+                            
+                            if (dev === 'desktop') desktopCss += cssStr;
+                            if (dev === 'tablet') tabletCss += cssStr;
+                            if (dev === 'mobile') mobileCss += cssStr;
+                        });
                     });
 
                     // Global Refinements
