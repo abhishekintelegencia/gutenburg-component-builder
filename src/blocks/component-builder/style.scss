@@ -204,3 +204,27 @@
 
 
 
+
+/* RCB Base Frontend Reset */
+.wp-block-reusable-component-builder-block {
+    box-sizing: border-box;
+}
+
+.wp-block-reusable-component-builder-block * {
+    box-sizing: border-box;
+}
+
+.rcb-container,
+.rcb-column,
+.rcb-heading,
+.rcb-text,
+.rcb-image,
+.rcb-testimonial {
+    margin: 0;
+    padding: 0;
+}
+
+.rcb-image {
+    display: block;
+    max-width: 100%;
+}
