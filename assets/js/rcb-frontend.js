@@ -1,8 +1,8 @@
-document.addEventListener('DOMContentLoaded', function() {
-    document.body.addEventListener('click', function(e) {
+document.addEventListener('DOMContentLoaded', function () {
+    document.body.addEventListener('click', function (e) {
         const pageLink = e.target.closest('.rcb-pagination a.page-numbers');
         if (!pageLink) return;
-        
+
         e.preventDefault();
         console.log('RCB Pagination clicked', pageLink.getAttribute('href'));
 
@@ -15,7 +15,7 @@ document.addEventListener('DOMContentLoaded', function() {
         // Extract page number from URL
         const href = pageLink.getAttribute('href');
         let pageNum = 1;
-        
+
         // Try to get page from format /page/2/ or ?paged=2
         const pageMatch = href.match(/\/page\/(\d+)/);
         if (pageMatch) {
@@ -50,47 +50,47 @@ document.addEventListener('DOMContentLoaded', function() {
             method: 'POST',
             body: formData
         })
-        .then(response => response.json())
-        .then(data => {
-            if (data.success && data.data && data.data.html) {
-                const tempDiv = document.createElement('div');
-                tempDiv.innerHTML = data.data.html;
+            .then(response => response.json())
+            .then(data => {
+                if (data.success && data.data && data.data.html) {
+                    const tempDiv = document.createElement('div');
+                    tempDiv.innerHTML = data.data.html;
 
-                // Remove the previous style tag if it exists (the PHP renderer prepends <style> before the wrapper)
-                const prev = wrapper.previousElementSibling;
-                if (prev && prev.tagName.toLowerCase() === 'style') {
-                    prev.remove();
-                }
-
-                // Replace the wrapper with the new HTML elements (which includes both <style> and <div class="rcb-loop-wrapper">)
-                wrapper.replaceWith(...tempDiv.childNodes);
-                
-                // Scroll up slightly so the user sees the top of the new items
-                // Only if the top of the wrapper is above the viewport
-                // We use the new wrapper that got inserted
-                setTimeout(() => {
-                    const newWrapper = document.querySelector(`[data-rcb-attributes='${attributesData}']`);
-                    if (newWrapper) {
-                        const rect = newWrapper.getBoundingClientRect();
-                        if (rect.top < 0) {
-                            newWrapper.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                        }
+                    // Remove the previous style tag if it exists (the PHP renderer prepends <style> before the wrapper)
+                    const prev = wrapper.previousElementSibling;
+                    if (prev && prev.tagName.toLowerCase() === 'style') {
+                        prev.remove();
                     }
-                }, 50);
 
-            }
-        })
-        .catch(err => {
-            console.error('RCB Pagination error:', err);
-        })
-        .finally(() => {
-            wrapper.style.opacity = '1';
-            wrapper.style.pointerEvents = 'all';
-        });
+                    // Replace the wrapper with the new HTML elements (which includes both <style> and <div class="rcb-loop-wrapper">)
+                    wrapper.replaceWith(...tempDiv.childNodes);
+
+                    // Scroll up slightly so the user sees the top of the new items
+                    // Only if the top of the wrapper is above the viewport
+                    // We use the new wrapper that got inserted
+                    setTimeout(() => {
+                        const newWrapper = document.querySelector(`[data-rcb-attributes='${attributesData}']`);
+                        if (newWrapper) {
+                            const rect = newWrapper.getBoundingClientRect();
+                            if (rect.top < 0) {
+                                newWrapper.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                            }
+                        }
+                    }, 50);
+
+                }
+            })
+            .catch(err => {
+                console.error('RCB Pagination error:', err);
+            })
+            .finally(() => {
+                wrapper.style.opacity = '1';
+                wrapper.style.pointerEvents = 'all';
+            });
     });
 
     // RCB Accordion Toggle Logic
-    document.body.addEventListener('click', function(e) {
+    document.body.addEventListener('click', function (e) {
         const header = e.target.closest('.rcb-accordion-header');
         if (!header) return;
 
@@ -100,7 +100,7 @@ document.addEventListener('DOMContentLoaded', function() {
         const wrapper = item.closest('.rcb-accordion-wrapper');
         const isHorizontal = wrapper && wrapper.classList.contains('rcb-acc-horizontal');
         const isOpen = item.classList.contains('is-open');
-        
+
         // If not horizontal, close other items (standard accordion behavior)
         if (!isHorizontal && wrapper) {
             const items = wrapper.querySelectorAll('.rcb-accordion-item');
@@ -128,14 +128,14 @@ document.addEventListener('DOMContentLoaded', function() {
     // RCB Tabs Initialization and Logic
     function initTabs() {
         const tabWrappers = document.querySelectorAll('.rcb-tabs-wrapper');
-        
+
         tabWrappers.forEach(wrapper => {
             const nav = wrapper.querySelector('.rcb-tabs-nav');
             // Select all possible tab items and filter for those with a valid data-label
             // This is safer than restrictive CSS selectors that might fail due to nesting
             const allItems = wrapper.querySelectorAll('.rcb-tab-item');
             const tabItems = Array.from(allItems).filter(item => item.hasAttribute('data-label'));
-            
+
             if (!nav || tabItems.length === 0) return;
             if (nav.children.length > 0) return; // Already initialized
 
@@ -144,19 +144,19 @@ document.addEventListener('DOMContentLoaded', function() {
                 const iconClass = item.getAttribute('data-icon');
                 const navItem = document.createElement('div');
                 navItem.className = 'rcb-tabs-nav-item' + (index === 0 ? ' is-active' : '');
-                
+
                 let iconHtml = '';
                 if (iconClass) {
                     iconHtml = `<span class="rcb-tabs-nav-icon dashicons ${iconClass}"></span> `;
                 }
-                
+
                 navItem.innerHTML = `${iconHtml}<span class="rcb-tabs-nav-label">${label}</span>`;
-                
+
                 navItem.addEventListener('click', () => {
                     // Update Nav
                     wrapper.querySelectorAll('.rcb-tabs-nav-item').forEach(i => i.classList.remove('is-active'));
                     navItem.classList.add('is-active');
-                    
+
                     // Update Content
                     tabItems.forEach(child => child.classList.add('is-hidden'));
                     item.classList.remove('is-hidden');
@@ -175,7 +175,7 @@ document.addEventListener('DOMContentLoaded', function() {
     initTabs();
 
     // --- RCB Header Logic ---
-    
+
     // Sticky Header
     const header = document.querySelector('.rcb-header-wrapper.rcb-header-sticky');
     if (header) {
@@ -227,10 +227,10 @@ document.addEventListener('DOMContentLoaded', function() {
                     e.preventDefault();
                     const parent = link.parentElement;
                     const dropdown = parent.querySelector('.rcb-dropdown-container');
-                    
+
                     if (dropdown) {
                         const isOpen = parent.classList.contains('mobile-open');
-                        
+
                         // Close others
                         mobileMenu.querySelectorAll('.mobile-open').forEach(openItem => {
                             if (openItem !== parent) openItem.classList.remove('mobile-open');
@@ -257,7 +257,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // --- Desktop Click-to-Open (Arrow) ---
     document.querySelectorAll('.rcb-header-nav .rcb-dropdown-toggle').forEach(toggle => {
-        toggle.addEventListener('click', function(e) {
+        toggle.addEventListener('click', function (e) {
             e.stopPropagation();
             const parentLi = this.closest('.rcb-nav-item');
             if (!parentLi) return;
@@ -274,7 +274,7 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 
     // Close on click outside
-    document.addEventListener('click', function(e) {
+    document.addEventListener('click', function (e) {
         if (!e.target.closest('.rcb-nav-item.has-dropdown')) {
             document.querySelectorAll('.rcb-nav-item.is-active').forEach(item => {
                 item.classList.remove('is-active');

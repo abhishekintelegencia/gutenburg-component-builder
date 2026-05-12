@@ -1,1 +1,4 @@
 node_modules
+test-cases.csv
+.~lock.test-cases.csv#
+*.csv
