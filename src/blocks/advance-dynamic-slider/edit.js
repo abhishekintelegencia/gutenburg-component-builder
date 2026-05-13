@@ -464,7 +464,7 @@ export default function Edit( { attributes, setAttributes } ) {
                             
                             return (
                                 <div key={post.id} className={`rcb-slide-item v-align-${verticalAlignment}`} style={{ 
-                                    flex: `0 0 calc(${100/getResp(slidesPerView)}% - ${getResp(spaceBetween)}px)`,
+                                    flex: `0 0 calc(${100/getResp(slidesPerView)}% - ${(getResp(spaceBetween) * (getResp(slidesPerView) - 1)) / getResp(slidesPerView)}px)`,
                                     backgroundImage: bgType === 'image' && mediaUrl ? `url(${mediaUrl})` : 'none',
                                     backgroundColor: (bgType === 'color' || (bgType === 'image' && !mediaUrl)) ? bgColor : 'transparent',
                                     backgroundSize: 'cover',

@@ -21,7 +21,7 @@
         "loop": { "type": "boolean", "default": true },
         "effect": { "type": "string", "default": "slide" },
         "slidesPerView": { "type": "object", "default": { "desktop": 1 } },
-        "spaceBetween": { "type": "object", "default": { "desktop": 0 } },
+        "spaceBetween": { "type": "object", "default": { "desktop": 5 } },
         "arrowColor": { "type": "string", "default": "#ffffff" },
         "dotColor": { "type": "string", "default": "#3b82f6" },
         "height": { "type": "object", "default": { "desktop": "500px" } },
