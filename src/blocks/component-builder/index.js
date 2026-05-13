@@ -10,8 +10,8 @@ registerBlockType( metadata.name, {
 	save: () => <InnerBlocks.Content />,
 } );
 
-apiFetch({ path: '/rcb/v1/templates/' }).then((templates) => {
-    templates.forEach(template => {
+const registerVariations = (templates) => {
+    templates.forEach((template, index) => {
         registerBlockVariation(metadata.name, {
             name: `template-${template.id}`,
             title: template.title || `Component ${template.id}`,
@@ -21,7 +21,14 @@ apiFetch({ path: '/rcb/v1/templates/' }).then((templates) => {
                 mode: template.type || 'static'
             },
             isActive: (blockAttributes) => blockAttributes.templateId === template.id,
-            scope: ['inserter']
+            scope: ['inserter'],
+            isDefault: index === 0
         });
     });
-}).catch(() => {});
+};
+
+if (window.rcbTemplates) {
+    registerVariations(window.rcbTemplates);
+} else {
+    apiFetch({ path: '/rcb/v1/templates/' }).then(registerVariations).catch(() => {});
+}
