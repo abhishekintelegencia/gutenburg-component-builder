@@ -9,28 +9,88 @@
   "description": "Dynamic component block from a selected template.",
   "supports": {
     "html": false,
-    "align": ["wide", "full"]
+    "align": [
+      "wide",
+      "full"
+    ]
   },
   "attributes": {
-    "align": { "type": "string", "default": "full" },
-    "templateId": { "type": "number", "default": 0 },
-    "content": { "type": "object", "default": {} },
-    "styles": { "type": "object", "default": {} },
-    "uniqueId": { "type": "string", "default": "" },
-    "mode": { "type": "string", "default": "static" },
-    "postType": { "type": "string", "default": "post" },
-    "layout": { "type": "string", "default": "grid" },
-    "columns": { "type": "number", "default": 3 },
-    "taxonomy": { "type": "string", "default": "" },
-    "termId": { "type": "number", "default": 0 },
-    "postsPerPage": { "type": "number", "default": 3 },
-    "pagination": { "type": "boolean", "default": false },
-    "showPaginationText": { "type": "boolean", "default": true },
-    "paginationFontSize": { "type": "string", "default": "1rem" },
-    "paginationTextColor": { "type": "string", "default": "" },
-    "paginationBgColor": { "type": "string", "default": "" },
-    "paginationActiveTextColor": { "type": "string", "default": "" },
-    "paginationActiveBgColor": { "type": "string", "default": "" },
+    "align": {
+      "type": "string",
+      "default": "full"
+    },
+    "templateId": {
+      "type": "number",
+      "default": 0
+    },
+    "content": {
+      "type": "object",
+      "default": {}
+    },
+    "styles": {
+      "type": "object",
+      "default": {}
+    },
+    "uniqueId": {
+      "type": "string",
+      "default": ""
+    },
+    "mode": {
+      "type": "string",
+      "default": "static"
+    },
+    "postType": {
+      "type": "string",
+      "default": "post"
+    },
+    "layout": {
+      "type": "string",
+      "default": "grid"
+    },
+    "columns": {
+      "type": "number",
+      "default": 3
+    },
+    "taxonomy": {
+      "type": "string",
+      "default": ""
+    },
+    "termId": {
+      "type": "number",
+      "default": 0
+    },
+    "postsPerPage": {
+      "type": "number",
+      "default": 3
+    },
+    "pagination": {
+      "type": "boolean",
+      "default": false
+    },
+    "showPaginationText": {
+      "type": "boolean",
+      "default": true
+    },
+    "paginationFontSize": {
+      "type": "string",
+      "default": "1rem"
+    },
+    "paginationTextColor": {
+      "type": "string",
+      "default": ""
+    },
+    "paginationBgColor": {
+      "type": "string",
+      "default": ""
+    },
+    "paginationActiveTextColor": {
+      "type": "string",
+      "default": ""
+    },
+    "paginationActiveBgColor": {
+      "type": "string",
+      "default": ""
+    },
     "visibilityVars": {
       "type": "object",
       "default": {

@@ -68,6 +68,35 @@ function rcb_register_blocks_recursive( $dir ) {
 				if ( isset( $metadata['name'] ) ) {
 					if ( $metadata['name'] === 'reusable-component-builder/block' ) {
 						$args['render_callback'] = 'rcb_render_component_builder_block';
+						
+						// Add variations in PHP so they show up even if the base block is hidden from inserter
+						$templates = get_posts(array(
+							'post_type'      => 'component_template',
+							'posts_per_page' => -1,
+							'post_status'    => 'publish'
+						));
+						
+						$variations = array();
+						$i = 0;
+						foreach ($templates as $t) {
+							$type = get_post_meta($t->ID, '_component_type', true);
+							$variations[] = array(
+								'name'       => 'template-' . $t->ID,
+								'title'      => $t->post_title ? $t->post_title : 'Component ' . $t->ID,
+								'icon'       => 'layout',
+								'attributes' => array(
+									'templateId' => $t->ID,
+									'mode'       => $type ? $type : 'static'
+								),
+								'isActive'   => array('templateId'),
+								'scope'      => array('inserter', 'block'),
+								'isDefault'  => ($i === 0)
+							);
+							$i++;
+						}
+						
+						$args['variations'] = $variations;
+						
 					} elseif ( $metadata['name'] === 'rcb/advance-dynamic-slider' ) {
 						$args['render_callback'] = 'rcb_render_advance_dynamic_slider_block';
 					}
@@ -85,7 +114,7 @@ function rcb_register_blocks_recursive( $dir ) {
 function rcb_register_blocks() {
 	rcb_register_blocks_recursive( RCB_PLUGIN_DIR . 'build/blocks' );
 }
-add_action('init', 'rcb_register_blocks');
+add_action('init', 'rcb_register_blocks', 20);
 
 
 // Add REST endpoint to fetch template structures reliably
@@ -176,6 +205,25 @@ function rcb_get_all_templates()
 	}
 	return rest_ensure_response($data);
 }
+
+function rcb_inject_templates_to_editor() {
+    $posts = get_posts(array(
+        'post_type' => 'component_template',
+        'posts_per_page' => -1,
+        'post_status' => 'publish'
+    ));
+    $templates = array();
+    foreach ($posts as $p) {
+        $type = get_post_meta($p->ID, '_component_type', true);
+        $templates[] = array(
+            'id' => $p->ID,
+            'title' => $p->post_title,
+            'type' => $type ? $type : 'visual'
+        );
+    }
+    echo '<script>window.rcbTemplates = ' . wp_json_encode($templates) . ';</script>';
+}
+add_action('admin_head', 'rcb_inject_templates_to_editor');
 
 function rcb_enqueue_frontend_scripts() {
 	$version = file_exists( RCB_PLUGIN_DIR . 'assets/js/rcb-frontend.js' ) ? filemtime( RCB_PLUGIN_DIR . 'assets/js/rcb-frontend.js' ) : RCB_VERSION;
