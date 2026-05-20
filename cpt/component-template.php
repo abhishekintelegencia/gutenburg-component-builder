@@ -5,20 +5,20 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 function rcb_register_component_template_cpt() {
 	$labels = array(
-		'name'                  => _x( 'Component Templates', 'Post type general name', 'reusable-component-builder' ),
-		'singular_name'         => _x( 'Component Template', 'Post type singular name', 'reusable-component-builder' ),
-		'menu_name'             => _x( 'Component Templates', 'Admin Menu text', 'reusable-component-builder' ),
-		'name_admin_bar'        => _x( 'Component Template', 'Add New on Toolbar', 'reusable-component-builder' ),
-		'add_new'               => __( 'Add New', 'reusable-component-builder' ),
-		'add_new_item'          => __( 'Add New Component Template', 'reusable-component-builder' ),
-		'new_item'              => __( 'New Component Template', 'reusable-component-builder' ),
-		'edit_item'             => __( 'Edit Component Template', 'reusable-component-builder' ),
-		'view_item'             => __( 'View Component Template', 'reusable-component-builder' ),
-		'all_items'             => __( 'All Component Templates', 'reusable-component-builder' ),
-		'search_items'          => __( 'Search Component Templates', 'reusable-component-builder' ),
-		'parent_item_colon'     => __( 'Parent Component Templates:', 'reusable-component-builder' ),
-		'not_found'             => __( 'No component templates found.', 'reusable-component-builder' ),
-		'not_found_in_trash'    => __( 'No component templates found in Trash.', 'reusable-component-builder' ),
+		'name'               => _x( 'Component Templates', 'Post type general name', 'reusable-component-builder' ),
+		'singular_name'      => _x( 'Component Template', 'Post type singular name', 'reusable-component-builder' ),
+		'menu_name'          => _x( 'Component Templates', 'Admin Menu text', 'reusable-component-builder' ),
+		'name_admin_bar'     => _x( 'Component Template', 'Add New on Toolbar', 'reusable-component-builder' ),
+		'add_new'            => __( 'Add New', 'reusable-component-builder' ),
+		'add_new_item'       => __( 'Add New Component Template', 'reusable-component-builder' ),
+		'new_item'           => __( 'New Component Template', 'reusable-component-builder' ),
+		'edit_item'          => __( 'Edit Component Template', 'reusable-component-builder' ),
+		'view_item'          => __( 'View Component Template', 'reusable-component-builder' ),
+		'all_items'          => __( 'All Component Templates', 'reusable-component-builder' ),
+		'search_items'       => __( 'Search Component Templates', 'reusable-component-builder' ),
+		'parent_item_colon'  => __( 'Parent Component Templates:', 'reusable-component-builder' ),
+		'not_found'          => __( 'No component templates found.', 'reusable-component-builder' ),
+		'not_found_in_trash' => __( 'No component templates found in Trash.', 'reusable-component-builder' ),
 	);
 
 	$args = array(
@@ -41,12 +41,16 @@ function rcb_register_component_template_cpt() {
 	register_post_type( 'component_template', $args );
 
 	// Register meta for storing structure
-	register_post_meta( 'component_template', '_component_structure', array(
-		'type'         => 'string',
-		'description'  => 'JSON breakdown of the component structure',
-		'single'       => true,
-		'show_in_rest' => true,
-	) );
+	register_post_meta(
+		'component_template',
+		'_component_structure',
+		array(
+			'type'         => 'string',
+			'description'  => 'JSON breakdown of the component structure',
+			'single'       => true,
+			'show_in_rest' => true,
+		)
+	);
 }
 add_action( 'init', 'rcb_register_component_template_cpt' );
 
@@ -66,20 +70,20 @@ add_action( 'add_meta_boxes', 'rcb_add_component_template_metabox' );
 function rcb_component_builder_html( $post ) {
 	// Render UI using React
 	$structure = get_post_meta( $post->ID, '_component_structure', true );
-	$type = get_post_meta( $post->ID, '_component_type', true );
-	$html = get_post_meta( $post->ID, '_component_html', true );
+	$type      = get_post_meta( $post->ID, '_component_type', true );
+	$html      = get_post_meta( $post->ID, '_component_html', true );
 	if ( empty( $structure ) ) {
 		$structure = wp_json_encode( array( 'structure' => array() ) );
 	}
-    if ( empty( $type ) ) {
-        $type = 'visual';
-    }
-	
+	if ( empty( $type ) ) {
+		$type = 'visual';
+	}
+
 	wp_nonce_field( 'rcb_save_template_meta', 'rcb_template_meta_nonce' );
-	
+
 	echo '<div id="rcb-template-builder-root"></div>';
 	echo '<input type="hidden" id="rcb_component_structure_input" name="_component_structure" value="' . esc_attr( $structure ) . '" />';
-    echo '<input type="hidden" id="rcb-template-type-data" name="_component_type" value="' . esc_attr( $type ) . '" />';
+	echo '<input type="hidden" id="rcb-template-type-data" name="_component_type" value="' . esc_attr( $type ) . '" />';
 	echo '<textarea id="rcb-html-data" name="_component_html" style="display:none;">' . esc_textarea( $html ) . '</textarea>';
 }
 
@@ -100,23 +104,23 @@ function rcb_save_component_template_meta( $post_id ) {
 		// Just validate it is JSON
 		// phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized, WordPress.Security.ValidatedSanitizedInput.MissingUnslash -- JSON is validated below.
 		$structure_data = wp_unslash( $_POST['_component_structure'] );
-		$decoded = json_decode( $structure_data );
+		$decoded        = json_decode( $structure_data );
 		if ( json_last_error() === JSON_ERROR_NONE ) {
 			update_post_meta( $post_id, '_component_structure', $structure_data );
 		}
 	}
-    if ( isset( $_POST['_component_type'] ) ) {
-        update_post_meta( $post_id, '_component_type', sanitize_text_field( $_POST['_component_type'] ) );
-    }
-    if ( isset( $_POST['_component_html'] ) ) {
-        if ( current_user_can('unfiltered_html') ) {
+	if ( isset( $_POST['_component_type'] ) ) {
+		update_post_meta( $post_id, '_component_type', sanitize_text_field( wp_unslash( $_POST['_component_type'] ) ) );
+	}
+	if ( isset( $_POST['_component_html'] ) ) {
+		if ( current_user_can( 'unfiltered_html' ) ) {
             // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized, WordPress.Security.ValidatedSanitizedInput.MissingUnslash -- HTML is allowed for this capability.
-            update_post_meta( $post_id, '_component_html', wp_unslash($_POST['_component_html']) );
-        } else {
+			update_post_meta( $post_id, '_component_html', wp_unslash( $_POST['_component_html'] ) );
+		} else {
             // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.MissingUnslash -- Unslashed before kses.
-            update_post_meta( $post_id, '_component_html', wp_kses_post( wp_unslash( $_POST['_component_html'] ) ) );
-        }
-    }
+			update_post_meta( $post_id, '_component_html', wp_kses_post( wp_unslash( $_POST['_component_html'] ) ) );
+		}
+	}
 }
 add_action( 'save_post_component_template', 'rcb_save_component_template_meta' );
 
@@ -135,9 +139,8 @@ function rcb_enqueue_admin_scripts( $hook ) {
 					$assets['version'],
 					true
 				);
-				
-				
-				wp_enqueue_style('wp-components');
+
+				wp_enqueue_style( 'wp-components' );
 				if ( file_exists( RCB_PLUGIN_DIR . 'build/builder/style-index.css' ) ) {
 					wp_enqueue_style(
 						'rcb-builder-css',
@@ -155,7 +158,7 @@ add_action( 'admin_enqueue_scripts', 'rcb_enqueue_admin_scripts' );
 // Add "Duplicate" row action to Component Templates list
 function rcb_duplicate_component_action( $actions, $post ) {
 	if ( $post->post_type === 'component_template' ) {
-		$url = wp_nonce_url( admin_url( 'admin.php?action=rcb_duplicate_component&post=' . $post->ID ), 'rcb_duplicate_' . $post->ID );
+		$url                  = wp_nonce_url( admin_url( 'admin.php?action=rcb_duplicate_component&post=' . $post->ID ), 'rcb_duplicate_' . $post->ID );
 		$actions['duplicate'] = '<a href="' . $url . '" title="' . esc_attr__( 'Duplicate this component', 'reusable-component-builder' ) . '">' . __( 'Duplicate', 'reusable-component-builder' ) . '</a>';
 	}
 	return $actions;
@@ -174,7 +177,7 @@ function rcb_handle_duplicate_action() {
 		}
 
 		$current_user = wp_get_current_user();
-		$new_post = array(
+		$new_post     = array(
 			'post_title'   => $post->post_title . ' (Copy)',
 			'post_content' => $post->post_content,
 			'post_status'  => 'draft',
@@ -193,8 +196,8 @@ function rcb_handle_duplicate_action() {
 				}
 			}
 
-			// Redirect back to the post list
-			wp_redirect( admin_url( 'edit.php?post_type=component_template' ) );
+			// Redirect back to the post list.
+			wp_safe_redirect( admin_url( 'edit.php?post_type=component_template' ) );
 			exit;
 		} else {
 			wp_die( esc_html__( 'Failed to duplicate the component.', 'reusable-component-builder' ) );
@@ -202,4 +205,3 @@ function rcb_handle_duplicate_action() {
 	}
 }
 add_action( 'admin_action_rcb_duplicate_component', 'rcb_handle_duplicate_action' );
-
