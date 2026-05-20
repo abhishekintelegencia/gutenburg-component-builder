@@ -558,9 +558,12 @@ const App = () => {
                             <h3>Template Builder</h3>
                             <p>Build your layout visually. Add components below and configure their unique field IDs.</p>
                         </div>
-                        <Button isPrimary onClick={() => setIsEditingGlobal(true)}>
-                            Global Component Settings (Root Block)
-                        </Button>
+                        {/* PHASE 2: Global Component Settings — hidden for Phase 1, do not remove */}
+                        {false && (
+                            <Button isPrimary onClick={() => setIsEditingGlobal(true)}>
+                                Global Component Settings (Root Block)
+                            </Button>
+                        )}
                     </div>
                     <div style={{background: '#fff', border: '1px solid #ddd', padding: '15px', borderRadius: '4px', width: '100%', display: 'flex', gap: '20px', alignItems: 'center'}}>
                         <strong style={{minWidth: '150px'}}>Component Type:</strong>

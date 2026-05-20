@@ -3,17 +3,17 @@
  * Plugin Name: Reusable Component Builder System
  * Description: Create reusable component templates via CPT and use them in Gutenberg blocks with independent content and styling.
  * Version: 1.0.0
- * Author: Antigravity
+ * Author: Intelegencia
  * Text Domain: reusable-component-builder
  */
 
-if (!defined('ABSPATH')) {
+if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define('RCB_PLUGIN_DIR', plugin_dir_path(__FILE__));
-define('RCB_PLUGIN_URL', plugin_dir_url(__FILE__));
-define('RCB_VERSION', '1.0.0');
+define( 'RCB_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
+define( 'RCB_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
+define( 'RCB_VERSION', '1.0.0' );
 
 require_once RCB_PLUGIN_DIR . 'cpt/component-template.php';
 require_once RCB_PLUGIN_DIR . 'core/renderer.php';
@@ -39,25 +39,28 @@ add_filter( 'block_categories', 'rcb_block_categories', 10, 2 ); // Backward com
  * Recursively register blocks from a directory.
  */
 function rcb_register_blocks_recursive( $dir ) {
-	if ( ! is_dir( $dir ) ) return;
+	if ( ! is_dir( $dir ) ) {
+		return;
+	}
 
 	$it = new DirectoryIterator( $dir );
 	foreach ( $it as $fileinfo ) {
 		if ( $fileinfo->isDir() && ! $fileinfo->isDot() ) {
-			$path = $fileinfo->getPathname();
+			$path       = $fileinfo->getPathname();
 			$block_json = $path . '/block.json';
-			
+
 			if ( file_exists( $block_json ) ) {
-				$metadata = json_decode( file_get_contents( $block_json ), true );
-				$args = array();
+			// phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents -- Reading a local plugin JSON file; wp_remote_get() is for HTTP requests only.
+				$metadata = json_decode( file_get_contents( $block_json ), true ); // phpcs:ignore
+				$args     = array();
 
 				// 1. Check for explicit render.php in the block folder
 				// We look in src/blocks/... for the PHP file as build/ blocks might not have it
 				$relative_path = str_replace( RCB_PLUGIN_DIR . 'build/blocks/', '', $path );
-				$render_php = RCB_PLUGIN_DIR . 'src/blocks/' . $relative_path . '/render.php';
+				$render_php    = RCB_PLUGIN_DIR . 'src/blocks/' . $relative_path . '/render.php';
 
 				if ( file_exists( $render_php ) ) {
-					$args['render_callback'] = function( $attributes, $content ) use ( $render_php ) {
+					$args['render_callback'] = function ( $attributes, $content ) use ( $render_php ) {
 						ob_start();
 						include $render_php;
 						return ob_get_clean();
@@ -68,35 +71,37 @@ function rcb_register_blocks_recursive( $dir ) {
 				if ( isset( $metadata['name'] ) ) {
 					if ( $metadata['name'] === 'reusable-component-builder/block' ) {
 						$args['render_callback'] = 'rcb_render_component_builder_block';
-						
+
 						// Add variations in PHP so they show up even if the base block is hidden from inserter
-						$templates = get_posts(array(
-							'post_type'      => 'component_template',
-							'posts_per_page' => -1,
-							'post_status'    => 'publish'
-						));
-						
+						$templates = get_posts(
+							array(
+								'post_type'      => 'component_template',
+								'posts_per_page' => -1,
+								'post_status'    => 'publish',
+							)
+						);
+
 						$variations = array();
-						$i = 0;
-						foreach ($templates as $t) {
-							$type = get_post_meta($t->ID, '_component_type', true);
+						$i          = 0;
+						foreach ( $templates as $t ) {
+							$type         = get_post_meta( $t->ID, '_component_type', true );
 							$variations[] = array(
 								'name'       => 'template-' . $t->ID,
 								'title'      => $t->post_title ? $t->post_title : 'Component ' . $t->ID,
 								'icon'       => 'layout',
 								'attributes' => array(
 									'templateId' => $t->ID,
-									'mode'       => $type ? $type : 'static'
+									'mode'       => $type ? $type : 'static',
 								),
-								'isActive'   => array('templateId'),
-								'scope'      => array('inserter', 'block'),
-								'isDefault'  => ($i === 0)
+								'isActive'   => array( 'templateId' ),
+								'scope'      => array( 'inserter', 'block' ),
+								'isDefault'  => ( $i === 0 ),
 							);
-							$i++;
+							++$i;
 						}
-						
+
 						$args['variations'] = $variations;
-						
+
 					} elseif ( $metadata['name'] === 'rcb/advance-dynamic-slider' ) {
 						$args['render_callback'] = 'rcb_render_advance_dynamic_slider_block';
 					}
@@ -114,37 +119,44 @@ function rcb_register_blocks_recursive( $dir ) {
 function rcb_register_blocks() {
 	rcb_register_blocks_recursive( RCB_PLUGIN_DIR . 'build/blocks' );
 }
-add_action('init', 'rcb_register_blocks', 20);
+add_action( 'init', 'rcb_register_blocks', 20 );
 
 
 // Add REST endpoint to fetch template structures reliably
-function rcb_register_template_rest_route()
-{
-	register_rest_route('rcb/v1', '/templates/', array(
-		'methods' => 'GET',
-		'callback' => 'rcb_get_all_templates',
-		'permission_callback' => '__return_true'
-	));
+function rcb_register_template_rest_route() {
+	register_rest_route(
+		'rcb/v1',
+		'/templates/',
+		array(
+			'methods'             => 'GET',
+			'callback'            => 'rcb_get_all_templates',
+			'permission_callback' => '__return_true',
+		)
+	);
 }
-add_action('rest_api_init', 'rcb_register_template_rest_route');
+add_action( 'rest_api_init', 'rcb_register_template_rest_route' );
 
 /**
  * Inject full post meta into REST API responses so the block editor preview can
  * resolve custom_meta dynamic fields (mirrors what get_post_meta() does on the frontend).
  */
 function rcb_inject_meta_into_rest( $response, $post, $request ) {
-	$data = $response->get_data();
+	$data          = $response->get_data();
 	$existing_meta = isset( $data['meta'] ) && is_array( $data['meta'] ) ? $data['meta'] : array();
-	$raw_meta = get_post_meta( $post->ID );
-	
+	$raw_meta      = get_post_meta( $post->ID );
+
 	foreach ( $raw_meta as $key => $values ) {
 		// Skip private/internal keys
-		if ( strpos( $key, '_' ) === 0 ) continue;
-		
-		// CRITICAL: Do not overwrite meta keys that are already correctly formatted 
+		if ( strpos( $key, '_' ) === 0 ) {
+			continue;
+		}
+
+		// CRITICAL: Do not overwrite meta keys that are already correctly formatted
 		// by WordPress core according to their registered REST API schema.
 		// This prevents "ast-page-background-meta is not of type object" errors.
-		if ( array_key_exists( $key, $existing_meta ) ) continue;
+		if ( array_key_exists( $key, $existing_meta ) ) {
+			continue;
+		}
 
 		if ( is_array( $values ) && count( $values ) === 1 ) {
 			$existing_meta[ $key ] = $values[0];
@@ -152,86 +164,99 @@ function rcb_inject_meta_into_rest( $response, $post, $request ) {
 			$existing_meta[ $key ] = $values;
 		}
 	}
-	
+
 	$data['meta'] = $existing_meta;
 	$response->set_data( $data );
 	return $response;
 }
-add_filter( 'rest_prepare_post',   'rcb_inject_meta_into_rest', 10, 3 );
-add_filter( 'rest_prepare_page',   'rcb_inject_meta_into_rest', 10, 3 );
+add_filter( 'rest_prepare_post', 'rcb_inject_meta_into_rest', 10, 3 );
+add_filter( 'rest_prepare_page', 'rcb_inject_meta_into_rest', 10, 3 );
 add_filter( 'rest_prepare_events', 'rcb_inject_meta_into_rest', 10, 3 );
 
 
-function rcb_register_events_cpt()
-{
-	register_post_type('events', array(
-		'labels' => array(
-			'name' => __('Events', 'reusable-component-builder'),
-			'singular_name' => __('Event', 'reusable-component-builder'),
-		),
-		'public' => true,
-		'has_archive' => true,
-		'show_in_rest' => true,
-		'supports' => array('title', 'editor', 'thumbnail', 'excerpt'),
-		'menu_icon' => 'dashicons-calendar-alt'
-	));
-	register_taxonomy('event_category', 'events', array(
-		'label' => __('Event Categories', 'reusable-component-builder'),
-		'hierarchical' => true,
-		'show_in_rest' => true,
-	));
+function rcb_register_events_cpt() {
+	register_post_type(
+		'events',
+		array(
+			'labels'       => array(
+				'name'          => __( 'Events', 'reusable-component-builder' ),
+				'singular_name' => __( 'Event', 'reusable-component-builder' ),
+			),
+			'public'       => true,
+			'has_archive'  => true,
+			'show_in_rest' => true,
+			'supports'     => array( 'title', 'editor', 'thumbnail', 'excerpt' ),
+			'menu_icon'    => 'dashicons-calendar-alt',
+		)
+	);
+	register_taxonomy(
+		'event_category',
+		'events',
+		array(
+			'label'        => __( 'Event Categories', 'reusable-component-builder' ),
+			'hierarchical' => true,
+			'show_in_rest' => true,
+		)
+	);
 }
-add_action('init', 'rcb_register_events_cpt');
+add_action( 'init', 'rcb_register_events_cpt' );
 
-function rcb_get_all_templates()
-{
-	$posts = get_posts(array(
-		'post_type' => 'component_template',
-		'posts_per_page' => -1,
-		'post_status' => 'publish'
-	));
-	$data = array();
-	foreach ($posts as $p) {
-		$structure = get_post_meta($p->ID, '_component_structure', true);
-		$type = get_post_meta($p->ID, '_component_type', true);
-		$html = get_post_meta($p->ID, '_component_html', true);
-		$data[] = array(
-			'id' => $p->ID,
-			'title' => $p->post_title,
-			'structure' => $structure ? json_decode($structure, true) : null,
-			'type' => $type ? $type : 'visual',
-			'html' => $html
+function rcb_get_all_templates() {
+	$posts = get_posts(
+		array(
+			'post_type'      => 'component_template',
+			'posts_per_page' => -1,
+			'post_status'    => 'publish',
+		)
+	);
+	$data  = array();
+	foreach ( $posts as $p ) {
+		$structure = get_post_meta( $p->ID, '_component_structure', true );
+		$type      = get_post_meta( $p->ID, '_component_type', true );
+		$html      = get_post_meta( $p->ID, '_component_html', true );
+		$data[]    = array(
+			'id'        => $p->ID,
+			'title'     => $p->post_title,
+			'structure' => $structure ? json_decode( $structure, true ) : null,
+			'type'      => $type ? $type : 'visual',
+			'html'      => $html,
 		);
 	}
-	return rest_ensure_response($data);
+	return rest_ensure_response( $data );
 }
 
 function rcb_inject_templates_to_editor() {
-    $posts = get_posts(array(
-        'post_type' => 'component_template',
-        'posts_per_page' => -1,
-        'post_status' => 'publish'
-    ));
-    $templates = array();
-    foreach ($posts as $p) {
-        $type = get_post_meta($p->ID, '_component_type', true);
-        $templates[] = array(
-            'id' => $p->ID,
-            'title' => $p->post_title,
-            'type' => $type ? $type : 'visual'
-        );
-    }
-    echo '<script>window.rcbTemplates = ' . wp_json_encode($templates) . ';</script>';
+	$posts     = get_posts(
+		array(
+			'post_type'      => 'component_template',
+			'posts_per_page' => -1,
+			'post_status'    => 'publish',
+		)
+	);
+	$templates = array();
+	foreach ( $posts as $p ) {
+		$type        = get_post_meta( $p->ID, '_component_type', true );
+		$templates[] = array(
+			'id'    => $p->ID,
+			'title' => $p->post_title,
+			'type'  => $type ? $type : 'visual',
+		);
+	}
+	echo '<script>window.rcbTemplates = ' . wp_json_encode( $templates ) . ';</script>';
 }
-add_action('admin_head', 'rcb_inject_templates_to_editor');
+add_action( 'admin_head', 'rcb_inject_templates_to_editor' );
 
 function rcb_enqueue_frontend_scripts() {
 	$version = file_exists( RCB_PLUGIN_DIR . 'assets/js/rcb-frontend.js' ) ? filemtime( RCB_PLUGIN_DIR . 'assets/js/rcb-frontend.js' ) : RCB_VERSION;
 	wp_enqueue_style( 'dashicons' );
-	wp_enqueue_script( 'rcb-frontend-js', RCB_PLUGIN_URL . 'assets/js/rcb-frontend.js', array('jquery'), $version, true );
-	wp_localize_script( 'rcb-frontend-js', 'rcbAjax', array(
-		'ajaxurl' => admin_url( 'admin-ajax.php' ),
-		'nonce'   => wp_create_nonce('rcb_ajax_nonce')
-	));
+	wp_enqueue_script( 'rcb-frontend-js', RCB_PLUGIN_URL . 'assets/js/rcb-frontend.js', array( 'jquery' ), $version, true );
+	wp_localize_script(
+		'rcb-frontend-js',
+		'rcbAjax',
+		array(
+			'ajaxurl' => admin_url( 'admin-ajax.php' ),
+			'nonce'   => wp_create_nonce( 'rcb_ajax_nonce' ),
+		)
+	);
 }
 add_action( 'wp_enqueue_scripts', 'rcb_enqueue_frontend_scripts' );
